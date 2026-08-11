@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<!--
+  Manual de Brigada · Evaluación estructural en campo
+  Copyright (C) 2026 Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez
+  Software libre bajo GNU AGPL v3. Vea <https://www.gnu.org/licenses/>.
+
+  Se compila con:  python3 docs/build_manual.py
+-->
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<title>Manual · Brigada · Evaluación estructural en campo</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 16mm; }
+@page :first { margin: 0; }
+
+:root{
+  --tinta:#0F172A; --tinta2:#334155; --tenue:#5E6E82;
+  --linea:#D9E0E8; --papel:#F4F7FA;
+  --azul:#0369A1; --azul-osc:#075985; --azul-tinte:#E8F4FB;
+  --verde:#15803D; --ambar:#B45309; --ambar-fondo:#FACC15; --ambar-tinta:#422006;
+  --rojo:#B91C1C; --rojo-tinte:#FDF1F1;
+}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+body{
+  margin:0; color:var(--tinta);
+  font:10.5pt/1.55 "Helvetica Neue",Helvetica,Arial,sans-serif;
+  hyphens:auto;
+}
+h1,h2,h3,h4{line-height:1.2; letter-spacing:-.01em; break-after:avoid}
+h1{font-size:20pt;margin:0 0 4mm}
+h2{font-size:15pt;margin:0 0 3mm;padding-bottom:2mm;border-bottom:2px solid var(--azul)}
+h3{font-size:12pt;margin:7mm 0 2mm;color:var(--azul-osc)}
+h4{font-size:10.5pt;margin:5mm 0 1.5mm}
+p{margin:0 0 3mm}
+ul,ol{margin:0 0 3mm; padding-left:5.5mm}
+li{margin-bottom:1.5mm}
+code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:9pt;
+  background:var(--papel);padding:.5mm 1.2mm;border-radius:1mm;border:1px solid var(--linea)}
+pre{background:var(--papel);border:1px solid var(--linea);border-left:3px solid var(--azul);
+  border-radius:1.5mm;padding:3mm 4mm;font-family:"SF Mono",Menlo,Consolas,monospace;
+  font-size:8.5pt;line-height:1.45;overflow-wrap:break-word;white-space:pre-wrap;
+  margin:0 0 4mm;break-inside:avoid}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+a{color:var(--azul-osc)}
+
+/* ---------- portada ---------- */
+.portada{height:297mm;padding:40mm 22mm 20mm;display:flex;flex-direction:column;
+  break-after:page;background:var(--papel)}
+.portada .marca{font-size:9pt;letter-spacing:.22em;text-transform:uppercase;
+  font-weight:700;color:var(--azul);margin-bottom:6mm}
+.portada h1{font-size:32pt;line-height:1.08;letter-spacing:-.025em;margin:0 0 5mm}
+.portada .bajada{font-size:13pt;color:var(--tinta2);line-height:1.45;max-width:120mm;margin:0 0 10mm}
+.semaforo-portada{display:flex;gap:3mm;margin:0 0 12mm}
+.semaforo-portada div{height:9mm;border-radius:1.5mm}
+.semaforo-portada .v{flex:1;background:var(--verde)}
+.semaforo-portada .a{flex:1.5;background:var(--ambar-fondo)}
+.semaforo-portada .r{flex:2.2;background:var(--rojo)}
+.portada .pie{margin-top:auto;font-size:9.5pt;color:var(--tinta2);line-height:1.65}
+.portada .pie strong{color:var(--tinta)}
+
+/* ---------- estructura ---------- */
+.parte{break-before:page;padding-top:4mm}
+.parte-cab{background:var(--azul);color:#fff;padding:7mm 8mm;border-radius:2mm;margin-bottom:7mm}
+.parte-cab .n{font-size:8.5pt;letter-spacing:.2em;text-transform:uppercase;opacity:.85;
+  font-weight:700;margin-bottom:2mm}
+.parte-cab h2{font-size:19pt;margin:0;border:0;padding:0;color:#fff}
+.parte-cab p{margin:2mm 0 0;font-size:10pt;opacity:.92}
+section{break-before:auto;margin-top:9mm}
+section:first-of-type{margin-top:0}
+h2{break-after:avoid}
+
+/* ---------- avisos ---------- */
+.aviso,.ojo,.nota-caja{border-radius:2mm;padding:4mm 5mm;margin:0 0 4mm;
+  font-size:9.5pt;line-height:1.5;break-inside:avoid}
+.aviso{background:var(--rojo-tinte);border:1px solid #F3C9C9;border-left:3.5px solid var(--rojo)}
+.ojo{background:#FFFBEB;border:1px solid #F5E4B0;border-left:3.5px solid var(--ambar)}
+.nota-caja{background:var(--azul-tinte);border:1px solid #C9E4F3;border-left:3.5px solid var(--azul)}
+.aviso strong,.ojo strong,.nota-caja strong{display:inline}
+.etq{display:block;font-size:8pt;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:700;margin-bottom:1.5mm}
+.aviso .etq{color:var(--rojo)} .ojo .etq{color:var(--ambar)} .nota-caja .etq{color:var(--azul-osc)}
+
+/* ---------- tablas ---------- */
+table{width:100%;border-collapse:collapse;font-size:9.5pt;margin:0 0 4mm;break-inside:avoid}
+th{text-align:left;background:var(--papel);border-bottom:1.5px solid var(--tinta2);
+  padding:2.5mm 3mm;font-size:8.5pt;letter-spacing:.06em;text-transform:uppercase}
+td{padding:2.5mm 3mm;border-bottom:1px solid var(--linea);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.tabla-chica{font-size:9pt}
+
+.chip{display:inline-block;padding:.6mm 2.5mm;border-radius:6mm;font-size:8.5pt;
+  font-weight:700;white-space:nowrap}
+.c-v{background:#DCFCE7;color:#14532D}
+.c-a{background:#FEF3C7;color:var(--ambar-tinta)}
+.c-r{background:#FEE2E2;color:#7F1D1D}
+.c-n{background:#EEF2F6;color:var(--tinta2)}
+
+/* ---------- indice ---------- */
+.indice{break-after:page}
+.indice ol{list-style:none;padding:0;margin:0}
+.indice > ol > li{margin-bottom:4mm}
+.indice .grupo{font-weight:700;color:var(--azul-osc);font-size:11pt;
+  border-bottom:1px solid var(--linea);padding-bottom:1.5mm;margin-bottom:2mm}
+.indice ol ol{padding-left:0;margin-top:1.5mm}
+.indice ol ol li{font-size:10pt;color:var(--tinta2);margin-bottom:1.2mm}
+.indice .num{display:inline-block;width:11mm;color:var(--tenue);font-weight:700}
+
+/* ---------- pasos ---------- */
+.pasos{counter-reset:paso;list-style:none;padding:0}
+.pasos > li{counter-increment:paso;position:relative;padding-left:10mm;margin-bottom:4mm;
+  break-inside:avoid}
+.pasos > li::before{content:counter(paso);position:absolute;left:0;top:0;
+  width:6.5mm;height:6.5mm;border-radius:50%;background:var(--azul);color:#fff;
+  font-size:9pt;font-weight:700;display:flex;align-items:center;justify-content:center}
+.pasos > li strong{display:block;margin-bottom:.8mm}
+
+.dos{display:grid;grid-template-columns:1fr 1fr;gap:5mm;break-inside:avoid}
+.ficha{border:1px solid var(--linea);border-radius:2mm;padding:4mm;background:#fff}
+.ficha h4{margin:0 0 1.5mm}
+.ficha p{margin:0;font-size:9.5pt;color:var(--tinta2)}
+
+/* Colofon: cierra el documento en su propia hoja, a proposito. */
+.pie-doc{break-before:page;height:250mm;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+  font-size:9pt;color:var(--tinta2);line-height:1.7}
+.pie-doc .barra{display:flex;gap:2mm;width:70mm;margin-bottom:8mm}
+.pie-doc .barra div{height:4mm;border-radius:1mm}
+.pie-doc .barra .v{flex:1;background:var(--verde)}
+.pie-doc .barra .a{flex:1.5;background:var(--ambar-fondo)}
+.pie-doc .barra .r{flex:2.2;background:var(--rojo)}
+.pie-doc strong{color:var(--tinta)}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ PORTADA ═══════════════════════════ -->
+<div class="portada">
+  <div class="marca">Manual de uso y operación</div>
+  <h1>Brigada<br>Evaluación estructural<br>en campo</h1>
+  <p class="bajada">Aplicación offline para el levantamiento de daño estructural
+    tras un sismo, y el sistema que recibe y consolida lo levantado.</p>
+  <div class="semaforo-portada"><div class="v"></div><div class="a"></div><div class="r"></div></div>
+  <div class="pie">
+    <strong>Versión 1.0</strong> · Agosto de 2026<br>
+    Semáforo ATC-20 adaptado a NSR-10 · Colombia<br><br>
+    Desarrollada con Amor por <strong>Andrés Benito Revollo Vélez</strong><br>
+    Rollout Comercio e Servicios Limitada<br><br>
+    Software libre bajo GNU AGPL v3<br>
+    github.com/abenito32/brigadaestructural
+  </div>
+</div>
+
+<!-- ═══════════════════════════ ÍNDICE ═══════════════════════════ -->
+<div class="indice">
+<h2>Contenido</h2>
+
+<ol>
+  <li>
+    <div class="grupo">Parte I · Para el inspector en campo</div>
+    <ol>
+      <li><span class="num">1</span> Qué es esta app, y qué no es</li>
+      <li><span class="num">2</span> Antes de salir: preparar el teléfono</li>
+      <li><span class="num">3</span> Evaluar una edificación, paso a paso</li>
+      <li><span class="num">4</span> Cómo se calcula el semáforo</li>
+      <li><span class="num">5</span> Cuándo cambiar la clasificación, y cómo</li>
+      <li><span class="num">6</span> Sincronizar al volver la señal</li>
+      <li><span class="num">7</span> Si algo sale mal</li>
+      <li><span class="num">8</span> Seguridad personal y límites legales</li>
+    </ol>
+  </li>
+  <li>
+    <div class="grupo">Parte II · Para quien coordina la brigada</div>
+    <ol>
+      <li><span class="num">9</span> El panel de administración</li>
+      <li><span class="num">10</span> Registrar brigadas y entregar tokens</li>
+      <li><span class="num">11</span> Registrar inspectores</li>
+      <li><span class="num">12</span> Revisar las firmas fuera del registro</li>
+      <li><span class="num">13</span> El consolidado: qué se entrega y qué no</li>
+    </ol>
+  </li>
+  <li>
+    <div class="grupo">Parte III · Para quien administra el servidor</div>
+    <ol>
+      <li><span class="num">14</span> Cómo está armado el sistema</li>
+      <li><span class="num">15</span> Instalación desde cero</li>
+      <li><span class="num">16</span> Variables de configuración</li>
+      <li><span class="num">17</span> Operación diaria</li>
+      <li><span class="num">18</span> Diagnóstico de problemas</li>
+      <li><span class="num">19</span> Actualizar la aplicación</li>
+      <li><span class="num">20</span> Respaldo y recuperación</li>
+    </ol>
+  </li>
+  <li>
+    <div class="grupo">Anexos</div>
+    <ol>
+      <li><span class="num">A</span> Tarjeta de referencia del semáforo</li>
+      <li><span class="num">B</span> Referencia de la API</li>
+      <li><span class="num">C</span> Esquema de la base de datos</li>
+      <li><span class="num">D</span> Glosario</li>
+    </ol>
+  </li>
+</ol>
+
+<div class="nota-caja" style="margin-top:8mm">
+  <span class="etq">Cómo leer este manual</span>
+  Si usted sale a terreno, le basta la <strong>Parte I</strong>: son ocho secciones y
+  se lee en veinte minutos. Imprímala y llévela. La Parte II es para quien reparte
+  los accesos y revisa lo que llega; la Parte III, para quien mantiene el servidor.
+</div>
+</div>
+
+<!-- ═══════════════════════ PARTE I ═══════════════════════ -->
+<div class="parte">
+  <div class="parte-cab">
+    <div class="n">Parte I</div>
+    <h2>Para el inspector en campo</h2>
+    <p>Lo que necesita saber quien tiene el teléfono en la mano y el edificio enfrente.</p>
+  </div>
+
+<section class="seguido">
+<h2>1 · Qué es esta app, y qué no es</h2>
+
+<p>Es una herramienta de <strong>triaje estructural preliminar</strong>. Sirve para que un
+ingeniero con matrícula vigente recorra una zona afectada, evalúe edificación por
+edificación, y deje registrado un semáforo —verde, amarillo o rojo— junto con la
+evidencia que lo sustenta.</p>
+
+<p>Funciona <strong>sin señal</strong>. Todo se guarda en el teléfono y se envía cuando
+vuelve la conexión. Está pensada para eso desde el primer día: en una emergencia la
+red celular es lo primero que se cae y lo último que vuelve.</p>
+
+<h3>Lo que esta app no es</h3>
+<ul>
+  <li><strong>No es auto-reporte ciudadano.</strong> Quien llena el formulario es el
+    inspector, en sitio. No se le entrega al propietario para que la diligencie.</li>
+  <li><strong>No emite dictámenes.</strong> El semáforo que calcula es una sugerencia
+    basada en lo que usted marcó. Quien decide es usted, y queda su matrícula firmando.</li>
+  <li><strong>No habilita ni clausura edificaciones.</strong> Eso es competencia de la
+    UNGRD, la Defensa Civil, los bomberos y las alcaldías. Lo que usted produce es
+    insumo para esa decisión, no la decisión.</li>
+</ul>
+
+<div class="aviso">
+  <span class="etq">Esto va en cada informe que salga</span>
+  La evaluación es <strong>preliminar</strong>. La habilitación definitiva de una
+  edificación corresponde a las autoridades competentes. Decirlo no es un formalismo:
+  es lo que separa un insumo técnico de una autorización que usted no puede dar.
+</div>
+</section>
+
+<section>
+<h2>2 · Antes de salir: preparar el teléfono</h2>
+
+<p>Se hace <strong>una sola vez por teléfono</strong>, y hay que hacerlo con señal, antes
+de salir. Toma cinco minutos.</p>
+
+<ol class="pasos">
+  <li><strong>Abrir la dirección de la app en el navegador</strong>
+    En el celular, abra <code>https://brigadaestructural.co</code> (o la dirección que
+    le haya dado su coordinación). Tiene que ser <code>https</code>: sin cifrado el
+    teléfono no permite usar la cámara ni el GPS.</li>
+
+  <li><strong>Instalarla en la pantalla de inicio</strong>
+    En el menú del navegador, «Agregar a pantalla de inicio» o «Instalar aplicación».
+    Esto la deja guardada en el teléfono y hace que abra a pantalla completa, sin la
+    barra del navegador. <em>Este paso es el que la vuelve utilizable sin señal.</em></li>
+
+  <li><strong>Llenar la pestaña Ajustes</strong>
+    Nombre completo, matrícula profesional (COPNIA) y universidad o brigada. Estos
+    tres datos se estampan en cada evaluación que usted firme.</li>
+
+  <li><strong>Configurar el servidor</strong>
+    Pegue el <em>endpoint de sincronización</em> y el <em>token de brigada</em> que le
+    entregó su coordinación. El endpoint termina siempre en
+    <code>/api/evaluaciones</code>.</li>
+
+  <li><strong>Tocar «Probar conexión»</strong>
+    Comprueba que el servidor responde y que el token sirve, sin enviar ninguna
+    evaluación. Si dice «Todo correcto», está listo. Si no, vea la sección 7.</li>
+
+  <li><strong>Cargar la batería y salir</strong>
+    Con GPS y cámara en uso, un levantamiento largo consume batería rápido. Lleve
+    batería externa.</li>
+</ol>
+
+<div class="ojo">
+  <span class="etq">Sin matrícula no se puede guardar</span>
+  Si el campo de matrícula está vacío, la app bloquea el botón de guardar. No es un
+  capricho: la clasificación tiene efectos legales y tiene que estar firmada por
+  quien puede firmarla (Ley 400 de 1997, NSR-10).
+</div>
+</section>
+
+<section>
+<h2>3 · Evaluar una edificación, paso a paso</h2>
+
+<p>El formulario está en la pestaña <strong>Evaluar</strong> y va en seis bloques
+numerados. Se puede llenar en cualquier orden, pero el orden en pantalla es el que
+tiene sentido cuando uno está parado frente al edificio.</p>
+
+<h3>01 · Ubicación</h3>
+<p><strong>Capturar coordenadas</strong> toma la posición del GPS. Si no hay señal
+satelital o el teléfono no la entrega, se puede guardar igual: la evaluación se
+georreferencia después, en gabinete. Escriba siempre la dirección o un punto de
+referencia reconocible —«frente a la escuela», «tercera casa después del puente»—
+porque en zonas rurales la nomenclatura suele no existir.</p>
+
+<h3>02 · Edificación</h3>
+<p>Sistema constructivo, uso, número de pisos y ocupantes aproximados. El número de
+ocupantes importa para priorizar: no es lo mismo un edificio rojo vacío que uno rojo
+con veinte personas esperando afuera.</p>
+
+<h3>03 · Nivel de daño observado</h3>
+<p>Cuatro categorías, cada una en una escala de cuatro niveles. <strong>Esta es la parte
+que determina el semáforo</strong>, así que vale la pena ser preciso.</p>
+
+<table>
+  <tr><th style="width:38%">Categoría</th><th>Qué mirar</th></tr>
+  <tr><td><strong>Elementos portantes</strong></td>
+      <td>Columnas, muros estructurales, pórticos. Lo que sostiene el edificio.</td></tr>
+  <tr><td><strong>Vigas, entrepisos y cubierta</strong></td>
+      <td>Fisuras, deflexiones visibles, apoyos desplazados.</td></tr>
+  <tr><td><strong>Muros divisorios y fachada</strong></td>
+      <td>Desprendimientos, volcamiento, antepechos sueltos. No sostienen, pero matan al caer.</td></tr>
+  <tr><td><strong>Terreno y entorno</strong></td>
+      <td>Asentamientos, taludes, grietas en el suelo.</td></tr>
+</table>
+
+<p>Los cuatro niveles son <strong>N/A</strong> (no aplica o sin daño),
+<strong>Leve</strong>, <strong>Moderado</strong> y <strong>Severo</strong>. Todos
+arrancan en N/A; hay que tocar el que corresponda.</p>
+
+<h3>04 · Condiciones que obligan cierre</h3>
+<p>Seis casillas. <strong>Marcar cualquiera de ellas fuerza el rojo</strong>, sin
+importar lo demás que haya marcado.</p>
+
+<ul>
+  <li>Colapso total o parcial de algún nivel</li>
+  <li>Inclinación o desplome visible de la edificación</li>
+  <li>Columna con núcleo triturado, acero expuesto o pandeado</li>
+  <li>Grietas pasantes o anchas en muros portantes</li>
+  <li>Riesgo externo: edificio vecino inestable, talud o deslizamiento</li>
+  <li>Elementos pesados sueltos sobre el acceso o la vía</li>
+</ul>
+
+<h3>05 · Registro fotográfico</h3>
+<p>Hasta cuatro fotos. Se reducen a 1280 píxeles dentro del teléfono, para que la cola
+no se llene y el envío no falle con mala señal. Priorice: la foto del daño que sustenta
+la clasificación vale más que la fachada completa.</p>
+
+<h3>06 · Clasificación y firma</h3>
+<p>Acá aparece la placa con el resultado calculado y, debajo, la línea con su nombre y
+matrícula. Revise que sea correcta y guarde. La evaluación recibe un identificador
+<code>BRG-AAAAMMDD-NNN</code> y queda en el teléfono como <em>pendiente</em>.</p>
+
+<div class="nota-caja">
+  <span class="etq">La evaluación sobrevive a todo</span>
+  Queda guardada aunque cierre la app, se quede sin batería o reinicie el teléfono.
+  Solo desaparece si desinstala la aplicación o borra los datos del navegador.
+  <strong>No desinstale la app con evaluaciones pendientes.</strong>
+</div>
+</section>
+
+<section>
+<h2>4 · Cómo se calcula el semáforo</h2>
+
+<p>La regla es determinista: con los mismos datos siempre da el mismo resultado. Se
+evalúa en este orden, y <strong>el primero que aplica gana</strong>.</p>
+
+<table>
+  <tr><th style="width:22%">Resultado</th><th>Se dispara cuando</th></tr>
+  <tr>
+    <td><span class="chip c-r">Rojo</span><br><small>Inseguro · no ingresar</small></td>
+    <td>
+      <strong>1.</strong> Hay <em>cualquier</em> condición de cierre marcada (las seis de
+      la sección 04), o<br>
+      <strong>2.</strong> daño <em>severo</em> en elementos portantes o en vigas,
+      entrepisos y cubierta, o<br>
+      <strong>3.</strong> daño <em>severo</em> en el terreno de soporte.
+    </td>
+  </tr>
+  <tr>
+    <td><span class="chip c-a">Amarillo</span><br><small>Uso restringido</small></td>
+    <td>Daño <em>moderado</em> en portantes, en entrepisos o en terreno; o daño
+      <em>severo</em> únicamente en muros divisorios y fachada.</td>
+  </tr>
+  <tr>
+    <td><span class="chip c-v">Verde</span><br><small>Habitable</small></td>
+    <td>Daño leve, o daño solo en elementos no estructurales, sin ninguna condición
+      de cierre.</td>
+  </tr>
+  <tr>
+    <td><span class="chip c-n">Sin evaluar</span></td>
+    <td>Las cuatro categorías siguen en N/A. La app no deja guardar así.</td>
+  </tr>
+</table>
+
+<p>Nótese la asimetría deliberada: el daño severo en fachada da <strong>amarillo</strong>,
+no rojo, porque no compromete la estabilidad; pero sí restringe el uso, porque un
+antepecho suelto mata a quien pase por debajo.</p>
+
+<div class="ojo">
+  <span class="etq">Verde no quiere decir «intacto»</span>
+  Quiere decir <em>habitable</em>: que la estructura no está comprometida. Una casa
+  verde puede tener daños importantes que haya que reparar. Explíqueselo al ocupante,
+  porque la palabra «verde» genera más confianza de la que corresponde.
+</div>
+</section>
+
+<section>
+<h2>5 · Cuándo cambiar la clasificación, y cómo</h2>
+
+<p>El cálculo automático no ve lo que usted ve. No sabe que el edificio ya venía
+apuntalado, que el daño es antiguo, que hay un factor que ninguna casilla recoge.
+Por eso usted puede cambiarlo.</p>
+
+<p>En el bloque 06, el selector permite fijar la clasificación a mano. Al hacerlo
+aparece un campo obligatorio: <strong>el motivo</strong>.</p>
+
+<ul>
+  <li>La app <strong>no deja guardar</strong> una clasificación modificada sin motivo escrito.</li>
+  <li>Se guardan <strong>los dos valores</strong>: el que usted decidió y el que había
+    calculado la regla, junto con el criterio que usted escribió.</li>
+  <li>El servidor vuelve a exigirlo. No es solo una validación de pantalla.</li>
+</ul>
+
+<p>Escriba criterio técnico, no justificaciones vagas. «Se observa apuntalamiento
+provisional en buen estado que restituye la capacidad portante del pórtico afectado»
+sirve. «A criterio del inspector» no sirve para nada, y dentro de seis meses, cuando
+alguien revise por qué ese edificio quedó amarillo, es lo único que va a quedar.</p>
+
+<div class="aviso">
+  <span class="etq">Esto queda en el registro permanente</span>
+  El motivo del cambio, su matrícula y su nombre viajan juntos hasta la base de datos
+  y quedan ahí. Es el registro de su responsabilidad profesional sobre esa decisión.
+</div>
+</section>
+
+<section>
+<h2>6 · Sincronizar al volver la señal</h2>
+
+<p>La pestaña <strong>Cola</strong> muestra todo lo levantado y cuántas evaluaciones
+siguen pendientes de enviar. El número entre paréntesis en la pestaña es esa cuenta.</p>
+
+<ol class="pasos">
+  <li><strong>Verificar que hay señal</strong>
+    Arriba a la derecha dice «En línea» o «Sin conexión».</li>
+  <li><strong>Tocar «Enviar pendientes al servidor»</strong>
+    Envía una por una. Al terminar informa cuántas salieron: <em>«Enviadas 7 de 7»</em>
+    o <em>«Enviadas 5 de 7. Las demás siguen guardadas.»</em></li>
+  <li><strong>Repetir hasta que la cuenta llegue a cero</strong>
+    Las que fallaron siguen pendientes y se reintentan. Reenviar no duplica: el
+    servidor reconoce el identificador y descarta el repetido.</li>
+</ol>
+
+<h3>Las descargas de respaldo</h3>
+<p>En la misma pestaña hay dos botones que no dependen del servidor:</p>
+<ul>
+  <li><strong>Descargar CSV</strong> — planilla con todas las evaluaciones, sin fotos.
+    Para el consolidado, o para abrir en Excel.</li>
+  <li><strong>Descargar JSON con fotos</strong> — respaldo completo, fotos incluidas.</li>
+</ul>
+<p>Úselos si va a estar varios días sin poder sincronizar, o si el teléfono va a
+cambiar de manos.</p>
+</section>
+
+<section>
+<h2>7 · Si algo sale mal</h2>
+
+<table class="tabla-chica">
+  <tr><th style="width:33%">Síntoma</th><th>Qué significa y qué hacer</th></tr>
+
+  <tr><td><strong>«Probar conexión» dice que el servidor no responde</strong></td>
+    <td>Puede ser la señal, la dirección mal escrita, o que el servidor esté caído.
+      Revise que el endpoint termine en <code>/api/evaluaciones</code> y empiece con
+      <code>https://</code>. Si persiste, avise a coordinación: <strong>puede salir a
+      terreno igual</strong>, las evaluaciones se guardan y se envían después.</td></tr>
+
+  <tr><td><strong>«El servidor responde, pero rechaza el token»</strong></td>
+    <td>El token está mal copiado, o fue revocado. Pida el de su brigada a coordinación.</td></tr>
+
+  <tr><td><strong>La cuenta de pendientes no baja al sincronizar</strong></td>
+    <td>El servidor no está grabando. Los datos <em>no se pierden</em>: siguen en el
+      teléfono. Descargue el JSON de respaldo y avise.</td></tr>
+
+  <tr><td><strong>No aparece la opción de instalar</strong></td>
+    <td>La dirección tiene que ser <code>https</code>. Sobre <code>http</code> el
+      navegador no ofrece instalación y no habilita cámara ni GPS.</td></tr>
+
+  <tr><td><strong>El GPS no da coordenadas</strong></td>
+    <td>Bajo cubierta o entre edificios altos es normal. Guarde con la dirección
+      escrita; se georreferencia después.</td></tr>
+
+  <tr><td><strong>La app quedó en una versión vieja</strong></td>
+    <td>Ciérrela por completo y ábrala de nuevo con señal. Se actualiza sola.</td></tr>
+
+  <tr><td><strong>Aviso: «este navegador no guarda en disco»</strong></td>
+    <td><strong>Grave.</strong> Las evaluaciones se pierden al cerrar. Suele pasar en
+      modo incógnito. Salga del modo privado e instale la app correctamente
+      <em>antes</em> de evaluar nada.</td></tr>
+</table>
+</section>
+
+<section>
+<h2>8 · Seguridad personal y límites legales</h2>
+
+<h3>Antes de entrar a una edificación</h3>
+<div class="aviso">
+  <span class="etq">Retírese y llame al 123</span>
+  Si hay personas atrapadas, olor a gas, incendio o colapso en curso. No inspeccione
+  sola o solo una estructura con inclinación visible. Ninguna evaluación vale una vida,
+  y menos la suya.
+</div>
+
+<ul>
+  <li>Evalúe desde afuera todo lo que se pueda evaluar desde afuera.</li>
+  <li>Las réplicas derrumban lo que el sismo principal dejó en pie. Un edificio que
+    aguantó no es un edificio seguro.</li>
+  <li>Casco, botas, guantes y linterna. Chaleco identificable.</li>
+</ul>
+
+<h3>Quién puede firmar</h3>
+<p>Solo quien tenga <strong>matrícula profesional vigente</strong> (Ley 400 de 1997,
+NSR-10). Los estudiantes acompañan, documentan, toman fotos y aprenden — pero no
+clasifican y no firman.</p>
+
+<h3>Datos personales</h3>
+<p>La dirección y las coordenadas de un predio son dato personal
+(<strong>Ley 1581 de 2012</strong>). Se envían al servidor de la brigada y no se publican.
+Lo que se entrega a las autoridades sale agregado por sector, nunca por predio.</p>
+
+<p>En la práctica, para usted esto significa tres cosas: no publique capturas de
+pantalla con direcciones, no comparta el CSV por grupos de mensajería, y no le entregue
+el listado a nadie que no sea su coordinación.</p>
+
+<h3>Lo que le diga al ocupante</h3>
+<p>Que la evaluación es preliminar, que la decisión definitiva la toma la autoridad
+competente, y que el resultado no es una autorización para volver a habitar. Si es rojo,
+que no ingrese <em>ni siquiera a sacar cosas</em> hasta que la autoridad lo determine.</p>
+</section>
+</div>
+
+<!-- ═══════════════════════ PARTE II ═══════════════════════ -->
+<div class="parte">
+  <div class="parte-cab">
+    <div class="n">Parte II</div>
+    <h2>Para quien coordina la brigada</h2>
+    <p>Repartir accesos, controlar quién firma, y revisar lo que llega.</p>
+  </div>
+
+<section class="seguido">
+<h2>9 · El panel de administración</h2>
+
+<p>Está en <code>https://brigadaestructural.co/admin</code> y tiene <strong>una sola
+clave</strong>, la de coordinación.</p>
+
+<div class="nota-caja">
+  <span class="etq">Los inspectores no entran acá</span>
+  No tienen cuenta ni contraseña. Su matrícula es una <em>firma</em>, no un acceso:
+  los identifica ante COPNIA, no ante el sistema. Quien se autentica contra el servidor
+  es el teléfono, con el token de su brigada.
+</div>
+
+<h3>Las cuatro pantallas</h3>
+<div class="dos">
+  <div class="ficha"><h4>Resumen</h4><p>Totales, desglose por color, firmas fuera del
+    registro, actividad por brigada y el consolidado por sector.</p></div>
+  <div class="ficha"><h4>Reportes</h4><p>Listado completo con filtros por brigada,
+    clasificación, municipio y estado de firma.</p></div>
+  <div class="ficha"><h4>Brigadas</h4><p>Alta con generación de token, y revocación.</p></div>
+  <div class="ficha"><h4>Inspectores</h4><p>Alta y baja de quienes pueden firmar.</p></div>
+</div>
+
+<h3>Si el panel no existe</h3>
+<p>Si <code>/admin</code> devuelve 404, es porque no hay clave configurada: sin ella las
+rutas no se registran siquiera. Es deliberado — no hay clave por defecto ni pantalla de
+acceso expuesta esperando. Vea la sección 16 para activarlo.</p>
+</section>
+
+<section>
+<h2>10 · Registrar brigadas y entregar tokens</h2>
+
+<p>Una brigada es una credencial. El <strong>token</strong> es lo que autentica al
+teléfono contra el servidor, y lo que atribuye cada evaluación a quien la envió.</p>
+
+<ol class="pasos">
+  <li><strong>Panel → Brigadas → Registrar</strong>
+    Nombre y correo de contacto.</li>
+  <li><strong>Copiar el token que aparece</strong>
+    Se muestra <em>una sola vez</em>. La base guarda únicamente su huella (sha256), así
+    que no hay forma de recuperarlo: si se pierde, hay que emitir uno nuevo.</li>
+  <li><strong>Entregarlo por un canal razonable</strong>
+    A la persona que coordina esa brigada, no a un grupo. Es una credencial.</li>
+</ol>
+
+<h3>Revocar</h3>
+<p>«Revocar token» corta el acceso <strong>en el acto</strong>: los teléfonos de esa
+brigada dejan de sincronizar en el siguiente intento. No borra nada: las evaluaciones
+que ya enviaron siguen en la base y siguen atribuidas a ella.</p>
+
+<div class="ojo">
+  <span class="etq">Revocar deja evaluaciones atrapadas</span>
+  Si revoca un token mientras esa brigada tiene evaluaciones sin sincronizar, esas
+  evaluaciones quedan encerradas en los teléfonos. Antes de revocar, pida que
+  sincronicen; o entregue un token nuevo para que puedan vaciar la cola.
+</div>
+</section>
+
+<section>
+<h2>11 · Registrar inspectores</h2>
+
+<p>El registro de inspectores es lo que permite responder, meses después, quién firmó
+qué. Se llena desde <strong>Panel → Inspectores</strong>: matrícula, nombre, brigada, y
+si la matrícula fue verificada ante COPNIA.</p>
+
+<h3>Qué pasa si alguien firma sin estar registrado</h3>
+<p><strong>La evaluación se acepta igual</strong>, y queda marcada como «firma fuera del
+registro». Es una decisión deliberada: en una emergencia, perder el trabajo de campo de
+una jornada es peor que aceptarlo pendiente de revisión. Rechazarlo dejaría esas
+evaluaciones atrapadas en un teléfono para siempre, justo cuando más falta hacen.</p>
+
+<p>Cuando después registra a esa persona, <strong>sus evaluaciones anteriores se
+reconcilian solas</strong> y dejan de estar marcadas. El panel le dice cuántas.</p>
+
+<h3>Dar de baja</h3>
+<p>La baja es lógica: el inspector deja de poder firmar nuevas evaluaciones como
+verificado, pero <strong>lo que ya firmó no cambia</strong>. Nunca se borra a alguien que
+firmó: su matrícula es parte del registro legal de esas evaluaciones.</p>
+</section>
+
+<section>
+<h2>12 · Revisar las firmas fuera del registro</h2>
+
+<p>En el Resumen aparece el contador, resaltado si hay alguna. El listado está en
+<strong>Reportes → filtro «Fuera del registro»</strong>, y viene ordenado con
+<strong>los rojos primero</strong>, porque son los que tienen consecuencias de desalojo.</p>
+
+<p>Para cada una hay tres posibilidades:</p>
+<ul>
+  <li><strong>Es alguien de la brigada que faltaba cargar.</strong> Regístrelo y se
+    reconcilia solo. Es el caso habitual los primeros días.</li>
+  <li><strong>Es una matrícula mal escrita.</strong> Contacte al inspector, confirme el
+    número correcto y corrija en la base.</li>
+  <li><strong>Es alguien que no debería estar firmando.</strong> Escale. La evaluación
+    existe, está registrada y no se puede tratar como si no hubiera pasado.</li>
+</ul>
+
+<p>El listado muestra dos columnas que conviene comparar: <em>declarada</em> es lo que
+el inspector escribió a mano en Ajustes, y <em>autenticada</em> es la brigada dueña del
+token que realmente envió. Si no coinciden, hay algo que entender.</p>
+
+<div class="nota-caja">
+  <span class="etq">Antes de consolidar</span>
+  Esta cola debería estar en cero antes de entregar un consolidado a las autoridades.
+  Un rojo firmado por alguien fuera del registro es exactamente el dato que no quiere
+  tener que explicar después.
+</div>
+</section>
+
+<section>
+<h2>13 · El consolidado: qué se entrega y qué no</h2>
+
+<p>Al final del Resumen está la tabla <strong>por sector</strong>. Esa tabla —y solo
+esa— es lo que se entrega a las autoridades.</p>
+
+<table>
+  <tr><th style="width:50%">Se entrega</th><th>No se entrega</th></tr>
+  <tr>
+    <td>Conteos por municipio y barrio: cuántas evaluadas, cuántas rojas, amarillas
+      y verdes. Centroide del sector.</td>
+    <td>Dirección, coordenada del predio, nombre del propietario, o cualquier cosa
+      que permita identificar una edificación puntual.</td>
+  </tr>
+</table>
+
+<h3>Por qué faltan sectores en esa tabla</h3>
+<p>Solo aparecen los sectores con <strong>cinco evaluaciones o más</strong>. Es un umbral
+de anonimato: con dos o tres registros, decir «el barrio X tiene una roja» equivale a
+señalar la casa con el dedo. La Ley 1581 de 2012 aplica también cuando el dato se
+entrega agregado, si la agregación es tan fina que reidentifica.</p>
+
+<p>La pantalla de <strong>Reportes</strong> sí muestra direcciones y coordenadas: existe
+para coordinar la brigada —saber a dónde volver, qué manzana falta— no para difundir.
+No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
+</section>
+</div>
+
+<!-- ═══════════════════════ PARTE III ═══════════════════════ -->
+<div class="parte">
+  <div class="parte-cab">
+    <div class="n">Parte III</div>
+    <h2>Para quien administra el servidor</h2>
+    <p>Instalación, operación, diagnóstico y respaldo.</p>
+  </div>
+
+<section class="seguido">
+<h2>14 · Cómo está armado el sistema</h2>
+
+<p>Cuatro piezas, deliberadamente pocas:</p>
+
+<table>
+  <tr><th style="width:30%">Pieza</th><th>Qué hace</th></tr>
+  <tr><td><strong>La PWA</strong><br><code>index.html</code>, <code>sw.js</code>,
+      <code>manifest.json</code></td>
+    <td>La aplicación entera en un archivo, sin frameworks ni build. Es deliberado:
+      tiene que arrancar en teléfonos viejos y cachearse en un solo recurso.</td></tr>
+  <tr><td><strong>El receptor</strong><br><code>api_brigadas.py</code></td>
+    <td>FastAPI. Valida token, matrícula y clasificación, guarda las fotos en disco y
+      escribe en PostGIS.</td></tr>
+  <tr><td><strong>El panel</strong><br><code>admin_web.py</code></td>
+    <td>HTML renderizado en el servidor. Se monta sobre la misma app, solo si hay clave.</td></tr>
+  <tr><td><strong>La base</strong><br>PostgreSQL 16 + PostGIS 3.4</td>
+    <td>En contenedor propio, escuchando solo en loopback.</td></tr>
+</table>
+
+<h3>El camino de un dato</h3>
+<pre>Formulario → IndexedDB (pendiente) → POST /api/evaluaciones
+   → validación → fotos a disco → INSERT ... ON CONFLICT DO NOTHING
+   → 200 → el teléfono marca "enviada"</pre>
+
+<div class="aviso">
+  <span class="etq">La invariante que no se puede romper</span>
+  El receptor devuelve <strong>503 y nunca 200</strong> si no pudo grabar. Con un 200
+  mentiroso, la app marca la evaluación como enviada y borra el pendiente: se pierde
+  el trabajo de campo sin que nadie se entere. Cualquier cambio en el manejo de errores
+  tiene que preservar esto.
+</div>
+</section>
+
+<section>
+<h2>15 · Instalación desde cero</h2>
+
+<h4>1. Los estáticos</h4>
+<pre>rsync -av index.html sw.js manifest.json icono-*.png \
+  servidor:/var/www/brigadaestructural/
+chown -R www-data:www-data /var/www/brigadaestructural</pre>
+
+<h4>2. La base</h4>
+<pre>cp docker-compose.example.yml docker-compose.yml
+cp .env.example .env          # completar POSTGRES_PASSWORD
+docker compose -p brigadas up -d
+docker exec -i brigadas-db psql -U brigadas -d brigadas &lt; esquema.sql</pre>
+
+<h4>3. El receptor</h4>
+<pre>useradd --system --no-create-home --shell /usr/sbin/nologin brigadas
+mkdir -p /opt/brigadas /var/lib/brigadas/fotos
+chown -R brigadas:brigadas /var/lib/brigadas
+
+python3 -m venv /opt/brigadas/venv
+/opt/brigadas/venv/bin/pip install fastapi uvicorn "psycopg[binary,pool]" \
+    jinja2 python-multipart</pre>
+
+<p>El unit de systemd está en <code>brigadas-api.service.example</code>. Corre como
+usuario sin privilegios, con <code>ProtectSystem=strict</code> y permiso de escritura
+únicamente sobre el directorio de fotos.</p>
+
+<h4>4. Nginx</h4>
+<pre>location = /sw.js { add_header Cache-Control "no-cache, no-store, must-revalidate"; }
+location /admin { proxy_pass http://127.0.0.1:8004; ... }
+location /api/  { proxy_pass http://127.0.0.1:8004; client_max_body_size 12M; }
+location /      { try_files $uri $uri/ /index.html; }</pre>
+
+<div class="ojo">
+  <span class="etq">Dos detalles que cuestan un día si se pasan por alto</span>
+  <strong>El bloque <code>/admin</code> va antes de <code>location /</code></strong>, o
+  el fallback de la SPA se lo come. Y <strong><code>/sw.js</code> no se puede cachear</strong>:
+  si un teléfono se queda con un service worker viejo, la app queda congelada en campo
+  y no hay forma de actualizarla a distancia.
+</div>
+
+<h4>5. HTTPS</h4>
+<pre>certbot --nginx -d ejemplo.org -d www.ejemplo.org
+certbot renew --dry-run</pre>
+<p>Sin HTTPS no hay service worker, ni geolocalización, ni cámara. La app no sirve.</p>
+</section>
+
+<section>
+<h2>16 · Variables de configuración</h2>
+
+<p>Todas viven en <code>/etc/brigadas.env</code>, con permisos <code>0600 root:root</code>,
+y las lee el servicio por <code>EnvironmentFile</code>. <strong>Nunca en el unit de
+systemd</strong>, que es legible por cualquiera.</p>
+
+<table class="tabla-chica">
+  <tr><th style="width:30%">Variable</th><th>Para qué</th></tr>
+  <tr><td><code>BRIGADA_DSN</code></td><td><strong>Obligatoria.</strong> Cadena de conexión
+    a PostgreSQL. Sin ella el receptor no arranca.</td></tr>
+  <tr><td><code>BRIGADA_TOKENS</code></td><td>Tokens heredados, separados por coma. Siguen
+    funcionando pero no atribuyen. Prefiera el registro de brigadas.</td></tr>
+  <tr><td><code>BRIGADA_FOTOS</code></td><td>Directorio de fotos. La base guarda rutas,
+    nunca base64.</td></tr>
+  <tr><td><code>BRIGADA_ADMIN_HASH</code></td><td>Hash scrypt de la clave del panel.
+    <strong>Sin ella el panel no existe.</strong></td></tr>
+  <tr><td><code>BRIGADA_ORIGENES</code></td><td>Dominios autorizados a sincronizar desde
+    un navegador. Vacío = solo mismo origen, que es lo normal y lo más seguro.</td></tr>
+  <tr><td><code>BRIGADA_CONTACTO</code></td><td>Correo que muestra el panel. Va acá y no
+    en el código porque el repositorio es público.</td></tr>
+  <tr><td><code>BRIGADA_FUENTE</code></td><td>URL del repositorio propio. Obligación de
+    la AGPL §13 si despliega una versión modificada.</td></tr>
+</table>
+
+<h3>Definir la clave del panel</h3>
+<pre>sudo /opt/brigadas/venv/bin/python /opt/brigadas/admin_brigadas.py clave
+# la pide dos veces e imprime la línea BRIGADA_ADMIN_HASH=scrypt$...
+# péguela en /etc/brigadas.env y:
+sudo systemctl restart brigadas-api</pre>
+<p>La pide por teclado y no la acepta como argumento: ahí quedaría en el historial del
+shell y en la lista de procesos. Cambiar la clave cierra todas las sesiones abiertas.</p>
+</section>
+
+<section>
+<h2>17 · Operación diaria</h2>
+
+<pre># estado
+systemctl status brigadas-api
+curl -s localhost:8004/salud
+docker ps --filter name=brigadas-db
+
+# logs
+journalctl -u brigadas-api -n 50 --no-pager
+journalctl -u brigadas-api -f
+
+# registro por línea de comandos (equivalente al panel)
+ADM="/opt/brigadas/venv/bin/python /opt/brigadas/admin_brigadas.py"
+sudo env BRIGADA_DSN=... $ADM brigadas
+sudo env BRIGADA_DSN=... $ADM brigada-alta "Universidad X" "coord@x.edu.co"
+sudo env BRIGADA_DSN=... $ADM inspector-alta "25101-COPNIA" "Ana Ruiz" "Universidad X"
+sudo env BRIGADA_DSN=... $ADM sin-verificar</pre>
+
+<p><code>/salud</code> devuelve el conteo de evaluaciones, cuántas están sin verificar, y
+cuántas brigadas e inspectores hay registrados. Consulta la base a propósito: un
+receptor que no puede grabar no está sano, aunque el proceso esté vivo.</p>
+
+<h3>Consultas útiles</h3>
+<pre>docker exec -it brigadas-db psql -U brigadas -d brigadas
+
+-- lo que se puede entregar
+SELECT * FROM consolidado_publico;
+-- cola de revisión, rojos primero
+SELECT * FROM pendientes_de_verificacion LIMIT 20;
+-- actividad por brigada
+SELECT brigada_token, count(*), max(recibido_en)
+  FROM evaluacion_brigada GROUP BY 1;</pre>
+</section>
+
+<section>
+<h2>18 · Diagnóstico de problemas</h2>
+
+<table class="tabla-chica">
+  <tr><th style="width:30%">Síntoma</th><th>Causa probable y solución</th></tr>
+
+  <tr><td><strong>502 Bad Gateway</strong></td>
+    <td>El receptor está caído. <code>journalctl -u brigadas-api -n 50</code>. Con
+      <code>Restart=always</code>, un bucle de reinicio significa que falla al arrancar:
+      casi siempre una dependencia faltante o <code>BRIGADA_DSN</code> ausente.</td></tr>
+
+  <tr><td><strong>Los POST devuelven 503</strong></td>
+    <td>La base no responde. <code>docker ps</code>, <code>docker logs brigadas-db</code>.
+      El receptor se recupera solo cuando la base vuelve, sin reiniciar nada.</td></tr>
+
+  <tr><td><strong>Todos los POST devuelven 401</strong></td>
+    <td>Token revocado, o el teléfono tiene uno viejo. Revise en Brigadas si sigue activa.</td></tr>
+
+  <tr><td><strong>Una brigada no puede sincronizar desde su dominio</strong></td>
+    <td>Falta CORS. Agregue su origen a <code>BRIGADA_ORIGENES</code>. Sin eso el navegador
+      cancela el envío en el preflight y el fallo no se ve por ningún lado.</td></tr>
+
+  <tr><td><strong>Los teléfonos siguen con la versión vieja</strong></td>
+    <td>No se subió <code>CACHE</code> en <code>sw.js</code>. Vea la sección 19.</td></tr>
+
+  <tr><td><strong>Un error viejo quedó pegado en un teléfono</strong></td>
+    <td>El service worker cachea respuestas. Desde la versión actual solo cachea
+      respuestas correctas y excluye <code>/api</code> y <code>/admin</code>; si el
+      teléfono trae una versión anterior, abrir la raíz con señal lo actualiza.</td></tr>
+
+  <tr><td><strong><code>AmbiguousParameter</code> en los logs</strong></td>
+    <td>Un parámetro que puede llegar <code>NULL</code> comparado sin <code>::tipo</code>
+      explícito. Postgres no infiere el tipo. Ya pasó dos veces en este proyecto.</td></tr>
+</table>
+</section>
+
+<section>
+<h2>19 · Actualizar la aplicación</h2>
+
+<div class="aviso">
+  <span class="etq">La regla que no se puede olvidar</span>
+  <strong>Cada vez que cambie <code>index.html</code>, <code>sw.js</code> o
+  <code>manifest.json</code>, hay que subir la versión de <code>CACHE</code> en
+  <code>sw.js</code></strong> (<code>brigada-v8</code> → <code>brigada-v9</code>). Si no,
+  los teléfonos ya instalados siguen con la versión anterior indefinidamente, y no hay
+  forma de forzarlos a distancia.
+</div>
+
+<pre># 1. subir CACHE en sw.js
+# 2. desplegar
+rsync -av index.html sw.js manifest.json servidor:/var/www/brigadaestructural/
+# 3. verificar que es lo que se sirve
+curl -s https://ejemplo.org/sw.js | grep CACHE</pre>
+
+<p>El service worker nuevo borra las cachés anteriores al activarse, así que los
+teléfonos se curan solos la próxima vez que abran la app con señal. El backend se
+actualiza aparte: copiar los <code>.py</code> a <code>/opt/brigadas</code> y
+<code>systemctl restart brigadas-api</code>.</p>
+
+<p>El esquema es idempotente: <code>esquema.sql</code> se puede volver a aplicar siempre,
+y trae los <code>ADD COLUMN IF NOT EXISTS</code> de las columnas nuevas.</p>
+</section>
+
+<section>
+<h2>20 · Respaldo y recuperación</h2>
+
+<div class="aviso">
+  <span class="etq">Pendiente crítico</span>
+  Al momento de escribir este manual <strong>no hay respaldo automático configurado</strong>.
+  Es la diferencia entre un susto y perder el levantamiento de una emergencia entera.
+  Debería ser lo primero que se resuelva antes de un uso real.
+</div>
+
+<h3>Respaldo manual</h3>
+<pre># base de datos
+docker exec brigadas-db pg_dump -U brigadas brigadas | gzip > brigadas-$(date +%F).sql.gz
+# fotos
+tar czf fotos-$(date +%F).tar.gz -C /var/lib/brigadas fotos
+# secretos (guardar aparte y cifrado)
+cp /etc/brigadas.env brigadas-env-$(date +%F).bak</pre>
+
+<h3>Restaurar</h3>
+<pre>gunzip -c brigadas-2026-08-11.sql.gz | docker exec -i brigadas-db psql -U brigadas -d brigadas
+tar xzf fotos-2026-08-11.tar.gz -C /var/lib/brigadas</pre>
+
+<h3>Qué hay que respaldar, en orden de importancia</h3>
+<ol>
+  <li><strong>La base de datos.</strong> Es el levantamiento. No se puede rehacer.</li>
+  <li><strong>Las fotos.</strong> Tampoco se pueden rehacer, y sustentan las clasificaciones.</li>
+  <li><strong><code>/etc/brigadas.env</code>.</strong> Los tokens no son recuperables: si
+    se pierde, hay que emitirlos de nuevo y reconfigurar todos los teléfonos.</li>
+  <li>El código está en el repositorio; ese no es problema.</li>
+</ol>
+</section>
+</div>
+
+<!-- ═══════════════════════ ANEXOS ═══════════════════════ -->
+<div class="parte">
+  <div class="parte-cab">
+    <div class="n">Anexos</div>
+    <h2>Referencia rápida</h2>
+    <p>Para consultar sin leer todo lo anterior.</p>
+  </div>
+
+<section class="seguido">
+<h2 style="break-before:page">Anexo A · Tarjeta de referencia del semáforo</h2>
+<p><em>Esta página está pensada para imprimirse aparte y llevarse en campo.</em></p>
+
+<table>
+  <tr><th style="width:20%">Color</th><th style="width:26%">Significado</th><th>Regla</th></tr>
+  <tr>
+    <td><span class="chip c-r">ROJO</span></td>
+    <td><strong>Inseguro</strong><br>No ingresar</td>
+    <td>Cualquier condición de cierre marcada · o daño <strong>severo</strong> en
+      portantes, entrepisos o terreno</td>
+  </tr>
+  <tr>
+    <td><span class="chip c-a">AMARILLO</span></td>
+    <td><strong>Uso restringido</strong></td>
+    <td>Daño <strong>moderado</strong> en portantes, entrepisos o terreno · o daño
+      severo solo en muros divisorios y fachada</td>
+  </tr>
+  <tr>
+    <td><span class="chip c-v">VERDE</span></td>
+    <td><strong>Habitable</strong></td>
+    <td>Daño leve o nulo, sin condiciones de cierre</td>
+  </tr>
+</table>
+
+<h3>Las seis condiciones que fuerzan rojo</h3>
+<table class="tabla-chica">
+  <tr><td>Colapso total o parcial de algún nivel</td>
+      <td>Grietas pasantes o anchas en muros portantes</td></tr>
+  <tr><td>Inclinación o desplome visible de la edificación</td>
+      <td>Riesgo externo: vecino inestable, talud, deslizamiento</td></tr>
+  <tr><td>Columna con núcleo triturado, acero expuesto o pandeado</td>
+      <td>Elementos pesados sueltos sobre el acceso o la vía</td></tr>
+</table>
+
+<div class="aviso">
+  <span class="etq">Antes de entrar</span>
+  Personas atrapadas, olor a gas, incendio o colapso en curso → <strong>retírese y
+  llame al 123</strong>. No inspeccione sola o solo una estructura con inclinación visible.
+</div>
+
+<div class="nota-caja">
+  <span class="etq">Recordatorios</span>
+  Triaje <strong>preliminar</strong>: la habilitación la deciden UNGRD, Defensa Civil,
+  bomberos y alcaldías. · Solo firma quien tenga <strong>matrícula vigente</strong>. ·
+  Cambiar el semáforo calculado <strong>exige escribir el motivo</strong>. · La dirección
+  es <strong>dato personal</strong>: no se publica ni se comparte.
+</div>
+</section>
+
+<section>
+<h2>Anexo B · Referencia de la API</h2>
+
+<h3>POST /api/evaluaciones</h3>
+<p>Cabeceras: <code>Content-Type: application/json</code> y
+<code>X-Brigada-Token: &lt;token&gt;</code>.</p>
+
+<table class="tabla-chica">
+  <tr><th style="width:18%">Respuesta</th><th>Significado</th></tr>
+  <tr><td><strong>200</strong></td><td>Grabada. Devuelve <code>duplicado</code> (true si ya
+    existía ese id), <code>brigada</code> y <code>matricula_verificada</code>.</td></tr>
+  <tr><td><strong>401</strong></td><td>Token ausente, inválido o revocado.</td></tr>
+  <tr><td><strong>422</strong></td><td>Falta matrícula, clasificación fuera de rango, o
+    se modificó el semáforo sin justificación.</td></tr>
+  <tr><td><strong>503</strong></td><td>No se pudo grabar. <strong>El cliente debe conservar
+    el pendiente y reintentar.</strong></td></tr>
+</table>
+
+<p>Es <strong>idempotente por <code>id</code></strong>: reenviar no duplica.</p>
+
+<h3>Otras rutas</h3>
+<table class="tabla-chica">
+  <tr><td><code>GET /api/salud</code></td><td>Estado del receptor y de la base, con conteos.</td></tr>
+  <tr><td><code>GET /api/fuente</code></td><td>Redirige al código fuente (AGPL §13).</td></tr>
+</table>
+
+<h3>Cuerpo de una evaluación</h3>
+<pre>{
+  "id": "BRG-20260811-001",
+  "ts": "2026-08-11T15:00:00Z",
+  "inspector": {"nombre":"...", "matricula":"25101-COPNIA", "brigada":"..."},
+  "lat": 4.60971, "lon": -74.08175, "precision_m": 8,
+  "direccion": "...", "municipio": "...", "barrio": "...",
+  "sistema": "...", "uso": "...", "pisos": 2, "ocupantes": 4,
+  "danos":    {"portantes":2, "horizontal":1, "nostruct":1, "terreno":0},
+  "banderas": {"colapso":false, "inclina":false, "acero":false,
+               "pasante":false, "vecino":false, "acceso":false},
+  "clasificacion": 2, "clasificacion_auto": 2,
+  "motivo_auto": "...", "justificacion": "", "observaciones": "...",
+  "fotos": ["data:image/jpeg;base64,..."]
+}</pre>
+<p>Clasificación: <code>1</code> verde, <code>2</code> amarillo, <code>3</code> rojo.
+Niveles de daño: <code>0</code> N/A, <code>1</code> leve, <code>2</code> moderado,
+<code>3</code> severo.</p>
+</section>
+
+<section>
+<h2>Anexo C · Esquema de la base de datos</h2>
+
+<table class="tabla-chica">
+  <tr><th style="width:32%">Tabla o vista</th><th>Contenido</th></tr>
+  <tr><td><code>evaluacion_brigada</code></td><td>Una fila por evaluación. Incluye
+    <code>geom</code> (Point 4326, puede ser nulo), los <code>danos</code> y
+    <code>banderas</code> como JSONB, ambas clasificaciones, la justificación,
+    <code>brigada_token</code> y <code>matricula_verificada</code>.</td></tr>
+  <tr><td><code>brigada</code></td><td>Nombre, <code>token_hash</code> (sha256, nunca el
+    token), contacto, activa.</td></tr>
+  <tr><td><code>inspector</code></td><td>Matrícula, nombre, brigada, vigente,
+    verificada ante COPNIA.</td></tr>
+  <tr><td><code>consolidado_publico</code></td><td><strong>Vista.</strong> Agregado por
+    municipio y barrio, con <code>HAVING count(*) &gt;= 5</code>. Es lo único que sale
+    hacia las autoridades.</td></tr>
+  <tr><td><code>pendientes_de_verificacion</code></td><td><strong>Vista.</strong> Firmas
+    fuera del registro, ordenadas con los rojos primero.</td></tr>
+</table>
+
+<p>El archivo <code>esquema.sql</code> es la fuente de verdad y es idempotente.</p>
+</section>
+
+<section>
+<h2>Anexo D · Glosario</h2>
+
+<table class="tabla-chica" style="break-inside:auto">
+  <tr><td style="width:32%"><strong>ATC-20</strong></td><td>Metodología estadounidense de
+    evaluación rápida post-sismo. El semáforo verde/amarillo/rojo viene de ahí; acá está
+    adaptado a la NSR-10.</td></tr>
+  <tr><td><strong>NSR-10</strong></td><td>Reglamento Colombiano de Construcción Sismo
+    Resistente.</td></tr>
+  <tr><td><strong>COPNIA</strong></td><td>Consejo Profesional Nacional de Ingeniería.
+    Expide la matrícula profesional.</td></tr>
+  <tr><td><strong>UNGRD</strong></td><td>Unidad Nacional para la Gestión del Riesgo de
+    Desastres.</td></tr>
+  <tr><td><strong>PWA</strong></td><td>Aplicación web instalable que funciona sin conexión.</td></tr>
+  <tr><td><strong>Service worker</strong></td><td>El componente que guarda la app en el
+    teléfono y la hace funcionar sin señal.</td></tr>
+  <tr><td><strong>Token de brigada</strong></td><td>Credencial que autentica al teléfono
+    contra el servidor. Identifica a la brigada, no a la persona.</td></tr>
+  <tr><td><strong>Idempotente</strong></td><td>Que repetir la operación no cambia el
+    resultado. Reenviar una evaluación no la duplica.</td></tr>
+  <tr><td><strong>k-anonimato</strong></td><td>Umbral mínimo de registros para publicar un
+    agregado sin que se pueda reidentificar a un individuo. Acá son cinco por sector.</td></tr>
+  <tr><td><strong>PostGIS</strong></td><td>Extensión geográfica de PostgreSQL. Permite
+    consultas espaciales sobre las coordenadas.</td></tr>
+</table>
+
+<div class="pie-doc">
+  <div class="barra"><div class="v"></div><div class="a"></div><div class="r"></div></div>
+  <strong>Brigada · Evaluación estructural en campo</strong><br>
+  Manual v1.0 · Agosto de 2026<br><br>
+  Desarrollada con Amor por Andrés Benito Revollo Vélez · Rollout Comercio e Servicios Limitada<br>
+  Software libre bajo GNU AGPL v3 · github.com/abenito32/brigadaestructural<br>
+  Este manual se distribuye bajo la misma licencia que el programa.
+</div>
+</section>
+</div>
+
+</body>
+</html>

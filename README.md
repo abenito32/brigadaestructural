@@ -112,6 +112,15 @@ El receptor devuelve **503 y no 200** si no pudo grabar. Es deliberado: con un 2
 la app marcaría la evaluación como enviada y borraría el pendiente, perdiéndola sin
 que nadie se entere. Con 503 el registro sobrevive en el teléfono y se reintenta.
 
+## Manual
+
+`docs/manual-brigada.pdf` — 22 páginas, tres partes: para el inspector en campo,
+para quien coordina la brigada, y para quien administra el servidor. Incluye una
+tarjeta de referencia del semáforo pensada para imprimirse aparte y llevarse.
+
+Se reconstruye con `python3 docs/build_manual.py` (necesita Chrome o Chromium);
+la fuente editable es `docs/manual.html`.
+
 ## Cómo se usa en campo
 
 1. Con señal, abrir la URL una vez e instalar ("Agregar a pantalla de inicio"). Queda cacheada.

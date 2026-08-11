@@ -61,6 +61,9 @@ Sin dependencias de frontend:
 - `admin_web.py` — panel en `/admin`, HTML renderizado en el servidor con Jinja2
   (autoescape obligatorio: los datos vienen de campo). Se monta **solo** si existe
   `BRIGADA_ADMIN_HASH`; sin clave no hay rutas. Requiere `jinja2` y `python-multipart`.
+- `docs/manual.html` + `docs/build_manual.py` — el manual en PDF. La fuente es el
+  HTML; el PDF se regenera con Chrome headless. Al cambiar comportamiento del sistema,
+  revisar si el manual quedó desactualizado y reconstruirlo.
 - `esquema.sql` — **fuente de verdad del esquema**, idempotente. La tabla, los índices
   y la vista `consolidado_publico` viven ahí, no en el docstring del `.py`.
 
