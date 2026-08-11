@@ -42,7 +42,7 @@ sudo journalctl -u brigadas-api -n 40 --no-pager
 
 ## Arquitectura
 
-Cuatro archivos, sin dependencias de frontend:
+Sin dependencias de frontend:
 
 - `index.html` — la aplicación entera (CSS + HTML + un IIFE en ES5 `var`/`function`, sin frameworks).
   Es deliberado: tiene que arrancar en teléfonos viejos y cachearse en un solo recurso.
@@ -54,6 +54,8 @@ Cuatro archivos, sin dependencias de frontend:
 - `api_brigadas.py` — receptor FastAPI sobre `psycopg` 3 con pool. Graba con
   `INSERT ... ON CONFLICT (id) DO NOTHING RETURNING id`: idempotente por `id`, y el
   `RETURNING` vacío es lo que reporta `duplicado: true`.
+- `admin_brigadas.py` — alta/baja de brigadas e inspectores. Los tokens se guardan
+  como sha256, nunca en claro; `brigada-alta` los muestra una sola vez.
 - `esquema.sql` — **fuente de verdad del esquema**, idempotente. La tabla, los índices
   y la vista `consolidado_publico` viven ahí, no en el docstring del `.py`.
 
@@ -66,6 +68,12 @@ Cuatro archivos, sin dependencias de frontend:
   tipo del parámetro `NULL`.
 - **`ESPERA_POOL = 5`.** Con la BD caída responde 503 en 5s en vez de colgar el
   teléfono del inspector hasta el timeout del cliente.
+- **Nunca rechazar por matrícula no registrada.** Se acepta y se marca
+  `matricula_verificada=false`; la vista `pendientes_de_verificacion` es la cola de
+  revisión. Rechazar deja evaluaciones atrapadas en un teléfono para siempre.
+- **Los tokens de `BRIGADA_TOKENS` deben seguir funcionando.** Son el camino de
+  compatibilidad para teléfonos ya configurados; entran sin atribución (`brigada:
+  null`), no con error.
 - El servidor revalida lo que la app ya valida (matrícula, rango de clasificación,
   justificación obligatoria si se cambia el semáforo calculado). Es el registro de
   responsabilidad profesional; no relajarlo porque "el frontend ya lo chequea".
@@ -116,4 +124,6 @@ esa exigencia ni permitir guardar sin matrícula: es el registro de responsabili
   pueden emitir el mismo `id` el mismo día — si se consolida entre dispositivos, hay que
   prefijar por brigada antes de confiar en la idempotencia por `id`.
 - El JS de `index.html` es ES5 a propósito (`var`, sin arrow functions ni `const`). Seguir el estilo.
-- Los iconos `icono-192.png` / `icono-512.png` que declara el manifest no están en el repo.
+- **Parámetros `NULL` sin cast revientan con `AmbiguousParameter`.** Ya pasó dos veces
+  (`lat`/`lon` en el `INSERT`, filtro opcional en `admin_brigadas.py`). Si un parámetro
+  puede llegar `NULL` y se compara con `IS NULL`, lleva `::tipo` explícito.

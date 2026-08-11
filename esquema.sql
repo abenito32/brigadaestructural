@@ -49,6 +49,51 @@ CREATE INDEX IF NOT EXISTS evaluacion_brigada_geom_idx   ON evaluacion_brigada U
 CREATE INDEX IF NOT EXISTS evaluacion_brigada_sector_idx ON evaluacion_brigada (municipio, barrio);
 CREATE INDEX IF NOT EXISTS evaluacion_brigada_clasif_idx ON evaluacion_brigada (clasificacion);
 
+-- ---------------------------------------------------------------------------
+-- Registro de brigadas e inspectores
+-- ---------------------------------------------------------------------------
+
+-- Una fila por brigada autorizada a sincronizar. El token NUNCA se guarda en
+-- claro: se guarda su sha256. Si la base se filtra, los tokens no se filtran.
+CREATE TABLE IF NOT EXISTS brigada (
+  nombre      text PRIMARY KEY,
+  token_hash  text NOT NULL UNIQUE,
+  contacto    text,
+  activa      boolean NOT NULL DEFAULT true,
+  creada_en   timestamptz NOT NULL DEFAULT now()
+);
+
+-- Quién puede firmar. `vigente` es la baja lógica: nunca se borra un inspector
+-- que ya firmó evaluaciones, porque su matrícula es parte del registro legal.
+CREATE TABLE IF NOT EXISTS inspector (
+  matricula          text PRIMARY KEY,
+  nombre             text NOT NULL,
+  brigada            text REFERENCES brigada(nombre),
+  vigente            boolean NOT NULL DEFAULT true,
+  verificada_copnia  boolean NOT NULL DEFAULT false,
+  registrado_en      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS inspector_brigada_idx ON inspector (brigada);
+
+-- Atribución: con qué credencial entró cada evaluación y si quien firmó estaba
+-- registrado. Aditivas y con default, para no romper lo que ya está grabado.
+ALTER TABLE evaluacion_brigada
+  ADD COLUMN IF NOT EXISTS brigada_token text REFERENCES brigada(nombre);
+ALTER TABLE evaluacion_brigada
+  ADD COLUMN IF NOT EXISTS matricula_verificada boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS evaluacion_brigada_token_idx ON evaluacion_brigada (brigada_token);
+
+-- Cola de revisión: quién firmó sin estar en el registro. No se rechaza en campo
+-- —perder una evaluación es peor que aceptarla marcada— pero no puede pasar
+-- inadvertido al consolidar.
+CREATE OR REPLACE VIEW pendientes_de_verificacion AS
+SELECT e.id, e.ts, e.matricula, e.inspector, e.brigada AS brigada_declarada,
+       e.brigada_token AS brigada_autenticada, e.clasificacion,
+       e.municipio, e.barrio
+FROM evaluacion_brigada e
+WHERE NOT e.matricula_verificada
+ORDER BY e.clasificacion DESC, e.ts DESC;   -- los rojos primero
+
 -- Lo único que sale hacia las autoridades: agregado por sector, sin predio ni
 -- dirección (Ley 1581 de 2012), con umbral mínimo de registros por sector.
 CREATE OR REPLACE VIEW consolidado_publico AS

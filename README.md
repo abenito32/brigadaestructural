@@ -54,6 +54,29 @@ Las variables (`BRIGADA_TOKENS`, `BRIGADA_DSN`, `BRIGADA_FOTOS`) van en un archi
 aparte con permisos `0600`, nunca en el unit de systemd, que es legible por todos.
 Ver `.env.example` y `brigadas-api.service.example`.
 
+### 4. El registro de brigadas e inspectores
+
+```bash
+ADM="/opt/brigadas/venv/bin/python /opt/brigadas/admin_brigadas.py"
+sudo env BRIGADA_DSN=... $ADM brigada-alta "Universidad Nacional" "coord@unal.edu.co"
+sudo env BRIGADA_DSN=... $ADM inspector-alta "25101-COPNIA" "Ana Ruiz" "Universidad Nacional"
+sudo env BRIGADA_DSN=... $ADM sin-verificar
+```
+
+`brigada-alta` genera el token y lo muestra **una sola vez**: la base guarda solo
+su sha256, así que una filtración de la base no filtra tokens. Cada evaluación
+queda atribuida a la brigada que autenticó, que no es lo mismo que el nombre que
+el inspector escribe a mano en Ajustes — ese sigue siendo texto libre e informativo.
+
+Una evaluación firmada por una matrícula que no está en el registro **se acepta
+igual** y queda marcada: en una emergencia, perder trabajo de campo es peor que
+aceptarlo pendiente de revisión. `sin-verificar` lista esa cola con los rojos
+primero, y dar de alta al inspector reconcilia hacia atrás lo que ya había enviado.
+
+Los tokens de `BRIGADA_TOKENS` siguen funcionando para no dejar afuera a un
+teléfono ya configurado, pero no atribuyen. `brigada-adoptar` los incorpora al
+registro sin rotarlos ni tocar los teléfonos.
+
 Los tokens se generan con `openssl rand -hex 24`, uno por brigada. En Ajustes, el
 inspector pega el endpoint y su token una sola vez por teléfono, y usa
 **Probar conexión** antes de salir a terreno: distingue servidor inalcanzable,

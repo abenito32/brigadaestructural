@@ -23,7 +23,8 @@ Receptor de evaluaciones de brigada.
   uvicorn api_brigadas:app --host 127.0.0.1 --port 8004
 
 Entorno:
-  BRIGADA_TOKENS  tokens separados por coma, uno por brigada
+  BRIGADA_TOKENS  tokens heredados, separados por coma. Siguen funcionando pero
+                  no atribuyen: preferir el registro de brigadas (admin_brigadas.py)
   BRIGADA_DSN     postgresql://usuario:clave@host:puerto/base
   BRIGADA_FOTOS   directorio donde se dejan las imagenes (la BD guarda rutas)
   BRIGADA_FUENTE  URL del repositorio propio (AGPL §13); tiene un valor por defecto
@@ -34,7 +35,7 @@ Entorno:
 El esquema vive en esquema.sql, que es la fuente de verdad. Aca solo se escribe.
 """
 
-import base64, os, pathlib
+import base64, hashlib, os, pathlib
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -165,7 +166,7 @@ INSERT INTO evaluacion_brigada (
   geom, precision_m, direccion, municipio, barrio,
   sistema, uso, pisos, ocupantes, danos, banderas,
   clasificacion, clasificacion_auto, motivo_auto, justificacion,
-  observaciones, fotos
+  observaciones, fotos, brigada_token, matricula_verificada
 ) VALUES (
   %(id)s, %(ts)s, %(matricula)s, %(inspector)s, %(brigada)s,
   -- Los ::float8 son obligatorios: sin ellos Postgres no infiere el tipo cuando
@@ -176,17 +177,45 @@ INSERT INTO evaluacion_brigada (
   %(precision_m)s, %(direccion)s, %(municipio)s, %(barrio)s,
   %(sistema)s, %(uso)s, %(pisos)s, %(ocupantes)s, %(danos)s, %(banderas)s,
   %(clasificacion)s, %(clasificacion_auto)s, %(motivo_auto)s, %(justificacion)s,
-  %(observaciones)s, %(fotos)s
+  %(observaciones)s, %(fotos)s, %(brigada_token)s,
+  -- Se resuelve en la misma sentencia para no gastar otra ida a la base.
+  EXISTS (SELECT 1 FROM inspector
+          WHERE matricula = %(matricula)s AND vigente)
 )
 ON CONFLICT (id) DO NOTHING
-RETURNING id
+RETURNING id, matricula_verificada
 """
+
+
+def sha(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def autenticar(token: str) -> str | None:
+    """Devuelve el nombre de la brigada, o None si el token es heredado del entorno.
+
+    Levanta 401 si el token no sirve. Los tokens de BRIGADA_TOKENS se aceptan
+    igual que siempre para no dejar afuera a un teléfono ya configurado, pero no
+    atribuyen: el registro es el camino nuevo, no un requisito retroactivo.
+    """
+    if not token:
+        raise HTTPException(401, "Falta el token de brigada")
+    try:
+        with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
+            cur.execute("SELECT nombre FROM brigada WHERE token_hash=%s AND activa", (sha(token),))
+            fila = cur.fetchone()
+    except (psycopg.Error, PoolTimeout):
+        raise HTTPException(503, "No se pudo validar el token: base de datos no disponible")
+    if fila:
+        return fila[0]
+    if token in TOKENS:
+        return None
+    raise HTTPException(401, "Token de brigada inválido")
 
 
 @app.post("/api/evaluaciones")
 def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
-    if TOKENS and x_brigada_token not in TOKENS:
-        raise HTTPException(401, "Token de brigada inválido")
+    brigada_auth = autenticar(x_brigada_token)
 
     matricula = str(ev.inspector.get("matricula", "")).strip()
     if not matricula:
@@ -226,19 +255,25 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
         "justificacion": ev.justificacion,
         "observaciones": ev.observaciones,
         "fotos": Jsonb(rutas),
+        "brigada_token": brigada_auth,
     }
 
     try:
         with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
             cur.execute(INSERT, datos)
             fila = cur.fetchone()
+            verificada = fila[1] if fila else None
     except (psycopg.Error, PoolTimeout) as e:
         # 503 y NO 200: la app deja el registro como pendiente y reintenta.
         # Devolver ok aca perderia la evaluacion sin que nadie se entere.
         raise HTTPException(503, f"No se pudo grabar la evaluación: {e.__class__.__name__}")
 
     # fila None = ya estaba (ON CONFLICT DO NOTHING). Reintentar no duplica.
+    # matricula_verificada viaja en la respuesta a proposito: si una brigada
+    # sincroniza y ve que todo entra sin verificar, sabe que le falta cargar
+    # su gente en el registro antes de que el consolidado sea defendible.
     return {"ok": True, "id": ev.id, "duplicado": fila is None,
+            "brigada": brigada_auth, "matricula_verificada": verificada,
             "recibido_en": datetime.now(timezone.utc).isoformat()}
 
 
@@ -262,8 +297,13 @@ def salud():
     """
     try:
         with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
-            cur.execute("SELECT count(*) FROM evaluacion_brigada")
-            total = cur.fetchone()[0]
+            cur.execute("""SELECT (SELECT count(*) FROM evaluacion_brigada),
+                                  (SELECT count(*) FROM evaluacion_brigada
+                                     WHERE NOT matricula_verificada),
+                                  (SELECT count(*) FROM brigada WHERE activa),
+                                  (SELECT count(*) FROM inspector WHERE vigente)""")
+            total, sin_verificar, brigadas, inspectores = cur.fetchone()
     except (psycopg.Error, PoolTimeout, AttributeError) as e:
         raise HTTPException(503, f"Base de datos no disponible: {e.__class__.__name__}")
-    return {"ok": True, "evaluaciones": total}
+    return {"ok": True, "evaluaciones": total, "sin_verificar": sin_verificar,
+            "brigadas": brigadas, "inspectores": inspectores}
