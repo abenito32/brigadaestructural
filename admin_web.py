@@ -87,6 +87,13 @@ def exigir(req: Request):
         raise HTTPException(303, headers={"Location": "/admin/entrar"})
 
 
+def ip_real(req: Request) -> str:
+    """Detras de nginx, req.client.host es siempre el proxy: sin esto TODOS los
+    intentos caen en el mismo cubo y ocho fallos de cualquiera dejan afuera a
+    todo el mundo. X-Real-IP lo pone nginx con $remote_addr, no el cliente."""
+    return req.headers.get("x-real-ip") or (req.client.host if req.client else "?")
+
+
 def limitar(ip: str) -> bool:
     """Frena la fuerza bruta contra la clave. Devuelve True si hay que rechazar."""
     ahora = time.time()
@@ -241,7 +248,7 @@ def entrar_form(req: Request):
 
 @router.post("/admin/entrar")
 def entrar(req: Request, clave: str = Form(...)):
-    ip = req.client.host if req.client else "?"
+    ip = ip_real(req)
     if limitar(ip):
         return pagina("Entrar", render(ENTRAR,
             error="Demasiados intentos. Espere diez minutos."), sesion=False)

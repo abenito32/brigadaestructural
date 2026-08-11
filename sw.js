@@ -14,7 +14,7 @@
    vea <https://www.gnu.org/licenses/>.
  */
 
-const CACHE = "brigada-v7";   // subir en CADA cambio de los archivos cacheados
+const CACHE = "brigada-v8";   // subir en CADA cambio de los archivos cacheados
 const ARCHIVOS = ["./", "./index.html", "./manifest.json"];
 
 self.addEventListener("install", e => {
@@ -33,11 +33,24 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;               // el POST de sincronización pasa directo
-  if (new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;
+
+  // El panel y la API nunca pasan por caché. Dos razones distintas y ambas serias:
+  // una respuesta de error cacheada queda pegada para siempre (un 404 de /admin
+  // sobrevive a configurar la clave en el servidor), y el panel muestra
+  // direcciones y coordenadas, que no pueden quedar guardadas en el disco del
+  // navegador (Ley 1581 de 2012).
+  if (url.pathname.startsWith("/admin") || url.pathname.startsWith("/api")) return;
+
   e.respondWith(
     caches.match(req).then(hit => hit || fetch(req).then(res => {
-      const copia = res.clone();
-      caches.open(CACHE).then(c => c.put(req, copia));
+      // Solo se cachea lo que salió bien. Guardar un 404 o un 500 es convertir
+      // un problema pasajero del servidor en uno permanente del teléfono.
+      if (res.ok && res.type === "basic") {
+        const copia = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copia));
+      }
       return res;
     }).catch(() => caches.match("./index.html")))
   );

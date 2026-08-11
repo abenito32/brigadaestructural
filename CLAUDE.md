@@ -47,7 +47,9 @@ Sin dependencias de frontend:
 - `index.html` — la aplicación entera (CSS + HTML + un IIFE en ES5 `var`/`function`, sin frameworks).
   Es deliberado: tiene que arrancar en teléfonos viejos y cachearse en un solo recurso.
 - `sw.js` — service worker cache-first sobre el armazón (`./`, `index.html`, `manifest.json`).
-  Ignora POST y orígenes externos, así que la sincronización nunca pasa por caché.
+  Ignora POST, orígenes externos, `/api` y `/admin`, y **solo cachea respuestas `res.ok`**:
+  guardar un 404 lo vuelve permanente en ese teléfono, y el panel lleva datos personales
+  que no pueden quedar en el disco del navegador.
   **Al cambiar los archivos cacheados hay que subir `CACHE = "brigada-vN"`**, si no los teléfonos
   se quedan con la versión vieja.
 - `manifest.json` — instalación en pantalla de inicio.
