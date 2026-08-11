@@ -1,5 +1,24 @@
 <!DOCTYPE html>
-<html lang="es-CO">
+<!--
+  Brigada · Evaluación estructural en campo
+  Copyright (C) 2026 Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez
+
+  Este programa es software libre: usted puede redistribuirlo y/o modificarlo bajo
+  los términos de la Licencia Pública General Affero de GNU publicada por la Free
+  Software Foundation, en su versión 3 o (a su elección) cualquier versión posterior.
+
+  Se distribuye con la esperanza de que sea útil, pero SIN NINGUNA GARANTÍA; ni
+  siquiera la garantía implícita de COMERCIABILIDAD o IDONEIDAD PARA UN PROPÓSITO
+  PARTICULAR. Vea la Licencia para más detalle.
+
+  Debería haber recibido una copia junto con este programa. Si no, vea
+  <https://www.gnu.org/licenses/>.
+
+  AGPL §13: quien use este programa a través de una red tiene derecho a recibir su
+  código fuente. El enlace "Código fuente" en Ajustes es parte del cumplimiento de
+  esa obligación: no quitarlo al hacer un fork, actualizarlo al repositorio propio.
+-->
+<html lang="es-CO"><!-- fuente: https://github.com/abenito32/brigadaestructural -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -142,6 +161,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--senal);outline-o
 .reg .e.ok{color:var(--verde)}
 .vacio{text-align:center;color:var(--tenue);padding:44px 18px;font-size:14px}
 .nota{font-size:12px;color:var(--tenue);line-height:1.5;margin:9px 0 0}
+.nota a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.nota a:hover,.nota a:focus-visible{color:var(--tinta)}
 .aviso{border:1px solid var(--rojo);background:rgba(193,39,45,.1);border-radius:var(--r);
   padding:12px 13px;font-size:13px;line-height:1.5;margin:14px 0}
 .oculto{display:none!important}
@@ -291,6 +312,17 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--senal);outline-o
     <p class="nota">La dirección y las coordenadas son dato personal (Ley 1581 de 2012). Se envían al
       servidor de la brigada y no se publican. El consolidado que se entregue a las autoridades debe
       agregarse por manzana o sector, nunca por predio.</p>
+  </section>
+  <!-- Exigido por la AGPL §13: quien usa el programa por red puede pedir su fuente. -->
+  <section class="bloque">
+    <p class="rotulo">Licencia</p>
+    <p class="nota">Copyright © 2026 Rollout Comercio e Servicios Limitada / Andrés Benito
+      Revollo Vélez. Software libre bajo
+      <a href="https://www.gnu.org/licenses/agpl-3.0.html" rel="license noopener" target="_blank">GNU AGPL v3</a>.
+      <a href="https://github.com/abenito32/brigadaestructural" rel="noopener" target="_blank">Código fuente</a>.</p>
+    <p class="nota">Esta app hace <strong>triaje preliminar</strong>. La habilitación definitiva de una
+      edificación es competencia de UNGRD, Defensa Civil, bomberos y las alcaldías. Solo firma quien
+      tenga matrícula profesional vigente (Ley 400/97, NSR-10).</p>
   </section>
 </main>
 

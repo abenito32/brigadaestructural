@@ -1,3 +1,18 @@
+-- Brigada · Evaluación estructural en campo
+-- Copyright (C) 2026 Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez
+-- 
+-- Este programa es software libre: usted puede redistribuirlo y/o
+-- modificarlo bajo los términos de la Licencia Pública General Affero
+-- de GNU publicada por la Free Software Foundation, en su versión 3 o
+-- (a su elección) cualquier versión posterior.
+-- 
+-- Se distribuye con la esperanza de que sea útil, pero SIN NINGUNA
+-- GARANTÍA; ni siquiera la garantía implícita de COMERCIABILIDAD o
+-- IDONEIDAD PARA UN PROPÓSITO PARTICULAR. Vea la Licencia para más detalle.
+-- 
+-- Debería haber recibido una copia junto con este programa. Si no,
+-- vea <https://www.gnu.org/licenses/>.
+
 -- Esquema de la base de Brigadas (PostgreSQL 16 + PostGIS 3.4).
 -- Idempotente: se puede volver a correr sin romper nada.
 --   docker exec -i brigadas-db psql -U brigadas -d brigadas < esquema.sql

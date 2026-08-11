@@ -1,4 +1,20 @@
-const CACHE = "brigada-v1";
+/* Brigada · Evaluación estructural en campo
+   Copyright (C) 2026 Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez
+   
+   Este programa es software libre: usted puede redistribuirlo y/o
+   modificarlo bajo los términos de la Licencia Pública General Affero
+   de GNU publicada por la Free Software Foundation, en su versión 3 o
+   (a su elección) cualquier versión posterior.
+   
+   Se distribuye con la esperanza de que sea útil, pero SIN NINGUNA
+   GARANTÍA; ni siquiera la garantía implícita de COMERCIABILIDAD o
+   IDONEIDAD PARA UN PROPÓSITO PARTICULAR. Vea la Licencia para más detalle.
+   
+   Debería haber recibido una copia junto con este programa. Si no,
+   vea <https://www.gnu.org/licenses/>.
+ */
+
+const CACHE = "brigada-v2";   // subir en CADA cambio de los archivos cacheados
 const ARCHIVOS = ["./", "./index.html", "./manifest.json"];
 
 self.addEventListener("install", e => {

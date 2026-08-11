@@ -110,11 +110,20 @@ riesgo externo (vecino inestable o talud), elementos pesados sueltos sobre el ac
 
 ## Licencia
 
-GPL-3.0. Si lo modifica y lo distribuye, las modificaciones también son GPL.
+Copyright © 2026 **Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez**.
+
+Software libre bajo **GNU AGPL v3**. Si lo modifica y lo distribuye —o lo ofrece
+como servicio en red, que es el caso de casi cualquier despliegue de esto—, las
+modificaciones también son AGPL y debe publicarlas.
 
 La intención es que cualquier universidad, alcaldía u organismo de socorro pueda
 tomarlo, adaptarlo a su normativa y usarlo — pero que las mejoras vuelvan al común.
 En una emergencia nadie debería estar reescribiendo esto desde cero.
+
+El aviso de copyright y el enlace al código en la interfaz no son decorativos: la
+§13 de la AGPL obliga a ofrecer la fuente a quien usa el programa por red. Si hace
+un fork, mantenga el enlace y apúntelo a su repositorio (`BRIGADA_FUENTE` para la
+API, el enlace de Ajustes para la app).
 
 Si lo adapta a otro país, lo que hay que revisar es la regla de clasificación
 (`clasificar()` en `index.html`), que está calibrada al ATC-20 adaptado a NSR-10,

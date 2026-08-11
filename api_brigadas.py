@@ -1,3 +1,22 @@
+# Brigada · Evaluación estructural en campo
+# Copyright (C) 2026 Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez
+# 
+# Este programa es software libre: usted puede redistribuirlo y/o
+# modificarlo bajo los términos de la Licencia Pública General Affero
+# de GNU publicada por la Free Software Foundation, en su versión 3 o
+# (a su elección) cualquier versión posterior.
+# 
+# Se distribuye con la esperanza de que sea útil, pero SIN NINGUNA
+# GARANTÍA; ni siquiera la garantía implícita de COMERCIABILIDAD o
+# IDONEIDAD PARA UN PROPÓSITO PARTICULAR. Vea la Licencia para más detalle.
+# 
+# Debería haber recibido una copia junto con este programa. Si no,
+# vea <https://www.gnu.org/licenses/>.
+# 
+# AGPL §13: quien use este programa a través de una red tiene derecho a
+# recibir su código fuente. El enlace al repositorio en la interfaz y en
+# /api/fuente es parte del cumplimiento de esa obligación: no quitarlo.
+
 """
 Receptor de evaluaciones de brigada.
   pip install fastapi uvicorn "psycopg[binary,pool]"
@@ -7,6 +26,7 @@ Entorno:
   BRIGADA_TOKENS  tokens separados por coma, uno por brigada
   BRIGADA_DSN     postgresql://usuario:clave@host:puerto/base
   BRIGADA_FOTOS   directorio donde se dejan las imagenes (la BD guarda rutas)
+  BRIGADA_FUENTE  URL del repositorio propio (AGPL §13); tiene un valor por defecto
 
 El esquema vive en esquema.sql, que es la fuente de verdad. Aca solo se escribe.
 """
@@ -18,12 +38,15 @@ from typing import Any
 
 import psycopg
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import RedirectResponse
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool, PoolTimeout
 from pydantic import BaseModel
 
 TOKENS = set(filter(None, os.getenv("BRIGADA_TOKENS", "").split(",")))
 DSN = os.getenv("BRIGADA_DSN", "")
+# Un fork que despliegue esto debe apuntar BRIGADA_FUENTE a su propio repositorio.
+FUENTE = os.getenv("BRIGADA_FUENTE", "https://github.com/abenito32/brigadaestructural")
 FOTOS = pathlib.Path(os.getenv("BRIGADA_FOTOS", "./fotos"))
 FOTOS.mkdir(parents=True, exist_ok=True)
 
@@ -196,6 +219,16 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
     # fila None = ya estaba (ON CONFLICT DO NOTHING). Reintentar no duplica.
     return {"ok": True, "id": ev.id, "duplicado": fila is None,
             "recibido_en": datetime.now(timezone.utc).isoformat()}
+
+
+@app.get("/api/fuente")
+def fuente():
+    """AGPL §13: ofrecer la fuente a quien interactúa con el programa por red.
+
+    Si usted despliega una versión modificada, apunte FUENTE a SU repositorio:
+    la obligación es entregar el código que efectivamente está corriendo.
+    """
+    return RedirectResponse(FUENTE, status_code=302)
 
 
 @app.get("/salud")
