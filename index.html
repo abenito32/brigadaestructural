@@ -22,165 +22,222 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#14181C">
+<meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="manifest.json">
 <title>Brigada · Evaluación estructural</title>
 <style>
+/* Paleta clara, azul institucional. El azul es de la interfaz; el verde, el
+   amarillo y el rojo pertenecen SOLO al semáforo de clasificación y no se usan
+   para nada más: si la app pintara botones verdes, el verde dejaría de querer
+   decir "habitable". */
 :root{
-  --grafito:#14181C;
-  --carbon:#1E242A;
-  --borde:#2E3740;
-  --tinta:#EDEFF0;
-  --tenue:#8A97A3;
-  --verde:#1F7A3D;
-  --amarillo:#E8B21A;
-  --rojo:#C1272D;
-  --senal:#FF6B1A;
-  --r:4px;
+  --papel:#F1F5F9;      /* fondo de página */
+  --carta:#FFFFFF;      /* superficies */
+  --tinta:#0F172A;      /* texto principal  16.9:1 sobre blanco */
+  --tinta2:#475569;     /* texto secundario  7.4:1 */
+  --tenue:#5E6E82;      /* terciario  4.8:1 sobre blanco y 4.8:1 sobre --papel */
+  --borde:#CBD5E1;
+  --linea:#E2E8F0;      /* divisores suaves */
+
+  --azul:#0369A1;       /* acento de interfaz  4.9:1 sobre blanco */
+  --azul-osc:#075985;
+  --azul-tinte:#E0F2FE;
+
+  --verde:#15803D;
+  --ambar:#B45309;      /* ámbar oscuro: para texto y bordes */
+  --ambar-fondo:#FACC15;/* relleno del semáforo, siempre con tinta oscura */
+  --ambar-tinta:#422006;
+  --rojo:#B91C1C;
+  --rojo-tinte:#FEF2F2;
+
+  --r:8px;              /* campos y botones */
+  --r-l:12px;           /* tarjetas */
+  --r-s:6px;
+  --sombra:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.08);
+  --sombra-alta:0 -1px 3px rgba(15,23,42,.07);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{color-scheme:light}   /* que el navegador no invierta los controles */
 html,body{margin:0;padding:0}
 body{
-  background:var(--grafito);color:var(--tinta);
+  background:var(--papel);color:var(--tinta);
   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  font-size:16px;line-height:1.45;
+  font-size:16px;line-height:1.5;
   padding-bottom:96px;
   -webkit-text-size-adjust:100%;
 }
 .wrap{max-width:640px;margin:0 auto;padding:0 14px}
 
 /* ---------- barra superior ---------- */
-.top{
-  position:sticky;top:0;z-index:40;background:var(--grafito);
-  border-bottom:1px solid var(--borde);
-  padding:10px 14px;display:flex;align-items:center;gap:10px;
-}
-.marca{font-weight:800;letter-spacing:.14em;font-size:12px;text-transform:uppercase}
-.marca span{color:var(--senal)}
-.red{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;
-  letter-spacing:.1em;text-transform:uppercase;color:var(--tenue);font-weight:700}
-.punto{width:8px;height:8px;border-radius:50%;background:var(--senal)}
-.punto.on{background:var(--verde)}
+.top{position:sticky;top:0;z-index:40;background:var(--carta);
+  border-bottom:1px solid var(--linea)}
+.top-in{max-width:640px;margin:0 auto;padding:11px 14px;display:flex;align-items:center;gap:10px}
+.marca{font-weight:700;font-size:15px;letter-spacing:-.01em}
+.marca span{color:var(--azul);font-weight:600;margin:0 2px}
+.red{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;
+  color:var(--tinta2);font-weight:600}
+/* El punto acompaña al texto, nunca lo reemplaza: el estado no se cifra en color. */
+.punto{width:8px;height:8px;border-radius:50%;background:var(--tenue);
+  box-shadow:0 0 0 3px rgba(100,116,139,.16)}
+.punto.on{background:var(--azul);box-shadow:0 0 0 3px rgba(3,105,161,.16)}
 
 /* ---------- pestañas ---------- */
-.tabs{display:flex;border-bottom:1px solid var(--borde);background:var(--grafito);
-  position:sticky;top:43px;z-index:39}
-.tab{flex:1;background:none;border:0;color:var(--tenue);font:inherit;font-weight:700;
-  font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:13px 4px;cursor:pointer;
-  border-bottom:2px solid transparent}
-.tab[aria-selected="true"]{color:var(--tinta);border-bottom-color:var(--senal)}
-.tab:focus-visible{outline:2px solid var(--senal);outline-offset:-2px}
+.tabs{border-bottom:1px solid var(--linea);background:var(--carta);
+  position:sticky;top:45px;z-index:39}
+.tabs-in{max-width:640px;margin:0 auto;display:flex;gap:2px;padding:0 8px}
+.tab{flex:1;background:none;border:0;color:var(--tinta2);font:inherit;font-weight:600;
+  font-size:14px;padding:12px 4px 10px;cursor:pointer;
+  border-bottom:2.5px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--azul);border-bottom-color:var(--azul)}
+.tab:focus-visible{outline:3px solid var(--azul);outline-offset:-3px;border-radius:var(--r-s)}
 
 /* ---------- bloques ---------- */
-.bloque{border:1px solid var(--borde);background:var(--carbon);border-radius:var(--r);
-  margin:14px 0;padding:14px}
-.rotulo{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--tenue);margin:0 0 12px}
-.rotulo b{color:var(--senal);font-variant-numeric:tabular-nums;margin-right:8px}
+.bloque{border:1px solid var(--linea);background:var(--carta);border-radius:var(--r-l);
+  margin:14px 0;padding:16px;box-shadow:var(--sombra)}
+.rotulo{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--tenue);margin:0 0 14px}
+.rotulo b{color:var(--azul);font-variant-numeric:tabular-nums;margin-right:8px}
 
-label.campo{display:block;margin-bottom:12px}
-label.campo>span{display:block;font-size:12px;font-weight:700;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--tenue);margin-bottom:5px}
+label.campo{display:block;margin-bottom:14px}
+label.campo>span{display:block;font-size:13px;font-weight:600;color:var(--tinta2);
+  margin-bottom:6px}
 input,select,textarea{
-  width:100%;background:var(--grafito);color:var(--tinta);
+  width:100%;background:var(--carta);color:var(--tinta);
   border:1px solid var(--borde);border-radius:var(--r);
-  padding:13px 11px;font:inherit;min-height:50px}
-textarea{min-height:80px;resize:vertical}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--senal);outline-offset:-1px;border-color:var(--senal)}
+  padding:13px 12px;font:inherit;min-height:50px}
+textarea{min-height:84px;resize:vertical;line-height:1.5}
+/* El placeholder cumple 4.5:1 pero sigue mas claro que el texto real,
+   para que nadie confunda un ejemplo con un campo ya diligenciado. */
+input::placeholder,textarea::placeholder{color:#64748B}
+input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-offset:-1px;
+  border-color:var(--azul)}
 .fila2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 /* ---------- escala de daño ---------- */
-.item{margin-bottom:16px}
-.item>p{margin:0 0 7px;font-size:14px;font-weight:600}
-.item>p em{display:block;font-style:normal;font-weight:400;font-size:12px;color:var(--tenue);margin-top:2px}
-.escala{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.item{margin-bottom:18px}
+.item:last-child{margin-bottom:0}
+.item>p{margin:0 0 8px;font-size:15px;font-weight:600}
+.item>p em{display:block;font-style:normal;font-weight:400;font-size:13px;
+  color:var(--tinta2);margin-top:2px;line-height:1.4}
+.escala{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .escala button{
-  min-height:56px;background:var(--grafito);border:1px solid var(--borde);
-  color:var(--tenue);border-radius:var(--r);font:inherit;font-size:11px;font-weight:800;
-  letter-spacing:.05em;text-transform:uppercase;cursor:pointer;padding:4px 2px}
-.escala button:focus-visible{outline:2px solid var(--senal);outline-offset:1px}
-.escala button[aria-pressed="true"]{color:#0D1013;border-color:transparent}
-.escala button[data-v="0"][aria-pressed="true"]{background:#5B6873;color:var(--tinta)}
+  min-height:56px;background:var(--carta);border:1px solid var(--borde);
+  color:var(--tinta2);border-radius:var(--r);font:inherit;font-size:13px;font-weight:600;
+  cursor:pointer;padding:4px 2px}
+.escala button:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
+.escala button[aria-pressed="true"]{border-color:transparent;font-weight:700;
+  box-shadow:var(--sombra)}
+.escala button[data-v="0"][aria-pressed="true"]{background:#E2E8F0;color:var(--tinta);
+  border-color:var(--borde);box-shadow:none}
 .escala button[data-v="1"][aria-pressed="true"]{background:var(--verde);color:#fff}
-.escala button[data-v="2"][aria-pressed="true"]{background:var(--amarillo)}
+.escala button[data-v="2"][aria-pressed="true"]{background:var(--ambar-fondo);color:var(--ambar-tinta)}
 .escala button[data-v="3"][aria-pressed="true"]{background:var(--rojo);color:#fff}
 
 /* ---------- banderas ---------- */
-.bandera{display:flex;gap:11px;align-items:flex-start;padding:12px 10px;
-  border:1px solid var(--borde);border-radius:var(--r);margin-bottom:7px;cursor:pointer}
-.bandera input{width:24px;height:24px;min-height:24px;flex:0 0 24px;margin:1px 0 0;accent-color:var(--rojo)}
-.bandera span{font-size:14px;line-height:1.35}
-.bandera:has(input:checked){border-color:var(--rojo);background:rgba(193,39,45,.11)}
+.bandera{display:flex;gap:12px;align-items:flex-start;padding:13px 12px;
+  border:1px solid var(--borde);border-radius:var(--r);margin-bottom:8px;cursor:pointer;
+  background:var(--carta)}
+.bandera input{width:24px;height:24px;min-height:24px;flex:0 0 24px;margin:0;
+  accent-color:var(--rojo)}
+.bandera span{font-size:15px;line-height:1.4}
+.bandera:has(input:checked){border-color:var(--rojo);background:var(--rojo-tinte)}
+.bandera:has(input:focus-visible){outline:3px solid var(--azul);outline-offset:2px}
 
-/* ---------- placa (elemento firma) ---------- */
-.placa{border-radius:var(--r);overflow:hidden;border:1px solid var(--borde);margin-bottom:12px}
-.placa-cab{padding:16px 14px;position:relative;overflow:hidden}
-.placa-cab::after{content:"";position:absolute;inset:0;
-  background:repeating-linear-gradient(135deg,rgba(0,0,0,.13) 0 12px,transparent 12px 24px)}
-.placa-cab h2{margin:0;font-size:30px;font-weight:900;letter-spacing:-.02em;position:relative;z-index:1}
-.placa-cab p{margin:3px 0 0;font-size:12px;font-weight:800;letter-spacing:.16em;
-  text-transform:uppercase;opacity:.82;position:relative;z-index:1}
-.placa-pie{padding:11px 14px;font-size:13px;color:var(--tenue);background:var(--carbon)}
-.v-0{background:#39424B;color:var(--tinta)}
+/* ---------- placa (el elemento que firma el inspector) ---------- */
+/* Es la pieza que decide si alguien entra o no a un edificio: se lee como un
+   marbete de inspección, no como un componente más del formulario. */
+.placa{border-radius:var(--r-l);overflow:hidden;border:1px solid var(--linea);
+  margin-bottom:14px;box-shadow:var(--sombra)}
+.placa-cab{padding:20px 16px}
+.placa-cab h2{margin:0;font-size:32px;font-weight:800;letter-spacing:-.025em;line-height:1.1}
+.placa-cab p{margin:5px 0 0;font-size:14px;font-weight:600;opacity:.9}
+.placa-pie{padding:13px 16px;font-size:13px;color:var(--tinta2);background:var(--carta);
+  border-top:1px solid var(--linea);line-height:1.5}
+.v-0{background:#E2E8F0;color:var(--tinta)}
 .v-1{background:var(--verde);color:#fff}
-.v-2{background:var(--amarillo);color:#171205}
+.v-2{background:var(--ambar-fondo);color:var(--ambar-tinta)}
 .v-3{background:var(--rojo);color:#fff}
 
 /* ---------- fotos ---------- */
-.fotos{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}
-.fotos figure{margin:0;position:relative;aspect-ratio:1;border:1px solid var(--borde);border-radius:var(--r);overflow:hidden}
+.fotos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.fotos figure{margin:0;position:relative;aspect-ratio:1;border:1px solid var(--borde);
+  border-radius:var(--r);overflow:hidden;background:var(--papel)}
 .fotos img{width:100%;height:100%;object-fit:cover;display:block}
-.fotos button{position:absolute;top:2px;right:2px;width:26px;height:26px;border-radius:50%;
-  border:0;background:rgba(0,0,0,.72);color:#fff;font-size:15px;line-height:1;cursor:pointer}
+.fotos button{position:absolute;top:3px;right:3px;width:28px;height:28px;border-radius:50%;
+  border:0;background:rgba(15,23,42,.78);color:#fff;font-size:16px;line-height:1;cursor:pointer}
+.fotos button:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
 
 /* ---------- botones ---------- */
-.btn{width:100%;min-height:54px;border-radius:var(--r);border:1px solid var(--borde);
-  background:var(--carbon);color:var(--tinta);font:inherit;font-weight:800;font-size:13px;
-  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;padding:14px}
-.btn:focus-visible{outline:2px solid var(--senal);outline-offset:2px}
-.btn-p{background:var(--senal);color:#150800;border-color:var(--senal)}
+/* Sin mayúsculas forzadas: es una herramienta de trabajo, no un anuncio. */
+.btn{width:100%;min-height:52px;border-radius:var(--r);border:1px solid var(--borde);
+  background:var(--carta);color:var(--tinta);font:inherit;font-weight:600;font-size:15px;
+  cursor:pointer;padding:14px;box-shadow:var(--sombra)}
+.btn:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
+.btn-p{background:var(--azul);color:#fff;border-color:var(--azul)}
 .btn-r{background:var(--rojo);color:#fff;border-color:var(--rojo)}
-.btn+.btn{margin-top:8px}
+.btn+.btn{margin-top:9px}
+@media (hover:hover){
+  .btn:hover{background:var(--papel)}
+  .btn-p:hover{background:var(--azul-osc);border-color:var(--azul-osc)}
+  .btn-r:hover{filter:brightness(.93)}
+}
+/* Retroalimentación al tacto sin mover el layout. */
+.btn:active,.escala button:active{transform:translateY(1px)}
 
 /* ---------- barra inferior ---------- */
-.pie{position:fixed;bottom:0;left:0;right:0;z-index:45;background:var(--grafito);
-  border-top:1px solid var(--borde);padding:9px 14px calc(9px + env(safe-area-inset-bottom))}
+.pie{position:fixed;bottom:0;left:0;right:0;z-index:45;background:var(--carta);
+  border-top:1px solid var(--linea);box-shadow:var(--sombra-alta);
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
 .pie .wrap{display:flex;gap:10px;align-items:center;padding:0}
-.chip{flex:0 0 auto;padding:9px 12px;border-radius:var(--r);font-size:11px;font-weight:900;
-  letter-spacing:.1em;text-transform:uppercase;text-align:center;min-width:104px}
+.chip{flex:0 0 auto;padding:11px 13px;border-radius:999px;font-size:12px;font-weight:700;
+  letter-spacing:.02em;text-align:center;min-width:104px}
 .pie .btn{margin:0;flex:1}
 
 /* ---------- cola ---------- */
-.reg{border:1px solid var(--borde);border-left:5px solid var(--borde);background:var(--carbon);
-  border-radius:var(--r);padding:11px 13px;margin-bottom:8px;display:flex;gap:11px;align-items:center}
-.reg.c1{border-left-color:var(--verde)} .reg.c2{border-left-color:var(--amarillo)} .reg.c3{border-left-color:var(--rojo)}
+.reg{border:1px solid var(--linea);border-left:4px solid var(--borde);background:var(--carta);
+  border-radius:var(--r);padding:12px 14px;margin-bottom:9px;display:flex;gap:12px;
+  align-items:center;box-shadow:var(--sombra)}
+.reg.c1{border-left-color:var(--verde)}
+.reg.c2{border-left-color:var(--ambar)}
+.reg.c3{border-left-color:var(--rojo)}
 .reg .d{flex:1;min-width:0}
-.reg .id{font-size:11px;letter-spacing:.09em;color:var(--tenue);font-weight:800;font-variant-numeric:tabular-nums}
-.reg .a{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.reg .e{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--senal)}
-.reg .e.ok{color:var(--verde)}
-.vacio{text-align:center;color:var(--tenue);padding:44px 18px;font-size:14px}
-.nota{font-size:12px;color:var(--tenue);line-height:1.5;margin:9px 0 0}
-.nota a{color:inherit;text-decoration:underline;text-underline-offset:2px}
-.nota a:hover,.nota a:focus-visible{color:var(--tinta)}
-.aviso{border:1px solid var(--rojo);background:rgba(193,39,45,.1);border-radius:var(--r);
-  padding:12px 13px;font-size:13px;line-height:1.5;margin:14px 0}
+.reg .id{font-size:12px;color:var(--tenue);font-weight:600;font-variant-numeric:tabular-nums}
+.reg .a{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  margin-top:1px}
+/* Estado en pastilla: se distingue por forma y texto, no solo por color. */
+.reg .e{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;
+  background:var(--azul-tinte);color:var(--azul-osc);white-space:nowrap}
+.reg .e.ok{background:#F1F5F9;color:var(--tinta2)}
+.vacio{text-align:center;color:var(--tinta2);padding:44px 18px;font-size:15px;line-height:1.6}
+.nota{font-size:13px;color:var(--tinta2);line-height:1.55;margin:10px 0 0}
+.nota a{color:var(--azul);text-decoration:underline;text-underline-offset:2px}
+.nota a:hover,.nota a:focus-visible{color:var(--azul-osc)}
+.aviso{border:1px solid #FECACA;border-left:4px solid var(--rojo);background:var(--rojo-tinte);
+  border-radius:var(--r);padding:13px 14px;font-size:14px;line-height:1.55;margin:14px 0}
 .oculto{display:none!important}
-@media (prefers-reduced-motion:no-preference){.bloque{animation:sube .2s ease-out}}
+@media (prefers-reduced-motion:no-preference){
+  .bloque{animation:sube .2s ease-out}
+  .btn,.tab,.escala button{transition:background-color .15s ease,color .15s ease,
+    border-color .15s ease,transform .1s ease}
+}
 @keyframes sube{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body>
 
 <header class="top">
-  <div class="marca">Brigada <span>/</span> Evaluación estructural</div>
-  <div class="red"><span class="punto" id="punto"></span><span id="redTxt">Sin conexión</span></div>
+  <div class="top-in">
+    <div class="marca">Brigada <span>/</span> Evaluación estructural</div>
+    <div class="red"><span class="punto" id="punto"></span><span id="redTxt">Sin conexión</span></div>
+  </div>
 </header>
 
 <nav class="tabs" role="tablist">
-  <button class="tab" role="tab" id="t-form" aria-selected="true" aria-controls="p-form">Evaluar</button>
-  <button class="tab" role="tab" id="t-cola" aria-selected="false" aria-controls="p-cola">Cola <span id="conteo"></span></button>
-  <button class="tab" role="tab" id="t-conf" aria-selected="false" aria-controls="p-conf">Ajustes</button>
+  <div class="tabs-in">
+    <button class="tab" role="tab" id="t-form" aria-selected="true" aria-controls="p-form">Evaluar</button>
+    <button class="tab" role="tab" id="t-cola" aria-selected="false" aria-controls="p-cola">Cola <span id="conteo"></span></button>
+    <button class="tab" role="tab" id="t-conf" aria-selected="false" aria-controls="p-conf">Ajustes</button>
+  </div>
 </nav>
 
 <!-- ============ EVALUAR ============ -->
@@ -459,6 +516,11 @@ document.getElementById("final").onchange=pintarPlaca;
       document.getElementById("p-"+m).classList.toggle("oculto", m!==n);
     });
     if(n==="cola") pintarCola();
+    // La barra de guardado pertenece al formulario. En Cola y Ajustes no hay
+    // nada que guardar, y dejarla ahi sugiere una accion que no existe.
+    var pie=document.querySelector(".pie");
+    pie.classList.toggle("oculto", n!=="form");
+    document.body.style.paddingBottom = (n==="form") ? "" : "24px";
     window.scrollTo(0,0);
   };
 });
