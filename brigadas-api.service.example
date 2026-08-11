@@ -1,0 +1,28 @@
+# Copiar a /etc/systemd/system/brigadas-api.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now brigadas-api
+#
+# El archivo de entorno va aparte (root:root 0600) porque este unit es
+# world-readable y no puede contener los tokens.
+[Unit]
+Description=Brigadas · receptor de evaluaciones estructurales
+After=network.target
+
+[Service]
+Type=simple
+User=brigadas
+Group=brigadas
+WorkingDirectory=/opt/brigadas
+EnvironmentFile=/etc/brigadas.env
+ExecStart=/opt/brigadas/venv/bin/uvicorn api_brigadas:app --host 127.0.0.1 --port 8004
+Restart=always
+RestartSec=5
+
+# El servicio solo necesita escribir las fotos.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/brigadas/fotos
+
+[Install]
+WantedBy=multi-user.target

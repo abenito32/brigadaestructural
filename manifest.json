@@ -1,0 +1,16 @@
+{
+  "name": "Brigada · Evaluación estructural",
+  "short_name": "Brigada",
+  "description": "Levantamiento de daño estructural en campo, funciona sin señal.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14181C",
+  "theme_color": "#14181C",
+  "lang": "es-CO",
+  "icons": [
+    { "src": "icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

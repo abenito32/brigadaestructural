@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14181C">
+<link rel="manifest" href="manifest.json">
+<title>Brigada · Evaluación estructural</title>
+<style>
+:root{
+  --grafito:#14181C;
+  --carbon:#1E242A;
+  --borde:#2E3740;
+  --tinta:#EDEFF0;
+  --tenue:#8A97A3;
+  --verde:#1F7A3D;
+  --amarillo:#E8B21A;
+  --rojo:#C1272D;
+  --senal:#FF6B1A;
+  --r:4px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--grafito);color:var(--tinta);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:16px;line-height:1.45;
+  padding-bottom:96px;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:640px;margin:0 auto;padding:0 14px}
+
+/* ---------- barra superior ---------- */
+.top{
+  position:sticky;top:0;z-index:40;background:var(--grafito);
+  border-bottom:1px solid var(--borde);
+  padding:10px 14px;display:flex;align-items:center;gap:10px;
+}
+.marca{font-weight:800;letter-spacing:.14em;font-size:12px;text-transform:uppercase}
+.marca span{color:var(--senal)}
+.red{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--tenue);font-weight:700}
+.punto{width:8px;height:8px;border-radius:50%;background:var(--senal)}
+.punto.on{background:var(--verde)}
+
+/* ---------- pestañas ---------- */
+.tabs{display:flex;border-bottom:1px solid var(--borde);background:var(--grafito);
+  position:sticky;top:43px;z-index:39}
+.tab{flex:1;background:none;border:0;color:var(--tenue);font:inherit;font-weight:700;
+  font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:13px 4px;cursor:pointer;
+  border-bottom:2px solid transparent}
+.tab[aria-selected="true"]{color:var(--tinta);border-bottom-color:var(--senal)}
+.tab:focus-visible{outline:2px solid var(--senal);outline-offset:-2px}
+
+/* ---------- bloques ---------- */
+.bloque{border:1px solid var(--borde);background:var(--carbon);border-radius:var(--r);
+  margin:14px 0;padding:14px}
+.rotulo{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--tenue);margin:0 0 12px}
+.rotulo b{color:var(--senal);font-variant-numeric:tabular-nums;margin-right:8px}
+
+label.campo{display:block;margin-bottom:12px}
+label.campo>span{display:block;font-size:12px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--tenue);margin-bottom:5px}
+input,select,textarea{
+  width:100%;background:var(--grafito);color:var(--tinta);
+  border:1px solid var(--borde);border-radius:var(--r);
+  padding:13px 11px;font:inherit;min-height:50px}
+textarea{min-height:80px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--senal);outline-offset:-1px;border-color:var(--senal)}
+.fila2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ---------- escala de daño ---------- */
+.item{margin-bottom:16px}
+.item>p{margin:0 0 7px;font-size:14px;font-weight:600}
+.item>p em{display:block;font-style:normal;font-weight:400;font-size:12px;color:var(--tenue);margin-top:2px}
+.escala{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.escala button{
+  min-height:56px;background:var(--grafito);border:1px solid var(--borde);
+  color:var(--tenue);border-radius:var(--r);font:inherit;font-size:11px;font-weight:800;
+  letter-spacing:.05em;text-transform:uppercase;cursor:pointer;padding:4px 2px}
+.escala button:focus-visible{outline:2px solid var(--senal);outline-offset:1px}
+.escala button[aria-pressed="true"]{color:#0D1013;border-color:transparent}
+.escala button[data-v="0"][aria-pressed="true"]{background:#5B6873;color:var(--tinta)}
+.escala button[data-v="1"][aria-pressed="true"]{background:var(--verde);color:#fff}
+.escala button[data-v="2"][aria-pressed="true"]{background:var(--amarillo)}
+.escala button[data-v="3"][aria-pressed="true"]{background:var(--rojo);color:#fff}
+
+/* ---------- banderas ---------- */
+.bandera{display:flex;gap:11px;align-items:flex-start;padding:12px 10px;
+  border:1px solid var(--borde);border-radius:var(--r);margin-bottom:7px;cursor:pointer}
+.bandera input{width:24px;height:24px;min-height:24px;flex:0 0 24px;margin:1px 0 0;accent-color:var(--rojo)}
+.bandera span{font-size:14px;line-height:1.35}
+.bandera:has(input:checked){border-color:var(--rojo);background:rgba(193,39,45,.11)}
+
+/* ---------- placa (elemento firma) ---------- */
+.placa{border-radius:var(--r);overflow:hidden;border:1px solid var(--borde);margin-bottom:12px}
+.placa-cab{padding:16px 14px;position:relative;overflow:hidden}
+.placa-cab::after{content:"";position:absolute;inset:0;
+  background:repeating-linear-gradient(135deg,rgba(0,0,0,.13) 0 12px,transparent 12px 24px)}
+.placa-cab h2{margin:0;font-size:30px;font-weight:900;letter-spacing:-.02em;position:relative;z-index:1}
+.placa-cab p{margin:3px 0 0;font-size:12px;font-weight:800;letter-spacing:.16em;
+  text-transform:uppercase;opacity:.82;position:relative;z-index:1}
+.placa-pie{padding:11px 14px;font-size:13px;color:var(--tenue);background:var(--carbon)}
+.v-0{background:#39424B;color:var(--tinta)}
+.v-1{background:var(--verde);color:#fff}
+.v-2{background:var(--amarillo);color:#171205}
+.v-3{background:var(--rojo);color:#fff}
+
+/* ---------- fotos ---------- */
+.fotos{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}
+.fotos figure{margin:0;position:relative;aspect-ratio:1;border:1px solid var(--borde);border-radius:var(--r);overflow:hidden}
+.fotos img{width:100%;height:100%;object-fit:cover;display:block}
+.fotos button{position:absolute;top:2px;right:2px;width:26px;height:26px;border-radius:50%;
+  border:0;background:rgba(0,0,0,.72);color:#fff;font-size:15px;line-height:1;cursor:pointer}
+
+/* ---------- botones ---------- */
+.btn{width:100%;min-height:54px;border-radius:var(--r);border:1px solid var(--borde);
+  background:var(--carbon);color:var(--tinta);font:inherit;font-weight:800;font-size:13px;
+  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;padding:14px}
+.btn:focus-visible{outline:2px solid var(--senal);outline-offset:2px}
+.btn-p{background:var(--senal);color:#150800;border-color:var(--senal)}
+.btn-r{background:var(--rojo);color:#fff;border-color:var(--rojo)}
+.btn+.btn{margin-top:8px}
+
+/* ---------- barra inferior ---------- */
+.pie{position:fixed;bottom:0;left:0;right:0;z-index:45;background:var(--grafito);
+  border-top:1px solid var(--borde);padding:9px 14px calc(9px + env(safe-area-inset-bottom))}
+.pie .wrap{display:flex;gap:10px;align-items:center;padding:0}
+.chip{flex:0 0 auto;padding:9px 12px;border-radius:var(--r);font-size:11px;font-weight:900;
+  letter-spacing:.1em;text-transform:uppercase;text-align:center;min-width:104px}
+.pie .btn{margin:0;flex:1}
+
+/* ---------- cola ---------- */
+.reg{border:1px solid var(--borde);border-left:5px solid var(--borde);background:var(--carbon);
+  border-radius:var(--r);padding:11px 13px;margin-bottom:8px;display:flex;gap:11px;align-items:center}
+.reg.c1{border-left-color:var(--verde)} .reg.c2{border-left-color:var(--amarillo)} .reg.c3{border-left-color:var(--rojo)}
+.reg .d{flex:1;min-width:0}
+.reg .id{font-size:11px;letter-spacing:.09em;color:var(--tenue);font-weight:800;font-variant-numeric:tabular-nums}
+.reg .a{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reg .e{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--senal)}
+.reg .e.ok{color:var(--verde)}
+.vacio{text-align:center;color:var(--tenue);padding:44px 18px;font-size:14px}
+.nota{font-size:12px;color:var(--tenue);line-height:1.5;margin:9px 0 0}
+.aviso{border:1px solid var(--rojo);background:rgba(193,39,45,.1);border-radius:var(--r);
+  padding:12px 13px;font-size:13px;line-height:1.5;margin:14px 0}
+.oculto{display:none!important}
+@media (prefers-reduced-motion:no-preference){.bloque{animation:sube .2s ease-out}}
+@keyframes sube{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="marca">Brigada <span>/</span> Evaluación estructural</div>
+  <div class="red"><span class="punto" id="punto"></span><span id="redTxt">Sin conexión</span></div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" id="t-form" aria-selected="true" aria-controls="p-form">Evaluar</button>
+  <button class="tab" role="tab" id="t-cola" aria-selected="false" aria-controls="p-cola">Cola <span id="conteo"></span></button>
+  <button class="tab" role="tab" id="t-conf" aria-selected="false" aria-controls="p-conf">Ajustes</button>
+</nav>
+
+<!-- ============ EVALUAR ============ -->
+<main class="wrap" id="p-form" role="tabpanel" aria-labelledby="t-form">
+
+  <div class="aviso">
+    <strong>Antes de entrar:</strong> si hay personas atrapadas, olor a gas, incendio o colapso en
+    curso, retírese y llame al <strong>123</strong>. No inspeccione sola o solo una estructura con
+    inclinación visible.
+  </div>
+
+  <section class="bloque">
+    <p class="rotulo"><b>01</b> Ubicación</p>
+    <button class="btn" type="button" id="btnGps">Capturar coordenadas</button>
+    <p class="nota" id="gpsTxt">Sin coordenadas. Se puede guardar igual y georreferenciar después.</p>
+    <label class="campo" style="margin-top:12px"><span>Dirección o punto de referencia</span>
+      <input id="dir" autocomplete="off" placeholder="Cra 5 # 12-40 / frente a la escuela"></label>
+    <div class="fila2">
+      <label class="campo"><span>Municipio</span><input id="mun" autocomplete="off"></label>
+      <label class="campo"><span>Barrio o vereda</span><input id="bar" autocomplete="off"></label>
+    </div>
+  </section>
+
+  <section class="bloque">
+    <p class="rotulo"><b>02</b> Edificación</p>
+    <label class="campo"><span>Sistema constructivo</span>
+      <select id="sis">
+        <option value="">Seleccione</option>
+        <option>Mampostería confinada</option>
+        <option>Mampostería no confinada</option>
+        <option>Pórtico de concreto reforzado</option>
+        <option>Muros de concreto</option>
+        <option>Bahareque, tapia pisada o adobe</option>
+        <option>Madera</option>
+        <option>Estructura metálica</option>
+        <option>Mixto o no identificable</option>
+      </select></label>
+    <label class="campo"><span>Uso</span>
+      <select id="uso">
+        <option value="">Seleccione</option>
+        <option>Vivienda unifamiliar</option><option>Vivienda multifamiliar</option>
+        <option>Educativo</option><option>Salud</option><option>Comercio</option>
+        <option>Institucional</option><option>Otro</option>
+      </select></label>
+    <div class="fila2">
+      <label class="campo"><span>Pisos</span><input id="pisos" type="number" inputmode="numeric" min="1" max="60"></label>
+      <label class="campo"><span>Ocupantes aprox.</span><input id="ocu" type="number" inputmode="numeric" min="0"></label>
+    </div>
+  </section>
+
+  <section class="bloque">
+    <p class="rotulo"><b>03</b> Nivel de daño observado</p>
+    <div id="danos"></div>
+  </section>
+
+  <section class="bloque">
+    <p class="rotulo"><b>04</b> Condiciones que obligan cierre</p>
+    <div id="banderas"></div>
+  </section>
+
+  <section class="bloque">
+    <p class="rotulo"><b>05</b> Registro fotográfico</p>
+    <input type="file" id="fotoIn" accept="image/*" capture="environment" multiple class="oculto">
+    <button class="btn" type="button" id="btnFoto">Agregar foto</button>
+    <div class="fotos" id="fotos"></div>
+    <p class="nota">Máximo 4. Se reducen a 1280 px en el teléfono para que la cola no se llene.</p>
+  </section>
+
+  <section class="bloque">
+    <p class="rotulo"><b>06</b> Clasificación y firma</p>
+    <div class="placa" id="placa">
+      <div class="placa-cab v-0" id="placaCab">
+        <h2 id="placaT">Sin evaluar</h2>
+        <p id="placaS">Complete el nivel de daño</p>
+      </div>
+      <div class="placa-pie" id="placaP">La clasificación se calcula sola y usted puede cambiarla.</div>
+    </div>
+    <label class="campo"><span>Clasificación que firma</span>
+      <select id="final">
+        <option value="auto">Usar la calculada</option>
+        <option value="1">Verde · Habitable</option>
+        <option value="2">Amarillo · Uso restringido</option>
+        <option value="3">Rojo · Inseguro, no ingresar</option>
+      </select></label>
+    <label class="campo" id="wrapJust" style="display:none"><span>Motivo del cambio (obligatorio)</span>
+      <textarea id="just" placeholder="Criterio técnico que sustenta la modificación"></textarea></label>
+    <label class="campo"><span>Observaciones y recomendación inmediata</span>
+      <textarea id="obs" placeholder="Apuntalamiento, evacuación parcial, restricción de acceso, remisión a especialista..."></textarea></label>
+    <p class="nota" id="firmaTxt"></p>
+  </section>
+
+  <div style="height:8px"></div>
+</main>
+
+<!-- ============ COLA ============ -->
+<main class="wrap oculto" id="p-cola" role="tabpanel" aria-labelledby="t-cola">
+  <section class="bloque">
+    <p class="rotulo">Evaluaciones guardadas</p>
+    <div id="lista"></div>
+  </section>
+  <section class="bloque">
+    <p class="rotulo">Salida</p>
+    <button class="btn btn-p" type="button" id="btnSync">Enviar pendientes al servidor</button>
+    <button class="btn" type="button" id="btnCsv">Descargar CSV</button>
+    <button class="btn" type="button" id="btnJson">Descargar JSON con fotos</button>
+    <p class="nota" id="syncTxt">El CSV no incluye fotos. Úselo para el consolidado; el JSON para el respaldo completo.</p>
+  </section>
+</main>
+
+<!-- ============ AJUSTES ============ -->
+<main class="wrap oculto" id="p-conf" role="tabpanel" aria-labelledby="t-conf">
+  <section class="bloque">
+    <p class="rotulo">Quién firma</p>
+    <label class="campo"><span>Nombre completo</span><input id="cNom" autocomplete="name"></label>
+    <label class="campo"><span>Matrícula profesional (COPNIA)</span><input id="cMat" autocomplete="off"></label>
+    <label class="campo"><span>Universidad o brigada</span><input id="cBri" autocomplete="off"></label>
+    <p class="nota">Queda en este teléfono y se estampa en cada evaluación. Solo debe firmar quien
+      tenga matrícula vigente: la clasificación tiene efectos legales.</p>
+  </section>
+  <section class="bloque">
+    <p class="rotulo">Servidor</p>
+    <label class="campo"><span>Endpoint de sincronización</span>
+      <input id="cUrl" placeholder="https://su-servidor/api/evaluaciones" autocomplete="off"></label>
+    <label class="campo"><span>Token de brigada</span><input id="cTok" autocomplete="off"></label>
+    <button class="btn" type="button" id="btnGuardarConf">Guardar ajustes</button>
+  </section>
+  <section class="bloque">
+    <p class="rotulo">Datos personales</p>
+    <p class="nota">La dirección y las coordenadas son dato personal (Ley 1581 de 2012). Se envían al
+      servidor de la brigada y no se publican. El consolidado que se entregue a las autoridades debe
+      agregarse por manzana o sector, nunca por predio.</p>
+  </section>
+</main>
+
+<div class="pie">
+  <div class="wrap">
+    <div class="chip v-0" id="chip">Sin evaluar</div>
+    <button class="btn btn-p" type="button" id="btnGuardar">Guardar evaluación</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------------- almacenamiento (IndexedDB con respaldo en memoria) ---------------- */
+var DB=null, memoria=[], sinIDB=false;
+function abrirDB(){
+  return new Promise(function(res){
+    try{
+      if(!window.indexedDB){sinIDB=true;return res(null);}
+      var r=indexedDB.open("brigada",1);
+      r.onupgradeneeded=function(e){
+        var d=e.target.result;
+        if(!d.objectStoreNames.contains("ev")) d.createObjectStore("ev",{keyPath:"id"});
+      };
+      r.onsuccess=function(e){DB=e.target.result;res(DB);};
+      r.onerror=function(){sinIDB=true;res(null);};
+    }catch(e){sinIDB=true;res(null);}
+  });
+}
+function guardarReg(o){
+  if(sinIDB||!DB){var i=memoria.findIndex(function(x){return x.id===o.id});
+    i>=0?memoria[i]=o:memoria.push(o);return Promise.resolve();}
+  return new Promise(function(res,rej){
+    var t=DB.transaction("ev","readwrite");t.objectStore("ev").put(o);
+    t.oncomplete=res;t.onerror=rej;});
+}
+function leerRegs(){
+  if(sinIDB||!DB) return Promise.resolve(memoria.slice());
+  return new Promise(function(res){
+    var t=DB.transaction("ev","readonly"),q=t.objectStore("ev").getAll();
+    q.onsuccess=function(){res(q.result||[])};q.onerror=function(){res([])};});
+}
+function cfgGet(k,d){try{var v=localStorage.getItem("brg_"+k);return v===null?d:v}catch(e){return (cfgMem[k]===undefined?d:cfgMem[k])}}
+var cfgMem={};
+function cfgSet(k,v){try{localStorage.setItem("brg_"+k,v)}catch(e){cfgMem[k]=v}}
+
+/* ---------------- catálogo de daño ---------------- */
+var DANOS=[
+ {k:"portantes",t:"Elementos portantes",d:"Columnas, muros estructurales, pórticos"},
+ {k:"horizontal",t:"Vigas, entrepisos y cubierta",d:"Fisuras, deflexiones, apoyos desplazados"},
+ {k:"nostruct",t:"Muros divisorios y fachada",d:"Desprendimientos, volcamiento, antepechos"},
+ {k:"terreno",t:"Terreno y entorno",d:"Asentamientos, taludes, grietas en el suelo"}
+];
+var NIV=["N/A","Leve","Moderado","Severo"];
+var BANDERAS=[
+ {k:"colapso",t:"Colapso total o parcial de algún nivel"},
+ {k:"inclina",t:"Inclinación o desplome visible de la edificación"},
+ {k:"acero",t:"Columna con núcleo triturado, acero expuesto o pandeado"},
+ {k:"pasante",t:"Grietas pasantes o anchas en muros portantes"},
+ {k:"vecino",t:"Riesgo externo: edificio vecino inestable, talud o deslizamiento"},
+ {k:"acceso",t:"Elementos pesados sueltos sobre el acceso o la vía"}
+];
+
+var est={danos:{},banderas:{},fotos:[],lat:null,lon:null,acc:null};
+DANOS.forEach(function(x){est.danos[x.k]=0});
+BANDERAS.forEach(function(x){est.banderas[x.k]=false});
+
+/* ---------------- clasificación ---------------- */
+function clasificar(){
+  var d=est.danos,b=est.banderas;
+  for(var k in b) if(b[k]) return {v:3,por:"Condición que obliga cierre inmediato"};
+  if(d.portantes===3||d.horizontal===3) return {v:3,por:"Daño severo en elementos portantes"};
+  if(d.terreno===3) return {v:3,por:"Daño severo en el terreno de soporte"};
+  if(d.portantes===2||d.horizontal===2||d.terreno===2||d.nostruct===3)
+    return {v:2,por:"Daño moderado; requiere restricción de uso"};
+  if(d.portantes===0&&d.horizontal===0&&d.nostruct===0&&d.terreno===0)
+    return {v:0,por:"Complete el nivel de daño"};
+  return {v:1,por:"Sin daño estructural relevante"};
+}
+var TIT=["Sin evaluar","Verde","Amarillo","Rojo"];
+var SUB=["Complete el nivel de daño","Habitable","Uso restringido","Inseguro · no ingresar"];
+
+function pintarPlaca(){
+  var c=clasificar(), sel=document.getElementById("final").value;
+  var v=(sel==="auto")?c.v:parseInt(sel,10);
+  var cab=document.getElementById("placaCab");
+  cab.className="placa-cab v-"+v;
+  document.getElementById("placaT").textContent=TIT[v];
+  document.getElementById("placaS").textContent=SUB[v];
+  document.getElementById("placaP").textContent =
+    (sel==="auto") ? c.por : "Modificada por criterio del inspector. Cálculo automático: "+TIT[c.v]+".";
+  var chip=document.getElementById("chip");
+  chip.className="chip v-"+v; chip.textContent=TIT[v];
+  document.getElementById("wrapJust").style.display=(sel==="auto")?"none":"block";
+  return v;
+}
+
+/* ---------------- construir formulario ---------------- */
+var cd=document.getElementById("danos");
+DANOS.forEach(function(x){
+  var w=document.createElement("div"); w.className="item";
+  var p=document.createElement("p"); p.innerHTML=x.t+"<em>"+x.d+"</em>"; w.appendChild(p);
+  var g=document.createElement("div"); g.className="escala";
+  NIV.forEach(function(n,i){
+    var b=document.createElement("button"); b.type="button"; b.dataset.v=i;
+    b.textContent=n; b.setAttribute("aria-pressed", i===0?"true":"false");
+    b.onclick=function(){
+      est.danos[x.k]=i;
+      Array.prototype.forEach.call(g.children,function(o,j){o.setAttribute("aria-pressed", j===i?"true":"false")});
+      pintarPlaca();
+    };
+    g.appendChild(b);
+  });
+  w.appendChild(g); cd.appendChild(w);
+});
+
+var cb=document.getElementById("banderas");
+BANDERAS.forEach(function(x){
+  var l=document.createElement("label"); l.className="bandera";
+  var i=document.createElement("input"); i.type="checkbox";
+  i.onchange=function(){est.banderas[x.k]=i.checked;pintarPlaca()};
+  var s=document.createElement("span"); s.textContent=x.t;
+  l.appendChild(i); l.appendChild(s); cb.appendChild(l);
+});
+
+document.getElementById("final").onchange=pintarPlaca;
+
+/* ---------------- pestañas ---------------- */
+["form","cola","conf"].forEach(function(n){
+  document.getElementById("t-"+n).onclick=function(){
+    ["form","cola","conf"].forEach(function(m){
+      document.getElementById("t-"+m).setAttribute("aria-selected", m===n?"true":"false");
+      document.getElementById("p-"+m).classList.toggle("oculto", m!==n);
+    });
+    if(n==="cola") pintarCola();
+    window.scrollTo(0,0);
+  };
+});
+
+/* ---------------- GPS ---------------- */
+document.getElementById("btnGps").onclick=function(){
+  var t=document.getElementById("gpsTxt");
+  if(!navigator.geolocation){t.textContent="Este teléfono no entrega ubicación. Escriba la dirección.";return;}
+  t.textContent="Buscando señal...";
+  navigator.geolocation.getCurrentPosition(function(p){
+    est.lat=+p.coords.latitude.toFixed(6); est.lon=+p.coords.longitude.toFixed(6);
+    est.acc=Math.round(p.coords.accuracy);
+    t.textContent=est.lat+", "+est.lon+" · precisión "+est.acc+" m";
+  },function(){
+    t.textContent="No se obtuvo ubicación. Revise permisos o escriba la dirección.";
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+};
+
+/* ---------------- fotos ---------------- */
+document.getElementById("btnFoto").onclick=function(){document.getElementById("fotoIn").click()};
+document.getElementById("fotoIn").onchange=function(e){
+  var fs=Array.prototype.slice.call(e.target.files||[]);
+  fs.forEach(function(f){ if(est.fotos.length>=4) return; reducir(f); });
+  e.target.value="";
+};
+function reducir(file){
+  var fr=new FileReader();
+  fr.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      var m=1280,w=img.width,h=img.height;
+      if(w>m||h>m){ if(w>h){h=Math.round(h*m/w);w=m;} else {w=Math.round(w*m/h);h=m;} }
+      var c=document.createElement("canvas");c.width=w;c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      est.fotos.push(c.toDataURL("image/jpeg",0.7)); pintarFotos();
+    };
+    img.src=fr.result;
+  };
+  fr.readAsDataURL(file);
+}
+function pintarFotos(){
+  var c=document.getElementById("fotos"); c.innerHTML="";
+  est.fotos.forEach(function(src,i){
+    var f=document.createElement("figure");
+    var im=document.createElement("img"); im.src=src; im.alt="Foto "+(i+1);
+    var b=document.createElement("button"); b.type="button"; b.textContent="×";
+    b.setAttribute("aria-label","Quitar foto "+(i+1));
+    b.onclick=function(){est.fotos.splice(i,1);pintarFotos()};
+    f.appendChild(im); f.appendChild(b); c.appendChild(f);
+  });
+}
+
+/* ---------------- guardar ---------------- */
+function correlativo(n){
+  var d=new Date(), s=d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");
+  return "BRG-"+s+"-"+String(n+1).padStart(3,"0");
+}
+document.getElementById("btnGuardar").onclick=function(){
+  var mat=cfgGet("mat","");
+  if(!mat){alert("Registre su matrícula profesional en Ajustes antes de firmar.");return;}
+  var sel=document.getElementById("final").value;
+  if(sel!=="auto" && !document.getElementById("just").value.trim()){
+    alert("Si cambia la clasificación calculada debe escribir el motivo.");return;}
+  var c=clasificar();
+  if(sel==="auto" && c.v===0){alert("Marque el nivel de daño antes de guardar.");return;}
+  var v=(sel==="auto")?c.v:parseInt(sel,10);
+
+  leerRegs().then(function(rs){
+    var o={
+      id:correlativo(rs.length), ts:new Date().toISOString(), estado:"pendiente",
+      inspector:{nombre:cfgGet("nom",""),matricula:mat,brigada:cfgGet("bri","")},
+      lat:est.lat, lon:est.lon, precision_m:est.acc,
+      direccion:document.getElementById("dir").value.trim(),
+      municipio:document.getElementById("mun").value.trim(),
+      barrio:document.getElementById("bar").value.trim(),
+      sistema:document.getElementById("sis").value, uso:document.getElementById("uso").value,
+      pisos:document.getElementById("pisos").value, ocupantes:document.getElementById("ocu").value,
+      danos:JSON.parse(JSON.stringify(est.danos)),
+      banderas:JSON.parse(JSON.stringify(est.banderas)),
+      clasificacion:v, clasificacion_auto:c.v, motivo_auto:c.por,
+      justificacion:document.getElementById("just").value.trim(),
+      observaciones:document.getElementById("obs").value.trim(),
+      fotos:est.fotos.slice()
+    };
+    guardarReg(o).then(function(){
+      limpiar();
+      alert("Guardada "+o.id+" · "+TIT[v]+"\nQueda en el teléfono hasta que sincronice.");
+      actualizarConteo();
+    });
+  });
+};
+function limpiar(){
+  ["dir","bar","obs","just","pisos","ocu"].forEach(function(i){document.getElementById(i).value=""});
+  document.getElementById("sis").value=""; document.getElementById("uso").value="";
+  document.getElementById("final").value="auto";
+  DANOS.forEach(function(x){est.danos[x.k]=0});
+  BANDERAS.forEach(function(x){est.banderas[x.k]=false});
+  est.fotos=[]; est.lat=est.lon=est.acc=null;
+  document.querySelectorAll(".escala").forEach(function(g){
+    Array.prototype.forEach.call(g.children,function(o,j){o.setAttribute("aria-pressed", j===0?"true":"false")});
+  });
+  document.querySelectorAll(".bandera input").forEach(function(i){i.checked=false});
+  document.getElementById("gpsTxt").textContent="Sin coordenadas. Se puede guardar igual y georreferenciar después.";
+  pintarFotos(); pintarPlaca(); window.scrollTo(0,0);
+}
+
+/* ---------------- cola ---------------- */
+function pintarCola(){
+  leerRegs().then(function(rs){
+    var c=document.getElementById("lista");
+    rs.sort(function(a,b){return b.ts.localeCompare(a.ts)});
+    if(!rs.length){c.innerHTML='<p class="vacio">Todavía no hay evaluaciones.<br>Empiece en la pestaña Evaluar.</p>';return;}
+    c.innerHTML="";
+    rs.forEach(function(o){
+      var d=document.createElement("div"); d.className="reg c"+o.clasificacion;
+      d.innerHTML='<div class="d"><div class="id">'+o.id+' · '+TIT[o.clasificacion]+'</div>'+
+        '<div class="a">'+((o.direccion||"Sin dirección")+(o.barrio?" · "+o.barrio:""))+'</div></div>'+
+        '<div class="e'+(o.estado==="enviada"?" ok":"")+'">'+(o.estado==="enviada"?"Enviada":"Pendiente")+'</div>';
+      c.appendChild(d);
+    });
+  });
+}
+function actualizarConteo(){
+  leerRegs().then(function(rs){
+    var p=rs.filter(function(o){return o.estado==="pendiente"}).length;
+    document.getElementById("conteo").textContent=p?"("+p+")":"";
+  });
+}
+
+/* ---------------- descargas ---------------- */
+function bajar(nombre,texto,tipo){
+  var b=new Blob([texto],{type:tipo}),u=URL.createObjectURL(b),a=document.createElement("a");
+  a.href=u;a.download=nombre;a.click();setTimeout(function(){URL.revokeObjectURL(u)},1500);
+}
+document.getElementById("btnCsv").onclick=function(){
+  leerRegs().then(function(rs){
+    if(!rs.length){alert("No hay evaluaciones.");return;}
+    var cab=["id","fecha","matricula","brigada","lat","lon","precision_m","direccion","municipio",
+      "barrio","sistema","uso","pisos","ocupantes","d_portantes","d_horizontal","d_nostruct",
+      "d_terreno","banderas","clasificacion","observaciones"];
+    var f=function(x){return '"'+String(x===null||x===undefined?"":x).replace(/"/g,'""')+'"'};
+    var l=[cab.join(",")];
+    rs.forEach(function(o){
+      var bs=Object.keys(o.banderas).filter(function(k){return o.banderas[k]}).join("|");
+      l.push([o.id,o.ts,o.inspector.matricula,o.inspector.brigada,o.lat,o.lon,o.precision_m,
+        o.direccion,o.municipio,o.barrio,o.sistema,o.uso,o.pisos,o.ocupantes,
+        o.danos.portantes,o.danos.horizontal,o.danos.nostruct,o.danos.terreno,bs,
+        TIT[o.clasificacion],o.observaciones].map(f).join(","));
+    });
+    bajar("evaluaciones.csv","\ufeff"+l.join("\r\n"),"text/csv;charset=utf-8");
+  });
+};
+document.getElementById("btnJson").onclick=function(){
+  leerRegs().then(function(rs){
+    if(!rs.length){alert("No hay evaluaciones.");return;}
+    bajar("evaluaciones.json",JSON.stringify(rs,null,1),"application/json");
+  });
+};
+
+/* ---------------- sincronizar ---------------- */
+document.getElementById("btnSync").onclick=function(){
+  var url=cfgGet("url",""), tok=cfgGet("tok",""), t=document.getElementById("syncTxt");
+  if(!url){t.textContent="Falta el endpoint. Configúrelo en Ajustes.";return;}
+  if(!navigator.onLine){t.textContent="Sin conexión. Los datos siguen guardados; reintente con señal.";return;}
+  leerRegs().then(function(rs){
+    var p=rs.filter(function(o){return o.estado==="pendiente"});
+    if(!p.length){t.textContent="No hay pendientes.";return;}
+    t.textContent="Enviando "+p.length+"...";
+    var ok=0,fin=0;
+    p.forEach(function(o){
+      fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-Brigada-Token":tok},
+        body:JSON.stringify(o)})
+      .then(function(r){
+        if(r.ok){ok++;o.estado="enviada";return guardarReg(o);}
+      })
+      .catch(function(){})
+      .then(function(){
+        if(++fin===p.length){
+          t.textContent="Enviadas "+ok+" de "+p.length+(ok<p.length?". Las demás siguen guardadas.":".");
+          pintarCola(); actualizarConteo();
+        }
+      });
+    });
+  });
+};
+
+/* ---------------- ajustes ---------------- */
+["nom","mat","bri","url","tok"].forEach(function(k){
+  document.getElementById("c"+k.charAt(0).toUpperCase()+k.slice(1)).value=cfgGet(k,"");
+});
+document.getElementById("btnGuardarConf").onclick=function(){
+  ["nom","mat","bri","url","tok"].forEach(function(k){
+    cfgSet(k,document.getElementById("c"+k.charAt(0).toUpperCase()+k.slice(1)).value.trim());
+  });
+  pintarFirma(); alert("Ajustes guardados.");
+};
+function pintarFirma(){
+  var m=cfgGet("mat",""), n=cfgGet("nom","");
+  document.getElementById("firmaTxt").textContent = m
+    ? "Firma: "+(n||"—")+" · matrícula "+m
+    : "Falta registrar matrícula profesional en Ajustes. No podrá guardar.";
+}
+
+/* ---------------- red ---------------- */
+function pintarRed(){
+  var on=navigator.onLine;
+  document.getElementById("punto").className="punto"+(on?" on":"");
+  document.getElementById("redTxt").textContent=on?"En línea":"Sin conexión";
+}
+window.addEventListener("online",pintarRed);
+window.addEventListener("offline",pintarRed);
+
+/* ---------------- arranque ---------------- */
+abrirDB().then(function(){
+  pintarRed(); pintarFirma(); pintarPlaca(); pintarFotos(); actualizarConteo();
+  if(sinIDB){
+    document.getElementById("syncTxt").textContent=
+      "Aviso: este navegador no guarda en disco. Las evaluaciones se pierden al cerrar. Instale la app desde el servidor.";
+  }
+});
+if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
+  navigator.serviceWorker.register("sw.js").catch(function(){});
+}
+})();
+</script>
+</body>
+</html>

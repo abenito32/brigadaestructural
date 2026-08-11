@@ -1,0 +1,23 @@
+# Secretos: tokens de brigada, contraseña de la base, DSN.
+.env
+*.env
+!.env.example
+
+# La compose real lleva la contraseña; se publica solo la de ejemplo.
+docker-compose.yml
+
+# Datos de campo: fotos de predios evaluados y respaldos. Nunca al repo.
+fotos/
+*.jpg
+*.jpeg
+evaluaciones.csv
+evaluaciones.json
+
+# Respaldos y temporales
+*.bak
+*.bak-*
+__pycache__/
+*.pyc
+.DS_Store
+venv/
+.venv/

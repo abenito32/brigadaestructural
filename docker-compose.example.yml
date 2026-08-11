@@ -1,0 +1,29 @@
+# Base dedicada de Brigadas.
+#   cp docker-compose.example.yml docker-compose.yml
+#   cp .env.example .env    y completar POSTGRES_PASSWORD
+#   docker compose -p brigadas up -d
+#
+# El puerto se publica SOLO en loopback: la API corre en el host y nadie más
+# tiene por qué alcanzar la base. Si este servidor ya corre otras cosas, usar
+# un proyecto (-p) y un volumen propios para no mezclarse con ellas.
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: brigadas-db
+    restart: always
+    environment:
+      POSTGRES_DB: brigadas
+      POSTGRES_USER: brigadas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brigadas -d brigadas"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:
