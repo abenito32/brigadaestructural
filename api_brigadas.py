@@ -27,6 +27,9 @@ Entorno:
   BRIGADA_DSN     postgresql://usuario:clave@host:puerto/base
   BRIGADA_FOTOS   directorio donde se dejan las imagenes (la BD guarda rutas)
   BRIGADA_FUENTE  URL del repositorio propio (AGPL §13); tiene un valor por defecto
+  BRIGADA_ORIGENES  dominios autorizados a postear desde un navegador, separados
+                    por coma. Vacio = solo mismo origen (el comportamiento por
+                    defecto y el mas seguro).
 
 El esquema vive en esquema.sql, que es la fuente de verdad. Aca solo se escribe.
 """
@@ -38,6 +41,7 @@ from typing import Any
 
 import psycopg
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool, PoolTimeout
@@ -47,6 +51,10 @@ TOKENS = set(filter(None, os.getenv("BRIGADA_TOKENS", "").split(",")))
 DSN = os.getenv("BRIGADA_DSN", "")
 # Un fork que despliegue esto debe apuntar BRIGADA_FUENTE a su propio repositorio.
 FUENTE = os.getenv("BRIGADA_FUENTE", "https://github.com/abenito32/brigadaestructural")
+# Origenes autorizados a sincronizar desde un navegador. La app y la API suelen
+# vivir en el mismo dominio, y entonces esto no hace falta: solo se usa cuando una
+# brigada sirve la app desde SU dominio y apunta a este servidor.
+ORIGENES = [o.strip() for o in os.getenv("BRIGADA_ORIGENES", "").split(",") if o.strip()]
 FOTOS = pathlib.Path(os.getenv("BRIGADA_FOTOS", "./fotos"))
 FOTOS.mkdir(parents=True, exist_ok=True)
 
@@ -80,6 +88,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Brigadas · receptor de evaluaciones", lifespan=lifespan)
+
+# Sin BRIGADA_ORIGENES no se monta nada: el servidor queda como estaba, aceptando
+# solo peticiones del mismo origen. Se abre por lista blanca explicita y nunca con
+# "*", porque bastaria con que un token se filtrara para que cualquier pagina
+# pudiera escribir en la base.
+if ORIGENES:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ORIGENES,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Brigada-Token"],
+        max_age=600,
+    )
 
 
 class Evaluacion(BaseModel):
@@ -231,9 +252,14 @@ def fuente():
     return RedirectResponse(FUENTE, status_code=302)
 
 
+@app.get("/api/salud")
 @app.get("/salud")
 def salud():
-    """Incluye la BD a proposito: un receptor que no puede grabar no esta sano."""
+    """Incluye la BD a proposito: un receptor que no puede grabar no esta sano.
+
+    Se expone tambien bajo /api/ porque nginx solo enruta ese prefijo hacia aca:
+    es la ruta que usa el boton "Probar conexion" de la app.
+    """
     try:
         with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
             cur.execute("SELECT count(*) FROM evaluacion_brigada")

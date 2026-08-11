@@ -55,7 +55,15 @@ aparte con permisos `0600`, nunca en el unit de systemd, que es legible por todo
 Ver `.env.example` y `brigadas-api.service.example`.
 
 Los tokens se generan con `openssl rand -hex 24`, uno por brigada. En Ajustes, el
-inspector pega el endpoint y su token una sola vez por teléfono.
+inspector pega el endpoint y su token una sola vez por teléfono, y usa
+**Probar conexión** antes de salir a terreno: distingue servidor inalcanzable,
+token equivocado y ruta mal escrita, que en campo se ven todos igual (la cola no
+baja). No envía ninguna evaluación.
+
+Si la app se sirve desde **otro dominio** que la API, hay que autorizarlo en
+`BRIGADA_ORIGENES`; si no, el navegador bloquea la sincronización en el preflight
+y el fallo no se ve por ningún lado. Con app y API en el mismo dominio —lo normal—
+déjelo vacío.
 
 El receptor devuelve **503 y no 200** si no pudo grabar. Es deliberado: con un 200
 la app marcaría la evaluación como enviada y borraría el pendiente, perdiéndola sin

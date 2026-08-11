@@ -363,6 +363,9 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
       <input id="cUrl" placeholder="https://su-servidor/api/evaluaciones" autocomplete="off"></label>
     <label class="campo"><span>Token de brigada</span><input id="cTok" autocomplete="off"></label>
     <button class="btn" type="button" id="btnGuardarConf">Guardar ajustes</button>
+    <button class="btn" type="button" id="btnProbar">Probar conexión</button>
+    <p class="nota" id="probarTxt">Pruébelo con señal, antes de salir a terreno. No envía
+      ninguna evaluación: solo comprueba que el servidor responde y que el token sirve.</p>
   </section>
   <section class="bloque">
     <p class="rotulo">Datos personales</p>
@@ -723,6 +726,69 @@ function pintarFirma(){
     ? "Firma: "+(n||"—")+" · matrícula "+m
     : "Falta registrar matrícula profesional en Ajustes. No podrá guardar.";
 }
+
+/* ---------------- probar conexión ---------------- */
+/* Diagnostica la configuración ANTES de que haya evaluaciones en juego. Distingue
+   los tres fallos que en terreno se ven todos igual (el contador no baja):
+   servidor inalcanzable, token equivocado, o URL mal escrita. */
+function urlSalud(u){
+  return u.replace(/\/evaluaciones\/?$/, "/salud");
+}
+document.getElementById("btnProbar").onclick=function(){
+  var t=document.getElementById("probarTxt");
+  var u=document.getElementById("cUrl").value.trim();
+  var k=document.getElementById("cTok").value.trim();
+
+  if(!u){t.textContent="Escriba primero el endpoint.";return;}
+  // Sin https el navegador bloquea el envío por contenido mixto y el error no se
+  // ve por ningún lado; mejor decirlo acá que descubrirlo con la cola llena.
+  if(u.indexOf("https://")!==0 && u.indexOf("http://localhost")!==0){
+    t.textContent="El endpoint debe empezar con https://. Sin cifrado el teléfono no envía nada.";return;}
+  if(!/\/evaluaciones\/?$/.test(u)){
+    t.textContent='Revise la ruta: normalmente termina en /api/evaluaciones.';return;}
+  if(!navigator.onLine){t.textContent="Sin conexión. Conéctese para probar.";return;}
+
+  t.textContent="Probando...";
+
+  fetch(urlSalud(u),{method:"GET",cache:"no-store"})
+  .then(function(r){
+    if(!r.ok) throw {tipo:"salud",cod:r.status};
+    return r.json();
+  })
+  .then(function(d){
+    // El servidor responde. Ahora si el token sirve: se manda a propósito una
+    // evaluación incompleta. Token malo -> 401. Token bueno -> 422 por falta de
+    // matrícula. En ninguno de los dos casos se graba nada.
+    return fetch(u,{method:"POST",
+      headers:{"Content-Type":"application/json","X-Brigada-Token":k},
+      body:JSON.stringify({id:"PRUEBA-CONEXION",ts:new Date().toISOString(),
+        inspector:{},danos:{},banderas:{},clasificacion:1})})
+    .then(function(r){
+      if(r.status===401) throw {tipo:"token"};
+      if(r.status===422) return {ok:true,n:d.evaluaciones};
+      if(r.status===200) throw {tipo:"raro"};
+      throw {tipo:"post",cod:r.status};
+    });
+  })
+  .then(function(res){
+    t.textContent="Todo correcto. El servidor responde y el token es válido."+
+      (typeof res.n==="number" ? " Tiene "+res.n+" evaluaciones recibidas." : "");
+  })
+  .catch(function(e){
+    if(e && e.tipo==="token"){
+      t.textContent="El servidor responde, pero rechaza el token. Pida el token de su brigada.";
+    }else if(e && e.tipo==="salud"){
+      t.textContent="El servidor contestó "+e.cod+" en la ruta de salud. Revise la dirección.";
+    }else if(e && e.tipo==="post"){
+      t.textContent="El servidor contestó "+e.cod+" al enviar. Avise a quien administra el servidor.";
+    }else if(e && e.tipo==="raro"){
+      t.textContent="Atención: el servidor aceptó una evaluación sin matrícula. No lo use hasta revisarlo.";
+    }else{
+      t.textContent="No se pudo alcanzar el servidor. Puede ser la señal, la dirección, "+
+        "o que ese servidor no autorice a este dominio a sincronizar.";
+    }
+  });
+};
 
 /* ---------------- red ---------------- */
 function pintarRed(){
