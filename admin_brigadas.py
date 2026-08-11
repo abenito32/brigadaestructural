@@ -25,6 +25,7 @@ Ordenes:
   inspectores    [brigada]             lista
 
   sin-verificar  [n]                   evaluaciones firmadas por gente no registrada
+  clave                                define la clave del panel /admin
 """
 import hashlib
 import os
@@ -178,7 +179,27 @@ def sin_verificar(n=20):
     tabla(filas, ("ID", "MATRÍCULA", "FIRMA", "DECLARADA", "AUTENTICADA", "CLAS"))
 
 
+def clave():
+    """Pide la clave y devuelve la línea para /etc/brigadas.env.
+
+    No escribe el archivo a propósito: quien administra el servidor decide qué
+    guarda en él, y así la clave nunca pasa por un argumento de línea de comandos
+    (donde quedaría en el historial y en la lista de procesos).
+    """
+    import getpass
+    import admin_web
+    c1 = getpass.getpass("Clave nueva del panel: ")
+    if len(c1) < 12:
+        salir("Muy corta: use al menos 12 caracteres.")
+    if c1 != getpass.getpass("Repítala: "):
+        salir("No coinciden.")
+    print("\nAgregue esta línea a /etc/brigadas.env y reinicie brigadas-api:\n")
+    print("BRIGADA_ADMIN_HASH=" + admin_web.hash_clave(c1) + "\n")
+    print("Cambiar la clave cierra todas las sesiones abiertas del panel.")
+
+
 ORDENES = {
+    "clave": clave,
     "brigada-alta": brigada_alta, "brigada-baja": brigada_baja,
     "brigada-adoptar": brigada_adoptar, "brigadas": brigadas,
     "inspector-alta": inspector_alta, "inspector-baja": inspector_baja,

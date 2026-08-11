@@ -56,6 +56,9 @@ Sin dependencias de frontend:
   `RETURNING` vacío es lo que reporta `duplicado: true`.
 - `admin_brigadas.py` — alta/baja de brigadas e inspectores. Los tokens se guardan
   como sha256, nunca en claro; `brigada-alta` los muestra una sola vez.
+- `admin_web.py` — panel en `/admin`, HTML renderizado en el servidor con Jinja2
+  (autoescape obligatorio: los datos vienen de campo). Se monta **solo** si existe
+  `BRIGADA_ADMIN_HASH`; sin clave no hay rutas. Requiere `jinja2` y `python-multipart`.
 - `esquema.sql` — **fuente de verdad del esquema**, idempotente. La tabla, los índices
   y la vista `consolidado_publico` viven ahí, no en el docstring del `.py`.
 
@@ -124,6 +127,9 @@ esa exigencia ni permitir guardar sin matrícula: es el registro de responsabili
   pueden emitir el mismo `id` el mismo día — si se consolida entre dispositivos, hay que
   prefijar por brigada antes de confiar en la idempotencia por `id`.
 - El JS de `index.html` es ES5 a propósito (`var`, sin arrow functions ni `const`). Seguir el estilo.
+- `Form(...)` de FastAPI exige `python-multipart` instalado, y la falla es un
+  `RuntimeError` al definir la ruta, no un `ImportError`: tumba el proceso entero al
+  arrancar, no solo el módulo que lo usa.
 - **Parámetros `NULL` sin cast revientan con `AmbiguousParameter`.** Ya pasó dos veces
   (`lat`/`lon` en el `INSERT`, filtro opcional en `admin_brigadas.py`). Si un parámetro
   puede llegar `NULL` y se compara con `IS NULL`, lleva `::tipo` explícito.

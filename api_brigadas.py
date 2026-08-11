@@ -94,6 +94,15 @@ app = FastAPI(title="Brigadas · receptor de evaluaciones", lifespan=lifespan)
 # solo peticiones del mismo origen. Se abre por lista blanca explicita y nunca con
 # "*", porque bastaria con que un token se filtrara para que cualquier pagina
 # pudiera escribir en la base.
+# El panel de administración solo existe si hay clave configurada. Sin
+# BRIGADA_ADMIN_HASH no se monta ninguna ruta /admin: no hay modo "sin clave".
+try:
+    import admin_web
+    if admin_web.CLAVE_HASH:
+        app.include_router(admin_web.router)
+except ImportError:
+    pass
+
 if ORIGENES:
     app.add_middleware(
         CORSMiddleware,

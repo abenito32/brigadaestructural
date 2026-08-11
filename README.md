@@ -54,7 +54,27 @@ Las variables (`BRIGADA_TOKENS`, `BRIGADA_DSN`, `BRIGADA_FOTOS`) van en un archi
 aparte con permisos `0600`, nunca en el unit de systemd, que es legible por todos.
 Ver `.env.example` y `brigadas-api.service.example`.
 
-### 4. El registro de brigadas e inspectores
+### 4. El panel de administración
+
+```bash
+/opt/brigadas/venv/bin/pip install jinja2 python-multipart
+sudo env BRIGADA_DSN=... /opt/brigadas/venv/bin/python /opt/brigadas/admin_brigadas.py clave
+# pide la clave, imprime la línea BRIGADA_ADMIN_HASH= para /etc/brigadas.env
+sudo systemctl restart brigadas-api
+```
+
+Queda en `/admin`: resumen por brigada y por sector, listado de reportes con filtros,
+y alta/baja de brigadas e inspectores. **Sin `BRIGADA_ADMIN_HASH` las rutas no se
+montan**: no existe un modo sin clave, y `/admin` devuelve 404.
+
+La clave se guarda como hash scrypt, la sesión va en cookie `HttpOnly` + `Secure` +
+`SameSite=strict` firmada con una llave derivada de ese hash —cambiar la clave cierra
+todas las sesiones— y el login está limitado a 8 intentos cada diez minutos por IP.
+
+El panel muestra direcciones y coordenadas: es para coordinar la brigada, no para
+difundir. Lo que se entrega a las autoridades es el consolidado por sector.
+
+### 5. El registro de brigadas e inspectores (línea de comandos)
 
 ```bash
 ADM="/opt/brigadas/venv/bin/python /opt/brigadas/admin_brigadas.py"
