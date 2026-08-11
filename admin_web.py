@@ -28,6 +28,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from jinja2 import Environment
 
 CLAVE_HASH = os.getenv("BRIGADA_ADMIN_HASH", "")
+# El correo de contacto sale del entorno, no del codigo: este archivo esta en un
+# repositorio publico y una direccion ahi se rastrea en dias. Solo se muestra en
+# el panel, que ademas lleva noindex.
+CONTACTO = os.getenv("BRIGADA_CONTACTO", "")
 DURACION_SESION = 8 * 3600          # una jornada
 MAX_INTENTOS = 8                    # por IP, en la ventana de abajo
 VENTANA_INTENTOS = 600
@@ -95,6 +99,8 @@ def limitar(ip: str) -> bool:
 BASE = """<!doctype html>
 <html lang="es-CO"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Ni siquiera la pantalla de entrada debe aparecer en un buscador. -->
+<meta name="robots" content="noindex,nofollow">
 <title>{{ titulo }} · Administración Brigada</title>
 <style>
 :root{--papel:#F1F5F9;--carta:#fff;--tinta:#0F172A;--tinta2:#475569;--tenue:#5E6E82;
@@ -166,6 +172,8 @@ input:focus,select:focus{outline:3px solid var(--azul);outline-offset:-1px;borde
 .desplaza{overflow-x:auto}
 .pag{display:flex;gap:9px;align-items:center;margin-top:16px;font-size:14px;color:var(--tinta2)}
 .entrar{max-width:380px;margin:12vh auto;padding:0 18px}
+.credito{margin:34px 0 0;font-size:13px;color:var(--tenue);text-align:center;line-height:1.6}
+.credito a{color:var(--tenue)}
 @media (max-width:640px){.top-in{gap:8px}.nav{width:100%;margin-left:0}}
 </style></head><body>
 {% if sesion %}
@@ -180,14 +188,20 @@ input:focus,select:focus{outline:3px solid var(--azul);outline-offset:-1px;borde
   </nav>
 </div></header>
 {% endif %}
-<main class="{{ 'entrar' if not sesion else 'wrap' }}">{{ cuerpo }}</main>
+<main class="{{ 'entrar' if not sesion else 'wrap' }}">{{ cuerpo }}
+<p class="credito">Desarrollada con Amor por Andrés Benito Revollo Vélez ·
+  Rollout Comercio e Servicios Limitada<br>
+  {% if contacto %}<a href="mailto:{{ contacto }}">{{ contacto }}</a> · {% endif %}
+  <a href="https://github.com/abenito32/brigadaestructural" rel="noopener">AGPL v3</a></p>
+</main>
 </body></html>"""
 
 
 def pagina(titulo, cuerpo_html, pag="", sesion=True):
     from markupsafe import Markup
     return HTMLResponse(env.from_string(BASE).render(
-        titulo=titulo, cuerpo=Markup(cuerpo_html), pag=pag, sesion=sesion))
+        titulo=titulo, cuerpo=Markup(cuerpo_html), pag=pag, sesion=sesion,
+        contacto=CONTACTO))
 
 
 def render(plantilla, **ctx):

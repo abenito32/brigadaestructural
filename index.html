@@ -212,6 +212,11 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 .nota{font-size:13px;color:var(--tinta2);line-height:1.55;margin:10px 0 0}
 .nota a{color:var(--azul);text-decoration:underline;text-underline-offset:2px}
 .nota a:hover,.nota a:focus-visible{color:var(--azul-osc)}
+/* Crédito de autoría. Discreto pero no escondido: quien mantenga esto en cinco
+   años merece saber de dónde salió. */
+.credito{margin:0 0 12px;font-size:14px;line-height:1.5;color:var(--tinta)}
+.credito span{color:var(--tinta2);font-size:13px}
+.credito a{color:var(--azul);text-decoration:underline;text-underline-offset:2px;word-break:break-all}
 .aviso{border:1px solid #FECACA;border-left:4px solid var(--rojo);background:var(--rojo-tinte);
   border-radius:var(--r);padding:13px 14px;font-size:14px;line-height:1.55;margin:14px 0}
 .oculto{display:none!important}
@@ -376,6 +381,10 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   <!-- Exigido por la AGPL §13: quien usa el programa por red puede pedir su fuente. -->
   <section class="bloque">
     <p class="rotulo">Licencia</p>
+    <p class="credito">Desarrollada con Amor por Andrés Benito Revollo Vélez<br>
+      <span>Rollout Comercio e Servicios Limitada ·
+      <a href="https://github.com/abenito32/brigadaestructural/issues" rel="noopener"
+         target="_blank">Reportar un problema</a></span></p>
     <p class="nota">Copyright © 2026 Rollout Comercio e Servicios Limitada / Andrés Benito
       Revollo Vélez. Software libre bajo
       <a href="https://www.gnu.org/licenses/agpl-3.0.html" rel="license noopener" target="_blank">GNU AGPL v3</a>.

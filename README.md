@@ -161,6 +161,14 @@ riesgo externo (vecino inestable o talud), elementos pesados sueltos sobre el ac
 
 ## Licencia
 
+Desarrollada con Amor por **Andrés Benito Revollo Vélez** · Rollout Comercio e
+Servicios Limitada.
+
+Para reportar un problema o proponer un cambio, use los
+[issues del repositorio](https://github.com/abenito32/brigadaestructural/issues).
+El correo de contacto no se publica acá a propósito: una dirección en un repositorio
+público se rastrea en cuestión de días.
+
 Copyright © 2026 **Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez**.
 
 Software libre bajo **GNU AGPL v3**. Si lo modifica y lo distribuye —o lo ofrece
