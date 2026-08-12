@@ -112,6 +112,13 @@ El receptor devuelve **503 y no 200** si no pudo grabar. Es deliberado: con un 2
 la app marcaría la evaluación como enviada y borraría el pendiente, perdiéndola sin
 que nadie se entere. Con 503 el registro sobrevive en el teléfono y se reintenta.
 
+## Material
+
+`docs/manual-brigada.pdf` — manual completo, 22 páginas.
+`docs/brigada-presentacion.pptx` — presentación institucional para alcaldías,
+universidades y asociaciones profesionales. Editable; se regenera con
+`python3 docs/build_presentacion.py` (necesita `python-pptx`).
+
 ## Manual
 
 `docs/manual-brigada.pdf` — 22 páginas, tres partes: para el inspector en campo,
