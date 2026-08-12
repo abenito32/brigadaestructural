@@ -82,6 +82,9 @@ Sin dependencias de frontend:
   borrado sería el camino del ransomware.
   **No hace `source` de `/etc/brigadas.env`**: es un `EnvironmentFile` de systemd y varios
   valores llevan `$` (el hash scrypt), que bash expandiría. Lee con `sed`.
+- `api_consulta.py` — API de consulta (`/api/v1/`), solo lectura, con la tabla
+  `consumidor` como credenciales **separadas** de `brigada`: leer y escribir no pueden
+  compartir token. El k-anonimato se aplica sobre el resultado ya filtrado.
 - `esquema.sql` — **fuente de verdad del esquema**, idempotente. La tabla, los índices
   y la vista `consolidado_publico` viven ahí, no en el docstring del `.py`.
 

@@ -190,6 +190,7 @@ tr:last-child td{border-bottom:0}
       <li><span class="num">18</span> Diagnóstico de problemas</li>
       <li><span class="num">19</span> Actualizar la aplicación</li>
       <li><span class="num">20</span> Respaldo y recuperación</li>
+      <li><span class="num">21</span> La API de consulta</li>
     </ol>
   </li>
   <li>
@@ -258,8 +259,8 @@ de salir. Toma cinco minutos.</p>
 
 <ol class="pasos">
   <li><strong>Abrir la dirección de la app en el navegador</strong>
-    En el celular, abra <code>https://brigadaestructural.co</code> (o la dirección que
-    le haya dado su coordinación). Tiene que ser <code>https</code>: sin cifrado el
+    En el celular, abra <code>https://brigadaestructural.co/app/</code> (o la dirección
+    que le haya dado su coordinación). Tiene que ser <code>https</code>: sin cifrado el
     teléfono no permite usar la cámara ni el GPS.</li>
 
   <li><strong>Instalarla en la pantalla de inicio</strong>
@@ -553,8 +554,16 @@ que no ingrese <em>ni siquiera a sacar cosas</em> hasta que la autoridad lo dete
 <section class="seguido">
 <h2>9 · El panel de administración</h2>
 
-<p>Está en <code>https://brigadaestructural.co/admin</code> y tiene <strong>una sola
-clave</strong>, la de coordinación.</p>
+<p>Está en <code>https://admin.brigadaestructural.co</code> —un subdominio propio, no
+el mismo sitio que usa la brigada— y tiene <strong>una sola clave</strong>, la de
+coordinación.</p>
+
+<div class="nota-caja">
+  <span class="etq">Por qué en otra dirección</span>
+  El panel muestra direcciones y coordenadas. Separarlo del dominio público hace que
+  una vulnerabilidad en la aplicación que usan los inspectores no quede en el mismo
+  origen que esos datos, y que la sesión del panel no viaje desde ahí.
+</div>
 
 <div class="nota-caja">
   <span class="etq">Los inspectores no entran acá</span>
@@ -571,10 +580,12 @@ clave</strong>, la de coordinación.</p>
     clasificación, municipio y estado de firma.</p></div>
   <div class="ficha"><h4>Brigadas</h4><p>Alta con generación de token, y revocación.</p></div>
   <div class="ficha"><h4>Inspectores</h4><p>Alta y baja de quienes pueden firmar.</p></div>
+  <div class="ficha"><h4>Solicitudes</h4><p>Lo que llega por el formulario de la
+    página pública, con marca de atendida.</p></div>
 </div>
 
 <h3>Si el panel no existe</h3>
-<p>Si <code>/admin</code> devuelve 404, es porque no hay clave configurada: sin ella las
+<p>Si el panel devuelve 404, es porque no hay clave configurada: sin ella las
 rutas no se registran siquiera. Es deliberado — no hay clave por defecto ni pantalla de
 acceso expuesta esperando. Vea la sección 16 para activarlo.</p>
 </section>
@@ -715,6 +726,21 @@ No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
     <td>En contenedor propio, escuchando solo en loopback.</td></tr>
 </table>
 
+<h3>Las direcciones</h3>
+<table class="tabla-chica">
+  <tr><td style="width:34%"><code>/</code></td><td>Página pública: explica la herramienta
+    y recibe solicitudes de información.</td></tr>
+  <tr><td><code>/app/</code></td><td>La aplicación. Va acá y no en un subdominio porque
+    el almacenamiento del navegador es <strong>por origen</strong>: cambiarlo dejaría
+    huérfanas las evaluaciones pendientes de los teléfonos ya instalados.</td></tr>
+  <tr><td><code>/api/</code></td><td>Recepción de evaluaciones.</td></tr>
+  <tr><td><code>/api/v1/</code></td><td>API de consulta, solo lectura (sección 21).</td></tr>
+  <tr><td><code>/sw.js</code></td><td>Desactiva el service worker viejo que quedó con
+    alcance <code>/</code>. <strong>No borrar</strong> mientras exista un teléfono con
+    ese registro.</td></tr>
+  <tr><td><code>admin.&lt;dominio&gt;</code></td><td>El panel, en origen separado.</td></tr>
+</table>
+
 <h3>El camino de un dato</h3>
 <pre>Formulario → IndexedDB (pendiente) → POST /api/evaluaciones
    → validación → fotos a disco → INSERT ... ON CONFLICT DO NOTHING
@@ -785,6 +811,9 @@ systemd</strong>, que es legible por cualquiera.</p>
 
 <table class="tabla-chica">
   <tr><th style="width:30%">Variable</th><th>Para qué</th></tr>
+  <tr><td><code>BRIGADA_RESPALDO_CLAVE</code></td><td>Passphrase de cifrado del respaldo.</td></tr>
+  <tr><td><code>BRIGADA_RESPALDO_REMOTO</code></td><td>Destino externo por rsync. Vacío =
+    solo copia local, que no protege de perder el disco.</td></tr>
   <tr><td><code>BRIGADA_DSN</code></td><td><strong>Obligatoria.</strong> Cadena de conexión
     a PostgreSQL. Sin ella el receptor no arranca.</td></tr>
   <tr><td><code>BRIGADA_TOKENS</code></td><td>Tokens heredados, separados por coma. Siguen
@@ -911,11 +940,24 @@ y trae los <code>ADD COLUMN IF NOT EXISTS</code> de las columnas nuevas.</p>
 <section>
 <h2>20 · Respaldo y recuperación</h2>
 
+<p>Corre solo, todos los días a las 03:15 UTC, con <code>brigadas-respaldo.timer</code>.
+Vuelca la base y las fotos, comprueba que el archivo descomprime, lo cifra con AES-256 y
+lo copia a otro servidor. El resultado aparece en el Resumen del panel: sin servidor de
+correo, esa es la forma de enterarse de que dejó de correr.</p>
+
+<div class="ojo">
+  <span class="etq">La llave del destino solo puede escribir</span>
+  En el servidor que recibe las copias, la credencial va restringida con
+  <code>rrsync -wo</code>. Sin esa restricción, quien comprometa el servidor de la
+  aplicación puede <em>borrar</em> los respaldos antes de cifrar el original — que es
+  exactamente como opera el ransomware. Por lo mismo, la retención del destino la
+  ejecuta el destino con su propio cron, no el origen.
+</div>
+
 <div class="aviso">
-  <span class="etq">Pendiente crítico</span>
-  Al momento de escribir este manual <strong>no hay respaldo automático configurado</strong>.
-  Es la diferencia entre un susto y perder el levantamiento de una emergencia entera.
-  Debería ser lo primero que se resuelva antes de un uso real.
+  <span class="etq">Guarde la clave de cifrado fuera del servidor</span>
+  Sin <code>BRIGADA_RESPALDO_CLAVE</code> los respaldos no se pueden abrir. Si lo que
+  perdió es el servidor, la clave se fue con él.
 </div>
 
 <h3>Respaldo manual</h3>
@@ -940,6 +982,65 @@ tar xzf fotos-2026-08-11.tar.gz -C /var/lib/brigadas</pre>
 </ol>
 </section>
 </div>
+
+
+<section>
+<h2>21 · La API de consulta</h2>
+
+<p>Sirve para que los reportes lleguen a los sistemas que la entidad ya usa —un tablero
+de gestión del riesgo, un geoportal municipal— sin exportar planillas a mano. Es de
+<strong>solo lectura</strong> y con credenciales propias, separadas de las de brigada.</p>
+
+<div class="nota-caja">
+  <span class="etq">Por qué las credenciales son distintas</span>
+  Una brigada <em>escribe</em> evaluaciones desde un teléfono; un consumidor <em>lee</em>
+  desde el sistema de una alcaldía. Si fueran la misma credencial, filtrar el token de un
+  geoportal permitiría escribir evaluaciones falsas.
+</div>
+
+<h3>Los dos alcances</h3>
+<p>La diferencia es jurídica antes que técnica.</p>
+<table class="tabla-chica">
+  <tr><th style="width:22%">Alcance</th><th>Qué entrega</th></tr>
+  <tr><td><code>consolidado</code></td>
+      <td>Conteos por municipio y barrio, con el umbral de anonimato aplicado. No lleva
+        dato personal, así que sirve para un tablero público.</td></tr>
+  <tr><td><code>detalle</code></td>
+      <td>Direcciones y coordenadas de predios. Es dato personal (Ley 1581 de 2012):
+        solo para la entidad dueña de esos datos y con finalidad declarada.
+        <strong>Se concede por excepción, no por defecto.</strong></td></tr>
+</table>
+<p>Cada credencial puede además limitarse a ciertos municipios: una alcaldía consulta lo
+suyo, y si pide otro municipio recibe un 403 aunque el dato exista.</p>
+
+<h3>Rutas</h3>
+<pre>GET /api/v1/                     qué puede hacer esta credencial
+GET /api/v1/consolidado          agregado por sector
+GET /api/v1/consolidado.geojson  lo mismo como capa de puntos
+GET /api/v1/evaluaciones         detalle paginado        (alcance: detalle)
+GET /api/v1/evaluaciones.geojson detalle como capa       (alcance: detalle)
+
+Autenticación:  cabecera  X-API-Token: &lt;token&gt;
+Filtros:        municipio, barrio, desde, hasta, clasificacion</pre>
+
+<pre>curl -H "X-API-Token: $TOKEN" \
+  "https://ejemplo.org/api/v1/consolidado?municipio=Bogota&amp;desde=2026-08-01"</pre>
+
+<h3>El umbral de anonimato se aplica después de filtrar</h3>
+<p>Un sector con menos de cinco evaluaciones no aparece. Y como el umbral se calcula
+sobre el resultado <em>ya filtrado</em>, acotar por fechas hasta aislar un registro
+tampoco lo revela: el sector simplemente desaparece de la respuesta.</p>
+
+<h3>Alta y baja de credenciales</h3>
+<pre>ADM="/opt/brigadas/venv/bin/python /opt/brigadas/admin_brigadas.py"
+sudo env BRIGADA_DSN=... $ADM consumidor-alta "Tablero de riesgo" consolidado
+sudo env BRIGADA_DSN=... $ADM consumidor-alta "Alcaldía de X" detalle "X"
+sudo env BRIGADA_DSN=... $ADM consumidores
+sudo env BRIGADA_DSN=... $ADM consumidor-baja "Tablero de riesgo"</pre>
+<p>El token se muestra una sola vez y la base guarda solo su sha256. Cada consulta
+registra el uso, así se sabe qué integración sigue viva y cuál dejó de usarse — o cuál
+está consultando mucho más de lo que debería.</p>
+</section>
 
 <!-- ═══════════════════════ ANEXOS ═══════════════════════ -->
 <div class="parte">
@@ -1021,7 +1122,8 @@ tar xzf fotos-2026-08-11.tar.gz -C /var/lib/brigadas</pre>
 
 <h3>Otras rutas</h3>
 <table class="tabla-chica">
-  <tr><td><code>GET /api/salud</code></td><td>Estado del receptor y de la base, con conteos.</td></tr>
+  <tr><td><code>GET /api/v1/…</code></td><td>API de consulta, solo lectura. Vea la sección 21.</td></tr>
+  <tr><td><code>GET /api/salud</code></td><td>Estado del receptor, la base, el respaldo y el disco.</td></tr>
   <tr><td><code>GET /api/fuente</code></td><td>Redirige al código fuente (AGPL §13).</td></tr>
 </table>
 

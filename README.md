@@ -133,6 +133,27 @@ que nadie se entere. Con 503 el registro sobrevive en el teléfono y se reintent
 universidades y asociaciones profesionales. Editable; se regenera con
 `python3 docs/build_presentacion.py` (necesita `python-pptx`).
 
+## API de consulta
+
+Solo lectura, credenciales propias separadas de las de brigada, alcance por
+municipio y dos niveles: `consolidado` (agregado con umbral de anonimato, sin dato
+personal) y `detalle` (direcciones y coordenadas, solo para la entidad responsable).
+
+```
+GET /api/v1/                     qué puede hacer esta credencial
+GET /api/v1/consolidado[.geojson]
+GET /api/v1/evaluaciones[.geojson]     (alcance: detalle)
+Cabecera: X-API-Token
+```
+
+El umbral de anonimato se aplica **después** de los filtros: acotar por fechas hasta
+aislar un registro no lo revela, el sector desaparece de la respuesta.
+
+```bash
+sudo env BRIGADA_DSN=... $ADM consumidor-alta "Tablero de riesgo" consolidado
+sudo env BRIGADA_DSN=... $ADM consumidor-alta "Alcaldía de X" detalle "X"
+```
+
 ## Respaldo
 
 ```bash

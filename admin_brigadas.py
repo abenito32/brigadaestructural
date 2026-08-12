@@ -24,6 +24,10 @@ Ordenes:
   inspector-baja <matricula>           baja lógica; nunca se borra quien firmó
   inspectores    [brigada]             lista
 
+  consumidor-alta <nombre> [consolidado|detalle] [municipios,coma] [contacto]
+  consumidor-baja <nombre>             revoca su token de consulta
+  consumidores                         lista
+
   sin-verificar  [n]                   evaluaciones firmadas por gente no registrada
   clave                                define la clave del panel /admin
 """
@@ -179,6 +183,50 @@ def sin_verificar(n=20):
     tabla(filas, ("ID", "MATRÍCULA", "FIRMA", "DECLARADA", "AUTENTICADA", "CLAS"))
 
 
+def consumidor_alta(nombre, alcance="consolidado", municipios=None, contacto=None):
+    """Credencial de SOLO LECTURA para la API de consulta."""
+    if alcance not in ("consolidado", "detalle"):
+        salir("El alcance debe ser 'consolidado' o 'detalle'.")
+    lista = [m.strip() for m in municipios.split(",") if m.strip()] if municipios else None
+    token = secrets.token_hex(24)
+    with con() as c, c.cursor() as cur:
+        try:
+            cur.execute("""INSERT INTO consumidor (nombre, token_hash, alcance,
+                                                   municipios, contacto)
+                           VALUES (%s,%s,%s,%s,%s)""",
+                        (nombre, sha(token), alcance, lista, contacto))
+        except psycopg.errors.UniqueViolation:
+            salir(f"Ya existe un consumidor llamado {nombre!r}.")
+    print(f"Consumidor '{nombre}' registrado · alcance {alcance} · "
+          f"municipios: {', '.join(lista) if lista else 'todos'}\n")
+    print(f"  TOKEN: {token}\n")
+    print("Se envía en la cabecera X-API-Token. No se puede recuperar: la base")
+    print("guarda solo su sha256.")
+    if alcance == "detalle":
+        print("\nOJO: alcance 'detalle' entrega direcciones y coordenadas de predios.")
+        print("Es dato personal (Ley 1581 de 2012): entréguelo solo a la entidad")
+        print("dueña de esos datos y con una finalidad declarada por escrito.")
+
+
+def consumidor_baja(nombre):
+    with con() as c, c.cursor() as cur:
+        cur.execute("UPDATE consumidor SET activo=false WHERE nombre=%s", (nombre,))
+        if not cur.rowcount:
+            salir(f"No existe el consumidor {nombre!r}.")
+    print(f"Consumidor '{nombre}' revocado. Su token deja de servir de inmediato.")
+
+
+def consumidores():
+    with con() as c, c.cursor() as cur:
+        cur.execute("""SELECT nombre, alcance,
+                              coalesce(array_to_string(municipios, ', '), 'todos'),
+                              activo, consultas,
+                              coalesce(ultimo_uso::date::text, 'nunca')
+                         FROM consumidor ORDER BY activo DESC, nombre""")
+        tabla(cur.fetchall(),
+              ("CONSUMIDOR", "ALCANCE", "MUNICIPIOS", "ACTIVO", "CONSULTAS", "ÚLTIMO USO"))
+
+
 def clave():
     """Pide la clave y devuelve la línea para /etc/brigadas.env.
 
@@ -200,6 +248,8 @@ def clave():
 
 ORDENES = {
     "clave": clave,
+    "consumidor-alta": consumidor_alta, "consumidor-baja": consumidor_baja,
+    "consumidores": consumidores,
     "brigada-alta": brigada_alta, "brigada-baja": brigada_baja,
     "brigada-adoptar": brigada_adoptar, "brigadas": brigadas,
     "inspector-alta": inspector_alta, "inspector-baja": inspector_baja,

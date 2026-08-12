@@ -107,6 +107,14 @@ try:
 except ImportError:
     pass
 
+# API de consulta (solo lectura, credenciales propias). Se monta siempre: sin
+# consumidores registrados no hay token válido, así que no expone nada.
+try:
+    import api_consulta
+    app.include_router(api_consulta.router)
+except ImportError:
+    pass
+
 if ORIGENES:
     app.add_middleware(
         CORSMiddleware,

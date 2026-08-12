@@ -344,9 +344,9 @@ def ventajas(prs):
         ("Protección de datos",
          "Lo que sale hacia autoridades va agregado por sector, con umbral mínimo. El predio "
          "nunca se expone (Ley 1581 de 2012)."),
-        ("Sin costo de licencia",
-         "Software libre AGPL v3. No hay licencia por usuario ni por brigada, y el código puede "
-         "auditarse."),
+        ("Respaldo diario cifrado",
+         "Copia automática a otro servidor, con la credencial restringida a escribir. "
+         "Probada restaurando, no solo corriendo."),
     ])
     pie_contacto(dia)
     return dia
@@ -391,31 +391,26 @@ def despliegue(prs):
 
 def integracion(prs):
     dia = nueva(prs)
-    cabecera(dia, "INTEGRACIÓN", "Que los reportes lleguen a los sistemas que ya usan")
-    # La etiqueta va bajo el titulo: arriba lo pisaba cuando el titulo es largo.
-    caja(dia, Inches(0.9), Inches(1.95), Inches(2.3), Inches(0.38), relleno=AMBAR, borde=None)
-    texto(dia, Inches(0.9), Inches(2.03), Inches(2.3), Inches(0.3), "EN DESARROLLO",
-          tam=11, negrita=True, color=AMBAR_T, align=PP_ALIGN.CENTER)
-    texto(dia, Inches(3.42), Inches(2.0), Inches(8.98), Inches(0.6),
-          "La API de consulta está en la hoja de ruta y no está disponible todavía. Se construye "
-          "a medida de las entidades que la necesiten, sobre requisitos reales.",
-          tam=13.5, color=TINTA2, interlineado=1.3)
+    cabecera(dia, "INTEGRACIÓN", "Los reportes llegan a los sistemas que ya usan",
+             "API de consulta en funcionamiento: solo lectura, credenciales propias "
+             "y alcance por municipio.")
     tarjetas(dia, [
-        ("Descarga de reportes",
-         "Que un sistema de gestión de riesgo consulte las evaluaciones de su jurisdicción "
-         "y las incorpore, sin exportar planillas a mano."),
+        ("Consolidado por sector",
+         "Conteos por municipio y barrio con el umbral de anonimato aplicado. Sin dato "
+         "personal: apto para un tablero público."),
         ("Capa geográfica",
-         "Los datos ya viven en PostGIS. Publicarlos como capa para un visor municipal o "
-         "un geoportal es un paso corto."),
-        ("Consolidado agregado",
-         "Un canal que entregue solo el agregado por sector, con el umbral de anonimato "
-         "aplicado, apto para tableros públicos."),
-    ], y=Inches(3.15), alto=Inches(1.9))
-    caja(dia, Inches(0.9), Inches(5.45), Inches(11.5), Inches(1.05), relleno=PAPEL, borde=LINEA)
-    texto(dia, Inches(1.2), Inches(5.68), Inches(10.9), Inches(0.6),
-          "Lo que sí existe hoy: el canal de recepción documentado, la base geográfica, la vista "
-          "agregada con umbral de anonimato, y exportación en CSV y JSON desde la propia "
-          "aplicación. Sobre esa base se construye la integración.",
+         "Los mismos datos como GeoJSON, listos para un visor municipal o un geoportal, "
+         "sin llave de terceros ni cuenta comercial."),
+        ("Detalle para la entidad dueña",
+         "Direcciones y coordenadas, solo para quien responde por esos datos y con "
+         "finalidad declarada (Ley 1581 de 2012)."),
+    ], y=Inches(2.85), alto=Inches(2.0))
+    caja(dia, Inches(0.9), Inches(5.2), Inches(11.5), Inches(1.3), relleno=PAPEL, borde=LINEA)
+    texto(dia, Inches(1.2), Inches(5.45), Inches(10.9), Inches(0.9),
+          "Las credenciales de lectura están separadas de las de brigada: una brigada "
+          "escribe desde un teléfono, un sistema lee desde la alcaldía. Si fueran la misma, "
+          "filtrar el token de un geoportal permitiría escribir evaluaciones falsas. Cada "
+          "credencial se limita a sus municipios y se revoca en el acto.",
           tam=12.5, color=TINTA2, interlineado=1.3)
     pie_contacto(dia)
     return dia

@@ -118,6 +118,26 @@ FROM evaluacion_brigada e
 WHERE NOT e.matricula_verificada
 ORDER BY e.clasificacion DESC, e.ts DESC;   -- los rojos primero
 
+-- Quién puede LEER por la API de consulta. Deliberadamente separado de `brigada`:
+-- una brigada escribe evaluaciones desde un teléfono; un consumidor lee desde el
+-- sistema de una alcaldía. Mezclar ambos en una sola credencial haría que filtrar
+-- el token de un geoportal permitiera escribir evaluaciones falsas.
+CREATE TABLE IF NOT EXISTS consumidor (
+  nombre      text PRIMARY KEY,
+  token_hash  text NOT NULL UNIQUE,
+  -- 'consolidado' = solo agregados por sector, sin dato personal.
+  -- 'detalle'     = direcciones y coordenadas. Solo para la entidad dueña de los
+  --                 datos, y con finalidad declarada (Ley 1581 de 2012).
+  alcance     text NOT NULL DEFAULT 'consolidado'
+              CHECK (alcance IN ('consolidado','detalle')),
+  municipios  text[],          -- NULL = todos; si no, solo esos
+  contacto    text,
+  activo      boolean NOT NULL DEFAULT true,
+  creado_en   timestamptz NOT NULL DEFAULT now(),
+  ultimo_uso  timestamptz,
+  consultas   bigint NOT NULL DEFAULT 0
+);
+
 -- Solicitudes de información desde la página pública. Son datos personales de
 -- un funcionario (Ley 1581 de 2012): se piden con autorización explícita, con
 -- una finalidad declarada —responder esa solicitud— y nada más.
