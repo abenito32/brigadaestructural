@@ -585,8 +585,9 @@ Entra en esta misma dirección poniendo <strong>{{ usuario_nuevo }}</strong> en 
 Entréguesela por un canal razonable, no por un grupo.</div>
 {% endif %}
 {% if token_nuevo %}
-<div class="ok"><strong>Brigada «{{ nombre_nuevo }}» registrada.</strong> Este es su token, y esta
-es la única vez que se muestra: la base guarda solo su sha256.
+<div class="ok"><strong>Token de «{{ nombre_nuevo }}».</strong> Esta es la única vez que se
+muestra: la base guarda solo su sha256. Si acaba de reemitirlo, el anterior dejó de servir
+y hay que reconfigurar los teléfonos de esa brigada.
 <div class="token">{{ token_nuevo }}</div>
 Entrégueselo ahora a quien coordina esa brigada. Si se pierde, hay que emitir uno nuevo.</div>
 {% endif %}
@@ -610,10 +611,17 @@ Entrégueselo ahora a quien coordina esa brigada. Si se pierde, hay que emitir u
   <td><span class="pastilla {{ 'pi' if b[1] else 'pn' }}">{{ "Activa" if b[1] else "Revocada" }}</span></td>
   <td>{{ b[2] or "—" }}</td><td class="num">{{ b[3] }}</td><td class="num">{{ b[4] }}</td>
   <td class="num">{{ b[5] }}</td>
-  <td>{% if b[1] %}<form method="post" action="/admin/brigadas/baja"
-      onsubmit="return confirm('Revocar el token de {{ b[0] }}? Sus teléfonos dejan de sincronizar de inmediato.')">
-      <input type="hidden" name="nombre" value="{{ b[0] }}">
-      <button class="btn btn-r">Revocar token</button></form>{% endif %}</td>
+  <td>{% if b[1] %}<div style="display:flex;gap:8px;flex-wrap:wrap">
+      <form method="post" action="/admin/brigadas/reemitir"
+        onsubmit="return confirm('Emitir un token nuevo para {{ b[0] }}? El actual deja de servir y hay que reconfigurar sus teléfonos.')">
+        <input type="hidden" name="nombre" value="{{ b[0] }}">
+        <button class="btn btn-r" style="color:var(--azul);border-color:var(--borde);background:var(--carta)">
+          Reemitir token</button></form>
+      <form method="post" action="/admin/brigadas/baja"
+        onsubmit="return confirm('Revocar el token de {{ b[0] }}? Sus teléfonos dejan de sincronizar de inmediato.')">
+        <input type="hidden" name="nombre" value="{{ b[0] }}">
+        <button class="btn btn-r">Revocar token</button></form>
+      </div>{% endif %}</td>
 </tr>{% else %}<tr><td colspan="7" class="vacio">No hay brigadas registradas.</td></tr>{% endfor %}
 </tbody></table></div>
 </div>
@@ -704,6 +712,21 @@ def brigadas_alta(req: Request, nombre: str = Form(...), contacto: str = Form(""
     except Exception:
         token, error = None, f"Ya existe una brigada llamada «{nombre}»."
     return _pantalla_brigadas(ses, token=token, nombre=nombre, error=error)
+
+
+@router.post("/admin/brigadas/reemitir", response_class=HTMLResponse)
+def brigadas_reemitir(req: Request, nombre: str = Form(...)):
+    """El token se muestra una sola vez; si se perdió, se emite otro. El anterior
+    deja de servir en el acto: hay que reconfigurar los teléfonos de esa brigada."""
+    ses = exigir_admin(req)
+    import api_brigadas
+    token = secrets.token_hex(24)
+    hecho = consulta("""UPDATE brigada SET token_hash = %s
+                         WHERE nombre = %s AND activa RETURNING nombre""",
+                     (api_brigadas.sha(token), nombre))
+    if not hecho:
+        return _pantalla_brigadas(ses, error="Esa brigada no existe o está revocada.")
+    return _pantalla_brigadas(ses, token=token, nombre=nombre)
 
 
 @router.post("/admin/brigadas/baja")

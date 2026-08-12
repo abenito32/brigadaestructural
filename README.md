@@ -152,6 +152,10 @@ sudo env BRIGADA_DSN=... $ADM coordinadores
 sudo env BRIGADA_DSN=... $ADM coordinador-baja "coord.unal"
 ```
 
+Si se pierde el token de una brigada —se muestra una sola vez— se emite otro con
+**Reemitir token** en el panel, o `brigada-reemitir` por línea de comandos. El anterior
+deja de servir en el acto: hay que reconfigurar los teléfonos de esa brigada.
+
 El alcance se aplica **en el servidor, en cada consulta**, no escondiendo enlaces: forzar
 otra brigada por parámetro o mandar el id de una evaluación ajena devuelve lo suyo o un
 403. Dar de baja a un coordinador —o a su brigada— corta también las sesiones abiertas.

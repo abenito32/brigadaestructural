@@ -18,6 +18,7 @@ Ordenes:
   brigada-alta   <nombre> [contacto]   genera el token y lo muestra UNA vez
   brigada-baja   <nombre>              la desactiva; sus evaluaciones quedan
   brigada-adoptar <nombre> <token>     registra un token que ya está en uso
+  brigada-reemitir <nombre>            genera un token nuevo; el anterior deja de servir
   brigadas                             lista
 
   inspector-alta <matricula> <nombre> <brigada> [--copnia]
@@ -100,6 +101,27 @@ def brigada_adoptar(nombre, token):
             salir("Ese nombre o ese token ya están registrados.")
     print(f"Brigada '{nombre}' adoptó un token existente. Los teléfonos ya "
           "configurados siguen funcionando, y ahora sus envíos quedan atribuidos.")
+
+
+def brigada_reemitir(nombre):
+    """Un token se muestra una sola vez; si se perdió, esto emite otro.
+
+    El anterior deja de servir en el acto, así que hay que reconfigurar los
+    teléfonos de esa brigada. Las evaluaciones ya enviadas no se tocan.
+    """
+    token = secrets.token_hex(24)
+    with con() as c, c.cursor() as cur:
+        cur.execute("UPDATE brigada SET token_hash=%s WHERE nombre=%s AND activa",
+                    (sha(token), nombre))
+        if not cur.rowcount:
+            salir(f"No existe una brigada activa llamada {nombre!r}.")
+        cur.execute("SELECT count(*) FROM evaluacion_brigada WHERE brigada_token=%s", (nombre,))
+        n = cur.fetchone()[0]
+    print(f"Token nuevo para '{nombre}':\n")
+    print(f"  TOKEN: {token}\n")
+    print("El anterior dejó de servir. Los teléfonos de esta brigada hay que")
+    print("reconfigurarlos, y hasta entonces sus envíos serán rechazados con 401.")
+    print(f"Sus {n} evaluaciones ya recibidas no se tocan.")
 
 
 def brigada_baja(nombre):
@@ -315,7 +337,8 @@ ORDENES = {
     "consumidor-alta": consumidor_alta, "consumidor-baja": consumidor_baja,
     "consumidores": consumidores,
     "brigada-alta": brigada_alta, "brigada-baja": brigada_baja,
-    "brigada-adoptar": brigada_adoptar, "brigadas": brigadas,
+    "brigada-adoptar": brigada_adoptar,
+    "brigada-reemitir": brigada_reemitir, "brigadas": brigadas,
     "inspector-alta": inspector_alta, "inspector-baja": inspector_baja,
     "inspectores": inspectores, "sin-verificar": sin_verificar,
 }
