@@ -99,6 +99,9 @@ Dos: **admin** (clave maestra en `BRIGADA_ADMIN_HASH`, ve todo) y **coordinador*
 - **`alcance_brigada()` / `filtro_alcance()` son el único punto** donde se decide el
   alcance. Cada consulta del panel lo intercala en su `WHERE`. Al agregar una consulta
   nueva, pasa por ahí — o filtra datos de otras brigadas.
+- **La cookie concatena cuerpo y firma sin separador**, y al leer se corta por
+  longitud (sha256 = 32 bytes). Con un separador de un byte la firma podía contenerlo
+  y el corte caía mal: **una de cada ocho sesiones nacía rota, al azar**.
 - **El rol y la brigada van DENTRO de la firma de la cookie.** Si fueran un campo aparte,
   cualquiera cambiaría `coordinador` por `admin` en la suya.
 - **`exigir()` revalida al coordinador contra la base en cada petición.** La firma no

@@ -142,6 +142,10 @@ sistema: brigadas, credenciales de la API, solicitudes, estado del respaldo.
 su resumen, su mapa, sus reportes, sus rojos pendientes y sus inspectores. No puede
 emitir tokens, ver otras brigadas ni el estado del servidor.
 
+Se crean **desde el panel**, en Brigadas, debajo de cada brigada: usuario y nombre, y
+el sistema genera la clave y la muestra una sola vez —igual que el token—. También por
+línea de comandos, si prefiere elegir la clave:
+
 ```bash
 sudo env BRIGADA_DSN=... $ADM coordinador-alta "coord.unal" "Ana Ruiz" "Universidad Nacional"
 sudo env BRIGADA_DSN=... $ADM coordinadores

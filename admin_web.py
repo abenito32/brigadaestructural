@@ -86,7 +86,11 @@ def firmar(vence: int, rol: str, brigada: str | None, usuario: str) -> str:
     aparte, cualquiera cambiaría 'coordinador' por 'admin' en su propia cookie."""
     cuerpo = "|".join([str(vence), rol, brigada or "", usuario]).encode()
     firma = hmac.new(_llave(), cuerpo, hashlib.sha256).digest()
-    return base64.urlsafe_b64encode(cuerpo + b"." + firma).decode()
+    # Se concatena sin separador: sha256 mide SIEMPRE 32 bytes, así que al leer
+    # se corta por longitud. Con un separador de un byte —un punto, por ejemplo—
+    # la firma podía contenerlo y el corte caía en el lugar equivocado: una de
+    # cada ocho sesiones nacía rota, al azar.
+    return base64.urlsafe_b64encode(cuerpo + firma).decode()
 
 
 def leer_sesion(cookie: str | None) -> Sesion | None:
@@ -94,7 +98,7 @@ def leer_sesion(cookie: str | None) -> Sesion | None:
         return None
     try:
         crudo = base64.urlsafe_b64decode(cookie.encode())
-        cuerpo, firma = crudo.rsplit(b".", 1)
+        cuerpo, firma = crudo[:-32], crudo[-32:]      # sha256: 32 bytes exactos
         if not hmac.compare_digest(hmac.new(_llave(), cuerpo, hashlib.sha256).digest(), firma):
             return None
         vence, rol, brigada, usuario = cuerpo.decode().split("|", 3)
@@ -573,6 +577,13 @@ def reportes(req: Request, brigada: str = "", clas: str = "", municipio: str = "
 BRIGADAS = """
 <h1>Brigadas</h1>
 <p class="sub">Cada brigada tiene un token. Ese token es lo que atribuye cada evaluación.</p>
+{% if clave_nueva %}
+<div class="ok"><strong>Coordinador «{{ usuario_nuevo }}» creado.</strong> Esta es su clave,
+y esta es la única vez que se muestra: la base guarda solo su hash.
+<div class="token">{{ clave_nueva }}</div>
+Entra en esta misma dirección poniendo <strong>{{ usuario_nuevo }}</strong> en Usuario.
+Entréguesela por un canal razonable, no por un grupo.</div>
+{% endif %}
 {% if token_nuevo %}
 <div class="ok"><strong>Brigada «{{ nombre_nuevo }}» registrada.</strong> Este es su token, y esta
 es la única vez que se muestra: la base guarda solo su sha256.
@@ -606,9 +617,55 @@ Entrégueselo ahora a quien coordina esa brigada. Si se pierde, hay que emitir u
 </tr>{% else %}<tr><td colspan="7" class="vacio">No hay brigadas registradas.</td></tr>{% endfor %}
 </tbody></table></div>
 </div>
+
+{% if filas %}
+<div class="tarjeta">
+  <p class="rotulo">Quién coordina cada brigada</p>
+  <p class="nota" style="margin:0 0 16px">Un coordinador entra en esta misma dirección
+    llenando el campo <strong>Usuario</strong>, y ve <strong>solo su brigada</strong>:
+    su resumen, su mapa, sus reportes, sus rojos y sus inspectores. No puede emitir
+    tokens, ver otras brigadas ni el estado del servidor.</p>
+
+  {% for b in filas if b[1] %}
+  <div style="border-top:1px solid var(--linea);padding-top:14px;margin-top:14px">
+    <p style="font-weight:600;margin:0 0 8px">{{ b[0] }}</p>
+    {% for c in coordinadores.get(b[0], []) %}
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+        <span class="pastilla {{ 'pi' if c.activo else 'pn' }}">{{ c.usuario }}</span>
+        <span style="font-size:14px;color:var(--tinta2)">{{ c.nombre }}</span>
+        {% if c.activo %}
+        <form method="post" action="/admin/coordinadores/baja" style="margin-left:auto"
+              onsubmit="return confirm('Dar de baja a {{ c.usuario }}? Su sesión se cierra en el acto.')">
+          <input type="hidden" name="usuario" value="{{ c.usuario }}">
+          <button class="btn btn-r">Dar de baja</button></form>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="nota" style="margin:0 0 8px">Todavía nadie coordina esta brigada.</p>
+    {% endfor %}
+    <form method="post" action="/admin/coordinadores" class="fila" style="margin-top:10px">
+      <input type="hidden" name="brigada" value="{{ b[0] }}">
+      <label><span>Usuario</span><input name="usuario" required placeholder="coord.unal"></label>
+      <label><span>Nombre</span><input name="nombre" required placeholder="Ana Ruiz"></label>
+      <button class="btn">Crear coordinador</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 <p class="nota">Revocar corta el token en el acto, pero no borra nada: las evaluaciones que esa
 brigada ya envió siguen en la base y siguen atribuidas a ella.</p>
 """
+
+
+def _coordinadores_por_brigada():
+    filas = consulta("""SELECT brigada, usuario, nombre, activo
+                          FROM coordinador ORDER BY activo DESC, usuario""")
+    por = {}
+    for brigada, usuario, nombre, activo in filas:
+        por.setdefault(brigada, []).append({"usuario": usuario, "nombre": nombre,
+                                            "activo": activo})
+    return por
 
 
 def _brigadas_filas():
@@ -620,16 +677,23 @@ def _brigadas_filas():
           FROM brigada b ORDER BY b.activa DESC, b.nombre""")
 
 
+def _pantalla_brigadas(ses, *, token=None, nombre=None, clave=None, usuario=None, error=None):
+    return pagina("Brigadas", render(BRIGADAS, filas=_brigadas_filas(),
+                                     coordinadores=_coordinadores_por_brigada(),
+                                     token_nuevo=token, nombre_nuevo=nombre,
+                                     clave_nueva=clave, usuario_nuevo=usuario,
+                                     error=error), "brigadas", ses=ses)
+
+
 @router.get("/admin/brigadas", response_class=HTMLResponse)
 def brigadas_ver(req: Request):
-    exigir_admin(req)
-    return pagina("Brigadas", render(BRIGADAS, filas=_brigadas_filas(),
-                                     token_nuevo=None, nombre_nuevo=None, error=None), "brigadas")
+    ses = exigir_admin(req)
+    return _pantalla_brigadas(ses)
 
 
 @router.post("/admin/brigadas", response_class=HTMLResponse)
 def brigadas_alta(req: Request, nombre: str = Form(...), contacto: str = Form("")):
-    exigir_admin(req)
+    ses = exigir_admin(req)
     import api_brigadas
     nombre, contacto = nombre.strip(), contacto.strip() or None
     token = secrets.token_hex(24)
@@ -639,8 +703,7 @@ def brigadas_alta(req: Request, nombre: str = Form(...), contacto: str = Form(""
                  (nombre, api_brigadas.sha(token), contacto))
     except Exception:
         token, error = None, f"Ya existe una brigada llamada «{nombre}»."
-    return pagina("Brigadas", render(BRIGADAS, filas=_brigadas_filas(), token_nuevo=token,
-                                     nombre_nuevo=nombre, error=error), "brigadas")
+    return _pantalla_brigadas(ses, token=token, nombre=nombre, error=error)
 
 
 @router.post("/admin/brigadas/baja")
@@ -1207,3 +1270,36 @@ def panel_sin_clave(req: Request, resto: str = ""):
     r = pagina("Sin configurar", render(SIN_CLAVE), sesion=False)
     r.status_code = 503        # no es "no existe": es "no está listo todavía"
     return r
+
+
+# ------------------------------------------------- coordinadores desde el panel
+@router.post("/admin/coordinadores", response_class=HTMLResponse)
+def coordinadores_alta(req: Request, brigada: str = Form(...), usuario: str = Form(...),
+                       nombre: str = Form(...)):
+    ses = exigir_admin(req)
+    usuario, nombre = usuario.strip().lower(), nombre.strip()
+    if not usuario or " " in usuario:
+        return _pantalla_brigadas(ses, error="El usuario no puede llevar espacios.")
+    if not consulta("SELECT 1 FROM brigada WHERE nombre = %s AND activa", (brigada,)):
+        return _pantalla_brigadas(ses, error="Esa brigada no existe o está revocada.")
+    if consulta("SELECT 1 FROM coordinador WHERE usuario = %s AND activo", (usuario,)):
+        return _pantalla_brigadas(ses, error=f"Ya existe un coordinador «{usuario}».")
+
+    # La clave se genera acá y se muestra una sola vez, igual que el token de
+    # brigada: así no depende de que quien administra elija una buena, y no queda
+    # escrita en ningún formulario que alguien pueda tener abierto.
+    clave = "-".join(secrets.token_hex(3) for _ in range(3))
+    consulta("""INSERT INTO coordinador (usuario, brigada, nombre, clave_hash)
+                VALUES (%s,%s,%s,%s)
+                ON CONFLICT (usuario) DO UPDATE
+                  SET brigada=EXCLUDED.brigada, nombre=EXCLUDED.nombre,
+                      clave_hash=EXCLUDED.clave_hash, activo=true""",
+             (usuario, brigada, nombre, hash_clave(clave)))
+    return _pantalla_brigadas(ses, clave=clave, usuario=usuario)
+
+
+@router.post("/admin/coordinadores/baja")
+def coordinadores_baja(req: Request, usuario: str = Form(...)):
+    exigir_admin(req)
+    consulta("UPDATE coordinador SET activo = false WHERE usuario = %s", (usuario,))
+    return RedirectResponse("/admin/brigadas", 303)
