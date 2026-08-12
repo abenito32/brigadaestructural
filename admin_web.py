@@ -281,6 +281,11 @@ INICIO = """
   <div class="cifra {{ 'alerta' if t.sin_verificar }}"><b class="num">{{ t.sin_verificar }}</b>
     <span>Firmas fuera del registro</span></div>
 </div>
+{% if not d.ok %}
+<div class="aviso"><strong>Disco:</strong> quedan {{ d.libre_gb }} GB libres
+({{ d.usado_pct }}% usado). Si se llena, el servidor deja de recibir evaluaciones.
+Revise si alguna brigada está enviando de más y, si hace falta, revoque su token.</div>
+{% endif %}
 {% if not r.ok or not r.reciente %}
 <div class="aviso"><strong>Respaldo:</strong> {{ r.mensaje or "sin información" }}.
 {% if r.horas is defined %}Último intento hace {{ r.horas }} horas.{% endif %}
@@ -349,7 +354,8 @@ def inicio(req: Request):
     import api_brigadas
     return pagina("Resumen", render(INICIO, t=t, por_brigada=por_brigada,
                                     consolidado=consolidado,
-                                    r=api_brigadas.estado_respaldo()), "inicio")
+                                    r=api_brigadas.estado_respaldo(),
+                                    d=api_brigadas.estado_disco()), "inicio")
 
 
 # --------------------------------------------------------------------- reportes

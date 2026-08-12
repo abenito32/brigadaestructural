@@ -35,7 +35,7 @@ Entorno:
 El esquema vive en esquema.sql, que es la fuente de verdad. Aca solo se escribe.
 """
 
-import base64, hashlib, json, os, pathlib, secrets, time
+import base64, hashlib, json, os, pathlib, secrets, shutil, time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -354,7 +354,19 @@ def salud():
         raise HTTPException(503, f"Base de datos no disponible: {e.__class__.__name__}")
     return {"ok": True, "evaluaciones": total, "sin_verificar": sin_verificar,
             "brigadas": brigadas, "inspectores": inspectores,
-            "respaldo": estado_respaldo()}
+            "respaldo": estado_respaldo(), "disco": estado_disco()}
+
+
+def estado_disco() -> dict:
+    """El limite de tasa acota la inundacion, pero un token valido todavia puede
+    llenar el disco despacio. La mitigacion es revocarlo; para eso hay que verlo."""
+    try:
+        uso = shutil.disk_usage(FOTOS)
+    except OSError:
+        return {"ok": False}
+    libre_gb = round(uso.free / 1_000_000_000, 1)
+    return {"ok": libre_gb > 2, "libre_gb": libre_gb,
+            "usado_pct": round(100 * (uso.total - uso.free) / uso.total)}
 
 
 def estado_respaldo() -> dict:

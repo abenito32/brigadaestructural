@@ -13,6 +13,10 @@ fotos/
 evaluaciones.csv
 evaluaciones.json
 
+# La presentación generada lleva el correo de contacto: se arma en local y se
+# envía, no se versiona en un repositorio público.
+docs/brigada-presentacion.pptx
+
 # Respaldos y temporales
 *.bak
 *.bak-*

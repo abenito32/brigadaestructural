@@ -33,6 +33,10 @@ estáticos en `/var/www/brigadaestructural`, código en `/opt/brigadas`, secreto
 `/etc/brigadas.env` (root 0600), servicio `brigadas-api`, base `brigadas-db` en
 `127.0.0.1:5433`, nginx en `sites-available/brigadaestructural`.
 
+Límite de tasa por token: zonas en `conf.d/brigadas-limites.conf`, aplicadas solo
+dentro del server block de Brigada (`burst=200` para la sincronización de vuelta del
+terreno, `30r/m` sostenido). Devuelve **429**, no 503: 503 significa "no pude grabar".
+
 ```bash
 sudo systemctl restart brigadas-api && curl -s localhost:8004/salud
 sudo journalctl -u brigadas-api -n 40 --no-pager
@@ -92,6 +96,9 @@ Sin dependencias de frontend:
   La idempotencia es `UNIQUE (origen, id_local)`, donde `origen` es una columna generada
   `coalesce(brigada_token,'(sin atribuir)')` — sin ese coalesce, dos `NULL` no son iguales
   en SQL y los tokens heredados escaparían del índice.
+- **La sincronización sale de a 3, no todas de golpe.** Con 80 pendientes y fotos,
+  el `forEach` original abría 80 subidas simultáneas: en señal de campo fallan en
+  bloque y saturan el servidor. Si se sube esa tanda, revisar el `burst` de nginx.
 - El servidor revalida lo que la app ya valida (matrícula, rango de clasificación,
   justificación obligatoria si se cambia el semáforo calculado). Es el registro de
   responsabilidad profesional; no relajarlo porque "el frontend ya lo chequea".

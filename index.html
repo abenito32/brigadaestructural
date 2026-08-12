@@ -701,8 +701,13 @@ document.getElementById("btnSync").onclick=function(){
     var p=rs.filter(function(o){return o.estado==="pendiente"});
     if(!p.length){t.textContent="No hay pendientes.";return;}
     t.textContent="Enviando "+p.length+"...";
-    var ok=0,fin=0;
-    p.forEach(function(o){
+    /* De a POCOS, no todos a la vez. Antes salía un fetch por pendiente en
+       paralelo: con 80 evaluaciones y fotos son 80 subidas simultáneas, que en
+       una señal de campo fallan en bloque y de paso saturan el servidor. */
+    var ok=0, fin=0, i=0, TANDA=3;
+    function siguiente(){
+      if(i>=p.length) return;
+      var o=p[i++];
       fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-Brigada-Token":tok},
         body:JSON.stringify(o)})
       .then(function(r){
@@ -710,12 +715,17 @@ document.getElementById("btnSync").onclick=function(){
       })
       .catch(function(){})
       .then(function(){
-        if(++fin===p.length){
+        fin++;
+        t.textContent="Enviando... "+fin+" de "+p.length;
+        if(fin===p.length){
           t.textContent="Enviadas "+ok+" de "+p.length+(ok<p.length?". Las demás siguen guardadas.":".");
           pintarCola(); actualizarConteo();
+        }else{
+          siguiente();
         }
       });
-    });
+    }
+    for(var k=0;k<Math.min(TANDA,p.length);k++) siguiente();
   });
 };
 

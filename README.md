@@ -108,6 +108,10 @@ Si la app se sirve desde **otro dominio** que la API, hay que autorizarlo en
 y el fallo no se ve por ningún lado. Con app y API en el mismo dominio —lo normal—
 déjelo vacío.
 
+El endpoint está limitado por token: ráfaga de 200 —para que una brigada que vuelve
+del terreno vacíe su cola de una vez— y 30 por minuto sostenido. Al pasarse responde
+**429**, que la app trata como reintentable igual que un fallo de red.
+
 El receptor devuelve **503 y no 200** si no pudo grabar. Es deliberado: con un 200
 la app marcaría la evaluación como enviada y borraría el pendiente, perdiéndola sin
 que nadie se entere. Con 503 el registro sobrevive en el teléfono y se reintenta.

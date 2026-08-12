@@ -41,6 +41,11 @@ ROJO = RGBColor(0xB9, 0x1C, 0x1C)
 FUENTE = "Arial"          # disponible en Windows, macOS y LibreOffice
 ANCHO, ALTO = Inches(13.333), Inches(7.5)
 
+# El correo NO va en el código: este archivo está en un repositorio público y una
+# dirección ahí se rastrea en días. Se pasa por entorno al generar:
+#   BRIGADA_CONTACTO=correo@dominio python3 docs/build_presentacion.py
+import os
+
 CONTACTO = {
     "nombre": "Andrés Benito Revollo Vélez",
     "empresa": "Rollout Comercio e Servicios Limitada",
