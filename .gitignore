@@ -13,9 +13,14 @@ fotos/
 evaluaciones.csv
 evaluaciones.json
 
-# La presentación generada lleva el correo de contacto: se arma en local y se
-# envía, no se versiona en un repositorio público.
-docs/brigada-presentacion.pptx
+# Las presentaciones y sus exportaciones llevan el correo de contacto: se arman
+# en local y se envían, no se versionan en un repositorio público. El patrón es
+# amplio a propósito, para que una copia renombrada no vuelva a colarse.
+docs/*.pptx
+docs/*.pdf
+!docs/manual-brigada.pdf
+~$*
+.~lock.*#
 
 # Respaldos y temporales
 *.bak
