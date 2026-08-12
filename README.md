@@ -133,6 +133,27 @@ que nadie se entere. Con 503 el registro sobrevive en el teléfono y se reintent
 universidades y asociaciones profesionales. Editable; se regenera con
 `python3 docs/build_presentacion.py` (necesita `python-pptx`).
 
+## Roles del panel
+
+**Administrador** — clave maestra en `BRIGADA_ADMIN_HASH`. Ve todo y administra el
+sistema: brigadas, credenciales de la API, solicitudes, estado del respaldo.
+
+**Coordinador** — usuario y clave propios, atado a una brigada. Ve **solo lo suyo**:
+su resumen, su mapa, sus reportes, sus rojos pendientes y sus inspectores. No puede
+emitir tokens, ver otras brigadas ni el estado del servidor.
+
+```bash
+sudo env BRIGADA_DSN=... $ADM coordinador-alta "coord.unal" "Ana Ruiz" "Universidad Nacional"
+sudo env BRIGADA_DSN=... $ADM coordinadores
+sudo env BRIGADA_DSN=... $ADM coordinador-baja "coord.unal"
+```
+
+El alcance se aplica **en el servidor, en cada consulta**, no escondiendo enlaces: forzar
+otra brigada por parámetro o mandar el id de una evaluación ajena devuelve lo suyo o un
+403. Dar de baja a un coordinador —o a su brigada— corta también las sesiones abiertas.
+
+Los inspectores siguen sin cuenta: su matrícula es una firma, no un acceso.
+
 ## El mapa del consolidado
 
 En `/admin/mapa`. Un círculo por sector: el **área** es la cantidad de evaluaciones

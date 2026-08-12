@@ -28,6 +28,10 @@ Ordenes:
   consumidor-baja <nombre>             revoca su token de consulta
   consumidores                         lista
 
+  coordinador-alta <usuario> <nombre> <brigada>   pide la clave por teclado
+  coordinador-baja <usuario>
+  coordinadores                        lista
+
   rojos                                rojos sin segunda revisión
   sin-verificar  [n]                   evaluaciones firmadas por gente no registrada
   clave                                define la clave del panel /admin
@@ -228,6 +232,47 @@ def consumidores():
               ("CONSUMIDOR", "ALCANCE", "MUNICIPIOS", "ACTIVO", "CONSULTAS", "ÚLTIMO USO"))
 
 
+def coordinador_alta(usuario, nombre, brigada):
+    """Quien coordina una brigada. Ve SU operación, no administra el sistema."""
+    import getpass
+    import admin_web
+    with con() as c, c.cursor() as cur:
+        cur.execute("SELECT 1 FROM brigada WHERE nombre=%s AND activa", (brigada,))
+        if not cur.fetchone():
+            salir(f"No existe una brigada activa llamada {brigada!r}.")
+    c1 = getpass.getpass(f"Clave para {usuario}: ")
+    if len(c1) < 12:
+        salir("Muy corta: use al menos 12 caracteres.")
+    if c1 != getpass.getpass("Repítala: "):
+        salir("No coinciden.")
+    with con() as c, c.cursor() as cur:
+        cur.execute("""INSERT INTO coordinador (usuario, brigada, nombre, clave_hash)
+                       VALUES (%s,%s,%s,%s)
+                       ON CONFLICT (usuario) DO UPDATE
+                         SET brigada=EXCLUDED.brigada, nombre=EXCLUDED.nombre,
+                             clave_hash=EXCLUDED.clave_hash, activo=true""",
+                    (usuario, brigada, nombre, admin_web.hash_clave(c1)))
+    print(f"\nCoordinador '{usuario}' ({nombre}) habilitado para '{brigada}'.")
+    print("Entra en el panel con ese usuario y esa clave. Ve solo su brigada:")
+    print("no puede emitir tokens, ni ver otras brigadas, ni el estado del servidor.")
+
+
+def coordinador_baja(usuario):
+    with con() as c, c.cursor() as cur:
+        cur.execute("UPDATE coordinador SET activo=false WHERE usuario=%s", (usuario,))
+        if not cur.rowcount:
+            salir(f"No existe el coordinador {usuario!r}.")
+    print(f"Coordinador '{usuario}' desactivado. Su sesión deja de servir al recargar.")
+
+
+def coordinadores():
+    with con() as c, c.cursor() as cur:
+        cur.execute("""SELECT c.usuario, c.nombre, c.brigada, c.activo,
+                              coalesce(c.ultimo_acceso::date::text, 'nunca')
+                         FROM coordinador c ORDER BY c.activo DESC, c.brigada, c.usuario""")
+        tabla(cur.fetchall(), ("USUARIO", "NOMBRE", "BRIGADA", "ACTIVO", "ÚLTIMO ACCESO"))
+
+
 def rojos():
     with con() as c, c.cursor() as cur:
         cur.execute("""SELECT coalesce(id_local, id), matricula,
@@ -265,6 +310,8 @@ def clave():
 
 ORDENES = {
     "clave": clave, "rojos": rojos,
+    "coordinador-alta": coordinador_alta, "coordinador-baja": coordinador_baja,
+    "coordinadores": coordinadores,
     "consumidor-alta": consumidor_alta, "consumidor-baja": consumidor_baja,
     "consumidores": consumidores,
     "brigada-alta": brigada_alta, "brigada-baja": brigada_baja,

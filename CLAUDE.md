@@ -91,9 +91,23 @@ Sin dependencias de frontend:
   Leaflet (148 KB) y no MapLibre (~800 KB) porque no hay teselas vectoriales que renderizar.
   El **área** del círculo es proporcional al conteo (radio ∝ √n), no el radio.
   La rampa de color está validada; no cambiarla sin volver a validarla.
-- **`alcance_brigada()` en `admin_web.py` es el único punto** donde se decide qué brigada
-  puede ver quien mira. Hoy devuelve `None` (administrador ve todo). Cuando exista el rol
-  de coordinador, se cambia ahí y el mapa y sus consultas quedan acotados solos.
+### Roles del panel
+
+Dos: **admin** (clave maestra en `BRIGADA_ADMIN_HASH`, ve todo) y **coordinador**
+(tabla `coordinador`, ve solo su brigada). Los inspectores siguen sin cuenta.
+
+- **`alcance_brigada()` / `filtro_alcance()` son el único punto** donde se decide el
+  alcance. Cada consulta del panel lo intercala en su `WHERE`. Al agregar una consulta
+  nueva, pasa por ahí — o filtra datos de otras brigadas.
+- **El rol y la brigada van DENTRO de la firma de la cookie.** Si fueran un campo aparte,
+  cualquiera cambiaría `coordinador` por `admin` en la suya.
+- **`exigir()` revalida al coordinador contra la base en cada petición.** La firma no
+  caduca cuando se revoca a alguien: sin esa consulta, dar de baja a un coordinador lo
+  dejaba dentro hasta ocho horas.
+- **`exigir_admin()` protege lo que administra el sistema** (brigadas, solicitudes). Se
+  comprueba en el servidor; esconder el enlace del menú no es una defensa.
+- Sin `BRIGADA_ADMIN_HASH` no se monta **ninguna** ruta del panel, tampoco la entrada de
+  coordinadores: hace falta un administrador para crearlos.
 - `api_consulta.py` — API de consulta (`/api/v1/`), solo lectura, con la tabla
   `consumidor` como credenciales **separadas** de `brigada`: leer y escribir no pueden
   compartir token. El k-anonimato se aplica sobre el resultado ya filtrado.

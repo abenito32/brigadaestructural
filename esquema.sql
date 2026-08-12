@@ -163,6 +163,24 @@ FROM evaluacion_brigada e
 WHERE NOT e.matricula_verificada
 ORDER BY e.clasificacion DESC, e.ts DESC;   -- los rojos primero
 
+-- Quién coordina una brigada. Distinto del administrador del sistema: el
+-- coordinador de una universidad necesita ver SU operación, no emitir tokens ni
+-- leer los predios que levantó otra brigada. Con una sola clave para todo, darle
+-- acceso a un coordinador externo era entregarle el sistema entero.
+--
+-- Los inspectores siguen sin tener cuenta: su matrícula es una firma, no un
+-- acceso. Quien inicia sesión es quien coordina.
+CREATE TABLE IF NOT EXISTS coordinador (
+  usuario       text PRIMARY KEY,
+  brigada       text NOT NULL REFERENCES brigada(nombre),
+  nombre        text NOT NULL,
+  clave_hash    text NOT NULL,
+  activo        boolean NOT NULL DEFAULT true,
+  creado_en     timestamptz NOT NULL DEFAULT now(),
+  ultimo_acceso timestamptz
+);
+CREATE INDEX IF NOT EXISTS coordinador_brigada_idx ON coordinador (brigada);
+
 -- Quién puede LEER por la API de consulta. Deliberadamente separado de `brigada`:
 -- una brigada escribe evaluaciones desde un teléfono; un consumidor lee desde el
 -- sistema de una alcaldía. Mezclar ambos en una sola credencial haría que filtrar

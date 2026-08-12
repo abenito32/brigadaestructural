@@ -19,6 +19,7 @@ lo que sale hacia autoridades es la vista consolidado_publico, agregada por sect
 import base64
 import hashlib
 import pathlib
+from typing import NamedTuple
 import hmac
 import os
 import secrets
@@ -55,14 +56,18 @@ def hash_clave(clave: str, sal: bytes | None = None) -> str:
     return "scrypt$" + base64.b64encode(sal).decode() + "$" + base64.b64encode(dk).decode()
 
 
-def clave_correcta(clave: str) -> bool:
+def verificar_clave(clave: str, esperado: str) -> bool:
+    """Comparación en tiempo constante contra un hash scrypt guardado."""
     try:
-        _, sal_b64, _ = CLAVE_HASH.split("$")
-        esperado = CLAVE_HASH
+        _, sal_b64, _ = esperado.split("$")
     except ValueError:
         return False
-    # compare_digest: comparación en tiempo constante, no revela la clave por timing
     return hmac.compare_digest(hash_clave(clave, base64.b64decode(sal_b64)), esperado)
+
+
+def clave_correcta(clave: str) -> bool:
+    """La clave maestra del administrador, que vive en el entorno."""
+    return bool(CLAVE_HASH) and verificar_clave(clave, CLAVE_HASH)
 
 
 def _llave() -> bytes:
@@ -70,28 +75,64 @@ def _llave() -> bytes:
     return hashlib.sha256(("sesion:" + CLAVE_HASH).encode()).digest()
 
 
-def firmar(vence: int) -> str:
-    cuerpo = str(vence).encode()
+class Sesion(NamedTuple):
+    rol: str              # "admin" | "coordinador"
+    brigada: str | None   # None para admin: ve todo
+    usuario: str
+
+
+def firmar(vence: int, rol: str, brigada: str | None, usuario: str) -> str:
+    """El rol y la brigada viajan DENTRO de la firma. Si fueran un parámetro
+    aparte, cualquiera cambiaría 'coordinador' por 'admin' en su propia cookie."""
+    cuerpo = "|".join([str(vence), rol, brigada or "", usuario]).encode()
     firma = hmac.new(_llave(), cuerpo, hashlib.sha256).digest()
     return base64.urlsafe_b64encode(cuerpo + b"." + firma).decode()
 
 
-def sesion_valida(cookie: str | None) -> bool:
+def leer_sesion(cookie: str | None) -> Sesion | None:
     if not cookie:
-        return False
+        return None
     try:
         crudo = base64.urlsafe_b64decode(cookie.encode())
         cuerpo, firma = crudo.rsplit(b".", 1)
         if not hmac.compare_digest(hmac.new(_llave(), cuerpo, hashlib.sha256).digest(), firma):
-            return False
-        return int(cuerpo) > time.time()
+            return None
+        vence, rol, brigada, usuario = cuerpo.decode().split("|", 3)
+        if int(vence) <= time.time() or rol not in ("admin", "coordinador"):
+            return None
+        # Un coordinador sin brigada no existe: sería un admin encubierto.
+        if rol == "coordinador" and not brigada:
+            return None
+        return Sesion(rol, brigada or None, usuario)
     except Exception:
-        return False
+        return None
 
 
-def exigir(req: Request):
-    if not sesion_valida(req.cookies.get("brigada_admin")):
+def exigir(req: Request) -> Sesion:
+    ses = leer_sesion(req.cookies.get("brigada_admin"))
+    if ses is None:
         raise HTTPException(303, headers={"Location": "/admin/entrar"})
+    # La cookie va firmada, pero la firma no caduca cuando se revoca a alguien.
+    # Sin esta comprobación, dar de baja a un coordinador —o a su brigada— lo
+    # dejaba dentro hasta ocho horas. Es una consulta por petición, y el panel
+    # tiene un puñado de usuarios: el precio correcto por revocar de verdad.
+    if ses.rol == "coordinador":
+        vigente = consulta("""SELECT 1 FROM coordinador c JOIN brigada b ON b.nombre = c.brigada
+                               WHERE c.usuario = %s AND c.brigada = %s
+                                 AND c.activo AND b.activa""",
+                           (ses.usuario, ses.brigada))
+        if not vigente:
+            raise HTTPException(303, headers={"Location": "/admin/entrar"})
+    return ses
+
+
+def exigir_admin(req: Request) -> Sesion:
+    """Para lo que administra el sistema: brigadas, solicitudes, credenciales.
+    Se comprueba en el servidor, no escondiendo el enlace del menú."""
+    ses = exigir(req)
+    if ses.rol != "admin":
+        raise HTTPException(403, "Esta sección es solo para la administración del sistema")
+    return ses
 
 
 def ip_real(req: Request) -> str:
@@ -192,16 +233,16 @@ input:focus,select:focus{outline:3px solid var(--azul);outline-offset:-1px;borde
 </style></head><body>
 {% if sesion %}
 <header class="top"><div class="top-in">
-  <div class="marca">Brigada <span>/</span> administración</div>
+  <div class="marca">Brigada <span>/</span> {{ "administración" if rol == "admin" else brigada }}</div>
   <nav class="nav">
     <a href="/admin" class="{{ 'on' if pag=='inicio' }}">Resumen</a>
     <a href="/admin/mapa" class="{{ 'on' if pag=='mapa' }}">Mapa</a>
     <a href="/admin/reportes" class="{{ 'on' if pag=='reportes' }}">Reportes</a>
     <a href="/admin/rojos" class="{{ 'on' if pag=='rojos' }}">Rojos</a>
-    <a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>
+    {% if rol == 'admin' %}<a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>{% endif %}
     <a href="/admin/inspectores" class="{{ 'on' if pag=='inspectores' }}">Inspectores</a>
-    <a href="/admin/solicitudes" class="{{ 'on' if pag=='solicitudes' }}">Solicitudes</a>
-    <a href="/admin/salir" class="salir">Salir</a>
+    {% if rol == 'admin' %}<a href="/admin/solicitudes" class="{{ 'on' if pag=='solicitudes' }}">Solicitudes</a>{% endif %}
+    <a href="/admin/salir" class="salir">Salir{% if rol == 'coordinador' %} · {{ quien }}{% endif %}</a>
   </nav>
 </div></header>
 {% endif %}
@@ -214,11 +255,14 @@ input:focus,select:focus{outline:3px solid var(--azul);outline-offset:-1px;borde
 </body></html>"""
 
 
-def pagina(titulo, cuerpo_html, pag="", sesion=True):
+def pagina(titulo, cuerpo_html, pag="", sesion=True, ses=None):
     from markupsafe import Markup
     return HTMLResponse(env.from_string(BASE).render(
         titulo=titulo, cuerpo=Markup(cuerpo_html), pag=pag, sesion=sesion,
-        contacto=CONTACTO))
+        contacto=CONTACTO,
+        rol=(ses.rol if ses else "admin"),
+        brigada=(ses.brigada if ses else None),
+        quien=(ses.usuario if ses else "")))
 
 
 def render(plantilla, **ctx):
@@ -239,8 +283,11 @@ ENTRAR = """
 {% if error %}<div class="aviso">{{ error }}</div>{% endif %}
 <div class="tarjeta">
 <form method="post" action="/admin/entrar">
-  <label><span>Clave de administrador</span>
-    <input type="password" name="clave" autocomplete="current-password" autofocus required></label>
+  <label><span>Usuario</span>
+    <input name="usuario" autocomplete="username" autofocus
+           placeholder="Déjelo vacío si es la administración del sistema"></label>
+  <label><span>Clave</span>
+    <input type="password" name="clave" autocomplete="current-password" required></label>
   <button class="btn btn-p" style="width:100%">Entrar</button>
 </form>
 </div>
@@ -251,23 +298,53 @@ Este panel es solo para quien coordina.</p>
 
 @router.get("/admin/entrar", response_class=HTMLResponse)
 def entrar_form(req: Request):
-    if sesion_valida(req.cookies.get("brigada_admin")):
+    if leer_sesion(req.cookies.get("brigada_admin")):
         return RedirectResponse("/admin", 303)
     return pagina("Entrar", render(ENTRAR, error=None), sesion=False)
 
 
+def autenticar_coordinador(usuario: str, clave: str):
+    """Devuelve (brigada, nombre) o None. Solo coordinadores activos, y solo si
+    su brigada sigue activa: revocar la brigada cierra también su coordinación."""
+    filas = consulta("""SELECT c.brigada, c.nombre, c.clave_hash
+                          FROM coordinador c JOIN brigada b ON b.nombre = c.brigada
+                         WHERE c.usuario = %s AND c.activo AND b.activa""", (usuario,))
+    if not filas:
+        return None
+    brigada, nombre, hash_guardado = filas[0]
+    if not verificar_clave(clave, hash_guardado):
+        return None
+    consulta("UPDATE coordinador SET ultimo_acceso = now() WHERE usuario = %s", (usuario,))
+    return brigada, nombre
+
+
 @router.post("/admin/entrar")
-def entrar(req: Request, clave: str = Form(...)):
+def entrar(req: Request, clave: str = Form(...), usuario: str = Form("")):
     ip = ip_real(req)
     if limitar(ip):
         return pagina("Entrar", render(ENTRAR,
             error="Demasiados intentos. Espere diez minutos."), sesion=False)
-    if not clave_correcta(clave):
-        intentos.setdefault(ip, []).append(time.time())
-        return pagina("Entrar", render(ENTRAR, error="Clave incorrecta."), sesion=False)
+
+    usuario = usuario.strip()
+    if usuario:
+        cred = autenticar_coordinador(usuario, clave)
+        # Un solo mensaje para usuario inexistente y clave incorrecta: distinguirlos
+        # permitiría averiguar qué usuarios existen.
+        if not cred:
+            intentos.setdefault(ip, []).append(time.time())
+            return pagina("Entrar", render(ENTRAR, error="Usuario o clave incorrectos."),
+                          sesion=False)
+        rol, brigada, quien = "coordinador", cred[0], usuario
+    else:
+        if not clave_correcta(clave):
+            intentos.setdefault(ip, []).append(time.time())
+            return pagina("Entrar", render(ENTRAR, error="Clave incorrecta."), sesion=False)
+        rol, brigada, quien = "admin", None, "administración"
+
     intentos.pop(ip, None)
     r = RedirectResponse("/admin", 303)
-    r.set_cookie("brigada_admin", firmar(int(time.time()) + DURACION_SESION),
+    r.set_cookie("brigada_admin",
+                 firmar(int(time.time()) + DURACION_SESION, rol, brigada, quien),
                  max_age=DURACION_SESION, httponly=True, secure=True, samesite="strict")
     return r
 
@@ -291,16 +368,16 @@ INICIO = """
   <div class="cifra {{ 'alerta' if t.sin_verificar }}"><b class="num">{{ t.sin_verificar }}</b>
     <span>Firmas fuera del registro</span></div>
 </div>
-{% if not d.ok %}
+{% if rol == 'admin' and not d.ok %}
 <div class="aviso"><strong>Disco:</strong> quedan {{ d.libre_gb }} GB libres
 ({{ d.usado_pct }}% usado). Si se llena, el servidor deja de recibir evaluaciones.
 Revise si alguna brigada está enviando de más y, si hace falta, revoque su token.</div>
 {% endif %}
-{% if not r.ok or not r.reciente %}
+{% if rol == 'admin' and (not r.ok or not r.reciente) %}
 <div class="aviso"><strong>Respaldo:</strong> {{ r.mensaje or "sin información" }}.
 {% if r.horas is defined %}Último intento hace {{ r.horas }} horas.{% endif %}
 Mientras esto siga así, una pérdida del disco se lleva el levantamiento completo.</div>
-{% else %}
+{% elif rol == 'admin' %}
 <div class="ok"><strong>Respaldo al día.</strong> Hace {{ r.horas }} horas · {{ r.mensaje }}{% if not r.cifrado %}
  · <strong>sin cifrar</strong>{% endif %}{% if not r.remoto %} · <strong>solo en este servidor</strong>{% endif %}.</div>
 {% endif %}
@@ -351,8 +428,9 @@ consolidar. <a href="/admin/reportes?verificada=no">Verlas</a>.</div>
 
 @router.get("/admin", response_class=HTMLResponse)
 def inicio(req: Request):
-    exigir(req)
-    (total, rojas, amarillas, verdes, sinv, rpend, rvenc), = consulta("""
+    ses = exigir(req)
+    w, wa = filtro_alcance(req)
+    (total, rojas, amarillas, verdes, sinv, rpend, rvenc), = consulta(f"""
         SELECT count(*), count(*) FILTER (WHERE clasificacion=3),
                count(*) FILTER (WHERE clasificacion=2),
                count(*) FILTER (WHERE clasificacion=1),
@@ -360,21 +438,29 @@ def inicio(req: Request):
                count(*) FILTER (WHERE revision_estado = 'pendiente'),
                count(*) FILTER (WHERE revision_estado = 'pendiente'
                                   AND revision_vence < now())
-          FROM evaluacion_brigada""")
-    por_brigada = consulta("""
-        SELECT brigada_token, count(*), count(*) FILTER (WHERE clasificacion=3),
-               count(*) FILTER (WHERE clasificacion=2), count(*) FILTER (WHERE clasificacion=1),
+          FROM evaluacion_brigada WHERE {w}""", tuple(wa))
+    por_brigada = consulta(f"""
+        SELECT brigada_token, count(*), count(*) FILTER (WHERE clasificacion_efectiva=3),
+               count(*) FILTER (WHERE clasificacion_efectiva=2),
+               count(*) FILTER (WHERE clasificacion_efectiva=1),
                count(*) FILTER (WHERE NOT matricula_verificada), max(recibido_en)
-          FROM evaluacion_brigada GROUP BY brigada_token ORDER BY count(*) DESC""")
-    consolidado = consulta("""SELECT municipio, barrio, evaluadas, rojas, amarillas, verdes
-                                FROM consolidado_publico ORDER BY evaluadas DESC""")
+          FROM evaluacion_brigada WHERE {w}
+         GROUP BY brigada_token ORDER BY count(*) DESC""", tuple(wa))
+    # El consolidado por sector se recalcula con el alcance aplicado: la vista
+    # consolidado_publico no distingue brigadas, y servirla tal cual le mostraria
+    # a un coordinador los sectores de las demas.
+    consolidado = [(f[0], f[1], f[2], f[3], f[4], f[5]) for f in sectores(req)]
     t = {"total": total, "rojas": rojas, "amarillas": amarillas, "verdes": verdes,
          "sin_verificar": sinv, "rojos_pendientes": rpend, "rojos_vencidos": rvenc}
     import api_brigadas
+    # El estado del servidor es cosa de quien lo administra, no de una brigada.
+    salud = ({"r": api_brigadas.estado_respaldo(), "d": api_brigadas.estado_disco()}
+             if ses.rol == "admin" else {"r": {"ok": True, "reciente": True, "horas": 0,
+                                               "mensaje": "", "cifrado": True, "remoto": True},
+                                         "d": {"ok": True}})
     return pagina("Resumen", render(INICIO, t=t, por_brigada=por_brigada,
-                                    consolidado=consolidado,
-                                    r=api_brigadas.estado_respaldo(),
-                                    d=api_brigadas.estado_disco()), "inicio")
+                                    consolidado=consolidado, rol=ses.rol,
+                                    r=salud["r"], d=salud["d"]), "inicio", ses=ses)
 
 
 # --------------------------------------------------------------------- reportes
@@ -384,10 +470,10 @@ REPORTES = """
 
 <div class="tarjeta">
 <form method="get" class="fila">
-  <label><span>Brigada</span><select name="brigada">
+  {% if brigadas %}<label><span>Brigada</span><select name="brigada">
     <option value="">Todas</option>
     {% for b in brigadas %}<option value="{{ b }}" {{ 'selected' if b==f.brigada }}>{{ b }}</option>{% endfor %}
-  </select></label>
+  </select></label>{% endif %}
   <label><span>Clasificación</span><select name="clas">
     <option value="">Todas</option>
     <option value="3" {{ 'selected' if f.clas=='3' }}>Rojo</option>
@@ -439,9 +525,12 @@ POR_PAGINA = 50
 @router.get("/admin/reportes", response_class=HTMLResponse)
 def reportes(req: Request, brigada: str = "", clas: str = "", municipio: str = "",
              verificada: str = "", pag: int = 1):
-    exigir(req)
-    donde, args = ["1=1"], []
-    if brigada:
+    ses = exigir(req)
+    w, wa = filtro_alcance(req)
+    donde, args = [w], list(wa)
+    # Un coordinador no puede pedir otra brigada por parametro: su alcance ya
+    # esta en el WHERE y este filtro solo puede estrecharlo, nunca ampliarlo.
+    if brigada and ses.rol == "admin":
         donde.append("brigada_token = %s"); args.append(brigada)
     if clas in ("1", "2", "3"):
         donde.append("clasificacion = %s"); args.append(int(clas))
@@ -471,12 +560,13 @@ def reportes(req: Request, brigada: str = "", clas: str = "", municipio: str = "
         "geo": (f"{r[13]:.5f}, {r[14]:.5f}" if r[13] is not None else ""),
         "id_local": r[15],
     } for r in crudas]
-    brigadas = [b for (b,) in consulta("SELECT nombre FROM brigada ORDER BY nombre")]
+    brigadas = ([b for (b,) in consulta("SELECT nombre FROM brigada ORDER BY nombre")]
+                if ses.rol == "admin" else [])
     qs = f"brigada={brigada}&clas={clas}&municipio={municipio}&verificada={verificada}"
     f = {"brigada": brigada, "clas": clas, "municipio": municipio, "verificada": verificada}
     return pagina("Reportes", render(REPORTES, filas=filas, total=total, brigadas=brigadas,
                                      f=f, filtrando=any(f.values()), pagina_n=pag,
-                                     paginas=paginas, qs=qs), "reportes")
+                                     paginas=paginas, qs=qs), "reportes", ses=ses)
 
 
 # --------------------------------------------------------------------- brigadas
@@ -532,14 +622,14 @@ def _brigadas_filas():
 
 @router.get("/admin/brigadas", response_class=HTMLResponse)
 def brigadas_ver(req: Request):
-    exigir(req)
+    exigir_admin(req)
     return pagina("Brigadas", render(BRIGADAS, filas=_brigadas_filas(),
                                      token_nuevo=None, nombre_nuevo=None, error=None), "brigadas")
 
 
 @router.post("/admin/brigadas", response_class=HTMLResponse)
 def brigadas_alta(req: Request, nombre: str = Form(...), contacto: str = Form("")):
-    exigir(req)
+    exigir_admin(req)
     import api_brigadas
     nombre, contacto = nombre.strip(), contacto.strip() or None
     token = secrets.token_hex(24)
@@ -555,7 +645,7 @@ def brigadas_alta(req: Request, nombre: str = Form(...), contacto: str = Form(""
 
 @router.post("/admin/brigadas/baja")
 def brigadas_baja(req: Request, nombre: str = Form(...)):
-    exigir(req)
+    exigir_admin(req)
     consulta("UPDATE brigada SET activa=false WHERE nombre=%s", (nombre,))
     return RedirectResponse("/admin/brigadas", 303)
 
@@ -606,29 +696,42 @@ aceptarlo pendiente. Al registrar a esa persona, sus evaluaciones anteriores se 
 """
 
 
-def _inspectores_filas():
-    return consulta("""
+def _inspectores_filas(req: Request):
+    w, wa = filtro_alcance(req, "i.brigada")
+    return consulta(f"""
         SELECT i.matricula, i.nombre, i.brigada, i.vigente, i.verificada_copnia,
                (SELECT count(*) FROM evaluacion_brigada e WHERE e.matricula=i.matricula)
-          FROM inspector i ORDER BY i.vigente DESC, i.brigada, i.nombre""")
+          FROM inspector i WHERE {w}
+         ORDER BY i.vigente DESC, i.brigada, i.nombre""", tuple(wa))
 
 
-def _brigadas_activas():
-    return [b for (b,) in consulta("SELECT nombre FROM brigada WHERE activa ORDER BY nombre")]
+def _brigadas_activas(req: Request):
+    """Un coordinador solo puede dar de alta gente en SU brigada."""
+    b = alcance_brigada(req)
+    if b:
+        return [b]
+    return [x for (x,) in consulta("SELECT nombre FROM brigada WHERE activa ORDER BY nombre")]
 
 
 @router.get("/admin/inspectores", response_class=HTMLResponse)
 def inspectores_ver(req: Request):
-    exigir(req)
-    return pagina("Inspectores", render(INSPECTORES, filas=_inspectores_filas(),
-                                        brigadas=_brigadas_activas(), error=None, aviso=None),
-                  "inspectores")
+    ses = exigir(req)
+    return pagina("Inspectores", render(INSPECTORES, filas=_inspectores_filas(req),
+                                        brigadas=_brigadas_activas(req), error=None, aviso=None),
+                  "inspectores", ses=ses)
 
 
 @router.post("/admin/inspectores", response_class=HTMLResponse)
 def inspectores_alta(req: Request, matricula: str = Form(...), nombre: str = Form(...),
                      brigada: str = Form(...), copnia: str = Form("")):
-    exigir(req)
+    ses = exigir(req)
+    # La brigada no se acepta como viene: se fuerza a la del alcance.
+    permitidas = _brigadas_activas(req)
+    if brigada not in permitidas:
+        return pagina("Inspectores",
+                      render(INSPECTORES, filas=_inspectores_filas(req), brigadas=permitidas,
+                             error="No puede registrar inspectores en esa brigada.", aviso=None),
+                      "inspectores", ses=ses)
     matricula, nombre = matricula.strip(), nombre.strip()
     consulta("""INSERT INTO inspector (matricula, nombre, brigada, verificada_copnia)
                 VALUES (%s,%s,%s,%s)
@@ -642,9 +745,9 @@ def inspectores_alta(req: Request, matricula: str = Form(...), nombre: str = For
     aviso = f"Inspector {matricula} ({nombre}) registrado en «{brigada}»."
     if n:
         aviso += f" Se reconciliaron {len(n)} evaluaciones suyas que estaban sin verificar."
-    return pagina("Inspectores", render(INSPECTORES, filas=_inspectores_filas(),
-                                        brigadas=_brigadas_activas(), error=None, aviso=aviso),
-                  "inspectores")
+    return pagina("Inspectores", render(INSPECTORES, filas=_inspectores_filas(req),
+                                        brigadas=_brigadas_activas(req), error=None, aviso=aviso),
+                  "inspectores", ses=ses)
 
 
 @router.post("/admin/inspectores/baja")
@@ -683,7 +786,7 @@ lo pida tiene derecho a que se eliminen (Ley 1581 de 2012).</p>
 
 @router.get("/admin/solicitudes", response_class=HTMLResponse)
 def solicitudes(req: Request):
-    exigir(req)
+    exigir_admin(req)
     filas = consulta("""SELECT id, recibido_en, nombre, entidad, correo, telefono,
                                mensaje, atendido
                           FROM contacto ORDER BY atendido, recibido_en DESC LIMIT 200""")
@@ -692,7 +795,7 @@ def solicitudes(req: Request):
 
 @router.post("/admin/solicitudes/atender")
 def solicitud_atender(req: Request, id: int = Form(...)):
-    exigir(req)
+    exigir_admin(req)
     consulta("UPDATE contacto SET atendido = true WHERE id = %s", (id,))
     return RedirectResponse("/admin/solicitudes", 303)
 
@@ -770,11 +873,12 @@ solo aparece marcado para que nadie lo dé por revisado sin estarlo.</p>
 """
 
 
-def _rojos():
-    crudas = consulta("""SELECT id, id_local, ts, matricula, inspector, brigada_token,
+def _rojos(req: Request):
+    w, wa = filtro_alcance(req)
+    crudas = consulta(f"""SELECT id, id_local, ts, matricula, inspector, brigada_token,
                                 direccion, municipio, barrio, observaciones,
                                 justificacion, vencido, horas_de_atraso
-                           FROM rojos_pendientes LIMIT 100""")
+                           FROM rojos_pendientes WHERE {w} LIMIT 100""", tuple(wa))
     return [{"id": r[0], "id_local": r[1], "ts": r[2], "matricula": r[3],
              "inspector": r[4], "brigada_token": r[5], "direccion": r[6],
              "municipio": r[7], "barrio": r[8], "observaciones": r[9],
@@ -782,25 +886,32 @@ def _rojos():
              "horas": round(r[12]) if r[12] is not None else 0} for r in crudas]
 
 
-def _inspectores_vigentes():
-    return consulta("SELECT matricula, nombre FROM inspector WHERE vigente ORDER BY nombre")
+def _inspectores_vigentes(req: Request):
+    w, wa = filtro_alcance(req, "brigada")
+    return consulta(f"SELECT matricula, nombre FROM inspector "
+                    f"WHERE vigente AND {w} ORDER BY nombre", tuple(wa))
 
 
 @router.get("/admin/rojos", response_class=HTMLResponse)
 def rojos(req: Request):
-    exigir(req)
-    return pagina("Rojos", render(ROJOS, filas=_rojos(), inspectores=_inspectores_vigentes(),
-                                  error=None, aviso=None), "rojos")
+    ses = exigir(req)
+    return pagina("Rojos", render(ROJOS, filas=_rojos(req),
+                                  inspectores=_inspectores_vigentes(req),
+                                  error=None, aviso=None), "rojos", ses=ses)
 
 
 @router.post("/admin/rojos/revisar", response_class=HTMLResponse)
 def rojos_revisar(req: Request, id: str = Form(...), matricula: str = Form(...),
                   resultado: str = Form(...), motivo: str = Form("")):
-    exigir(req)
+    ses = exigir(req)
     error = aviso = None
-    firmo = consulta("SELECT matricula FROM evaluacion_brigada WHERE id = %s", (id,))
+    w, wa = filtro_alcance(req)
+    # El alcance va en el WHERE: sin esto, un coordinador podria revisar el rojo
+    # de otra brigada mandando su id a mano.
+    firmo = consulta(f"SELECT matricula FROM evaluacion_brigada WHERE id = %s AND {w}",
+                     (id, *wa))
     if not firmo:
-        error = "Esa evaluación ya no existe."
+        error = "Esa evaluación no existe o no pertenece a su brigada."
     elif firmo[0][0] == matricula:
         # Cinturón además del tirante: la lista ya excluye al firmante, pero esto
         # es lo que impide que alguien lo fuerce desde fuera del formulario.
@@ -819,8 +930,9 @@ def rojos_revisar(req: Request, id: str = Form(...), matricula: str = Form(...),
         aviso = ("Rojo confirmado." if nueva is None else
                  f"Rojo revocado a {NOMBRE_CLAS[nueva].lower()}. La clasificación firmada "
                  "queda registrada igual.")
-    return pagina("Rojos", render(ROJOS, filas=_rojos(), inspectores=_inspectores_vigentes(),
-                                  error=error, aviso=aviso), "rojos")
+    return pagina("Rojos", render(ROJOS, filas=_rojos(req),
+                                  inspectores=_inspectores_vigentes(req),
+                                  error=error, aviso=aviso), "rojos", ses=ses)
 
 
 # ------------------------------------------------------------------- el mapa
@@ -839,11 +951,17 @@ TESELAS_CREDITO = os.getenv(
 
 
 def alcance_brigada(req: Request) -> str | None:
-    """Qué brigada puede ver quien está mirando. Hoy el panel tiene un solo rol
-    —administrador, que ve todo— y esto devuelve None. Cuando exista el rol de
-    coordinador, se cambia SOLO acá y el mapa y sus consultas quedan acotados
-    sin tocar nada más."""
-    return None
+    """Qué brigada puede ver quien está mirando. None = todas (administrador).
+
+    Es el único punto donde se decide el alcance: cada consulta del panel lo
+    consulta a través de `filtro_alcance()`."""
+    return exigir(req).brigada
+
+
+def filtro_alcance(req: Request, columna: str = "brigada_token"):
+    """Devuelve (fragmento_sql, args) para intercalar en cualquier WHERE."""
+    b = alcance_brigada(req)
+    return (f"{columna} = %s", [b]) if b else ("1=1", [])
 
 
 def sectores(req: Request, brigada: str | None = None):
@@ -869,7 +987,9 @@ def sectores(req: Request, brigada: str | None = None):
 
 @router.get("/admin/mapa.geojson")
 def mapa_geojson(req: Request, brigada: str = ""):
-    exigir(req)
+    ses = exigir(req)
+    if ses.rol != "admin":
+        brigada = ""      # su alcance ya lo pone sectores(); el parametro se ignora
     rasgos = []
     for m, b, n, rojas, ama, ver, sinrev, lon, lat, ultima in sectores(req, brigada or None):
         if lon is None:
@@ -1029,12 +1149,15 @@ registros, decir «el barrio X tiene una roja» equivale a señalar la casa con 
 
 @router.get("/admin/mapa", response_class=HTMLResponse)
 def mapa(req: Request, brigada: str = ""):
-    exigir(req)
+    ses = exigir(req)
+    if ses.rol != "admin":
+        brigada = ""
     filas = sectores(req, brigada or None)
-    brigadas = [b for (b,) in consulta("SELECT nombre FROM brigada ORDER BY nombre")]
+    brigadas = ([b for (b,) in consulta("SELECT nombre FROM brigada ORDER BY nombre")]
+                if ses.rol == "admin" else [])
     return pagina("Mapa", render(MAPA, filas=filas, brigadas=brigadas, sel=brigada,
                                  rampa=RAMPA_ROJAS, cortes=CORTES_ROJAS, k=K_ANONIMATO,
-                                 teselas=TESELAS, credito=TESELAS_CREDITO), "mapa")
+                                 teselas=TESELAS, credito=TESELAS_CREDITO), "mapa", ses=ses)
 
 
 @router.get("/admin/vendor/{archivo}")
