@@ -82,6 +82,10 @@ Sin dependencias de frontend:
   borrado sería el camino del ransomware.
   **No hace `source` de `/etc/brigadas.env`**: es un `EnvironmentFile` de systemd y varios
   valores llevan `$` (el hash scrypt), que bash expandiría. Lee con `sed`.
+- Vistas: `consolidado_publico` (k-anonimato ≥5), `pendientes_de_verificacion`
+  (firmas fuera del registro), `rojos_pendientes` (segunda revisión, atrasados primero).
+  Reemplazarlas exige `DROP` + `CREATE`: `CREATE OR REPLACE VIEW` solo admite agregar
+  columnas al final.
 - `api_consulta.py` — API de consulta (`/api/v1/`), solo lectura, con la tabla
   `consumidor` como credenciales **separadas** de `brigada`: leer y escribir no pueden
   compartir token. El k-anonimato se aplica sobre el resultado ya filtrado.
@@ -110,6 +114,13 @@ Sin dependencias de frontend:
 - **La sincronización sale de a 3, no todas de golpe.** Con 80 pendientes y fotos,
   el `forEach` original abría 80 subidas simultáneas: en señal de campo fallan en
   bloque y saturan el servidor. Si se sube esa tanda, revisar el `burst` de nginx.
+- **El vencimiento de la revisión NO degrada el rojo.** Un rojo vencido sigue siendo
+  rojo; solo se marca como atrasado. Un temporizador no puede rebajar un desalojo.
+- **La revisión no borra la firma original.** `clasificacion` es lo que firmó quien
+  evaluó y queda intacta; `clasificacion_efectiva` (generada) es lo que vale para
+  consolidar. Ambas se conservan: son dos actos profesionales distintos.
+- **Quien firmó no puede revisar su propia evaluación.** Validado en el servidor, no
+  solo escondiendo la opción en el formulario.
 - El servidor revalida lo que la app ya valida (matrícula, rango de clasificación,
   justificación obligatoria si se cambia el semáforo calculado). Es el registro de
   responsabilidad profesional; no relajarlo porque "el frontend ya lo chequea".

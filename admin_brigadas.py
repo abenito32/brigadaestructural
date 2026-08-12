@@ -28,6 +28,7 @@ Ordenes:
   consumidor-baja <nombre>             revoca su token de consulta
   consumidores                         lista
 
+  rojos                                rojos sin segunda revisión
   sin-verificar  [n]                   evaluaciones firmadas por gente no registrada
   clave                                define la clave del panel /admin
 """
@@ -227,6 +228,22 @@ def consumidores():
               ("CONSUMIDOR", "ALCANCE", "MUNICIPIOS", "ACTIVO", "CONSULTAS", "ÚLTIMO USO"))
 
 
+def rojos():
+    with con() as c, c.cursor() as cur:
+        cur.execute("""SELECT coalesce(id_local, id), matricula,
+                              coalesce(direccion,'—'), coalesce(municipio,'—'),
+                              CASE WHEN vencido THEN 'ATRASADO ' || horas_de_atraso || ' h'
+                                   ELSE 'en plazo' END
+                         FROM rojos_pendientes LIMIT 50""")
+        filas = cur.fetchall()
+        cur.execute("SELECT count(*) FROM evaluacion_brigada WHERE revision_estado='pendiente'")
+        total = cur.fetchone()[0]
+    print(f"{total} rojos esperan segunda revisión (los atrasados primero):\n")
+    tabla(filas, ("EVALUACIÓN", "FIRMÓ", "DIRECCIÓN", "MUNICIPIO", "PLAZO"))
+    print("\nLa revisión se registra desde el panel: exige elegir quién revisa, y")
+    print("quien firmó no puede revisarse a sí mismo.")
+
+
 def clave():
     """Pide la clave y devuelve la línea para /etc/brigadas.env.
 
@@ -247,7 +264,7 @@ def clave():
 
 
 ORDENES = {
-    "clave": clave,
+    "clave": clave, "rojos": rojos,
     "consumidor-alta": consumidor_alta, "consumidor-baja": consumidor_baja,
     "consumidores": consumidores,
     "brigada-alta": brigada_alta, "brigada-baja": brigada_baja,

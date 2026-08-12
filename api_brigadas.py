@@ -64,6 +64,9 @@ MAX_BYTES_FOTO = 3_000_000
 # Si la BD no responde, mejor un 503 rapido que un telefono colgado en campo:
 # la app deja el registro pendiente y reintenta cuando haya senal.
 ESPERA_POOL = 5
+# Plazo para la segunda mirada de un rojo. Vencido no degrada nada: solo lo vuelve
+# visible como atrasado en el panel.
+HORAS_REVISION = int(os.getenv("BRIGADA_REVISION_HORAS", "24"))
 # Lo escribe respaldo.sh. Sin MTA en el servidor, esta es la unica forma de
 # enterarse de que el respaldo dejo de correr antes de necesitarlo.
 ESTADO_RESPALDO = pathlib.Path(os.getenv("BRIGADA_RESPALDO_ESTADO",
@@ -187,7 +190,8 @@ INSERT INTO evaluacion_brigada (
   geom, precision_m, direccion, municipio, barrio,
   sistema, uso, pisos, ocupantes, danos, banderas,
   clasificacion, clasificacion_auto, motivo_auto, justificacion,
-  observaciones, fotos, brigada_token, matricula_verificada
+  observaciones, fotos, brigada_token, matricula_verificada,
+  revision_estado, revision_vence
 ) VALUES (
   %(id)s, %(id_local)s, %(ts)s, %(matricula)s, %(inspector)s, %(brigada)s,
   -- Los ::float8 son obligatorios: sin ellos Postgres no infiere el tipo cuando
@@ -201,7 +205,12 @@ INSERT INTO evaluacion_brigada (
   %(observaciones)s, %(fotos)s, %(brigada_token)s,
   -- Se resuelve en la misma sentencia para no gastar otra ida a la base.
   EXISTS (SELECT 1 FROM inspector
-          WHERE matricula = %(matricula)s AND vigente)
+          WHERE matricula = %(matricula)s AND vigente),
+  -- Solo los rojos entran en cola de segunda revision. Un verde no necesita
+  -- que dos personas confirmen que la casa sigue en pie.
+  CASE WHEN %(clasificacion)s = 3 THEN 'pendiente' END,
+  CASE WHEN %(clasificacion)s = 3
+       THEN now() + make_interval(hours => %(horas_revision)s) END
 )
 -- La idempotencia es por brigada: dos brigadas pueden mandar el mismo id_local
 -- el mismo dia y son evaluaciones distintas, no un reintento.
@@ -296,6 +305,7 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
         "observaciones": ev.observaciones,
         "fotos": Jsonb(rutas),
         "brigada_token": brigada_auth,
+        "horas_revision": HORAS_REVISION,
     }
 
     try:
@@ -395,12 +405,19 @@ def salud():
                                   (SELECT count(*) FROM evaluacion_brigada
                                      WHERE NOT matricula_verificada),
                                   (SELECT count(*) FROM brigada WHERE activa),
-                                  (SELECT count(*) FROM inspector WHERE vigente)""")
-            total, sin_verificar, brigadas, inspectores = cur.fetchone()
+                                  (SELECT count(*) FROM inspector WHERE vigente),
+                                  (SELECT count(*) FROM evaluacion_brigada
+                                     WHERE revision_estado = 'pendiente'),
+                                  (SELECT count(*) FROM evaluacion_brigada
+                                     WHERE revision_estado = 'pendiente'
+                                       AND revision_vence < now())""")
+            (total, sin_verificar, brigadas, inspectores,
+             rojos_pendientes, rojos_vencidos) = cur.fetchone()
     except (psycopg.Error, PoolTimeout, AttributeError) as e:
         raise HTTPException(503, f"Base de datos no disponible: {e.__class__.__name__}")
     return {"ok": True, "evaluaciones": total, "sin_verificar": sin_verificar,
             "brigadas": brigadas, "inspectores": inspectores,
+            "rojos_sin_revisar": rojos_pendientes, "rojos_vencidos": rojos_vencidos,
             "respaldo": estado_respaldo(), "disco": estado_disco()}
 
 

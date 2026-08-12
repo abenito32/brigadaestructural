@@ -107,10 +107,55 @@ CREATE UNIQUE INDEX IF NOT EXISTS evaluacion_brigada_idem_idx
 CREATE INDEX IF NOT EXISTS evaluacion_brigada_id_local_idx
   ON evaluacion_brigada (id_local);
 
+-- ---------------------------------------------------------------------------
+-- Doble revisión de los rojos
+-- ---------------------------------------------------------------------------
+--
+-- Un rojo ordena no habitar una edificación. Que dependa del criterio de una sola
+-- persona, tomado en veinte minutos y con réplicas de fondo, es mucho pedirle a
+-- cualquiera. Por eso cada rojo entra en estado 'pendiente' y necesita que un
+-- segundo inspector registrado lo mire.
+--
+-- Dos reglas que no se pueden relajar:
+--   · El vencimiento NO degrada nada. Un rojo vencido sigue siendo rojo; solo se
+--     vuelve visible como atrasado. Un temporizador no puede rebajar un desalojo.
+--   · La firma original no se borra. La revisión es otro acto profesional, con su
+--     propia matrícula y su motivo, y ambos quedan en el registro.
+ALTER TABLE evaluacion_brigada
+  ADD COLUMN IF NOT EXISTS revision_estado text
+    CHECK (revision_estado IN ('pendiente','confirmado','revocado'));
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_vence timestamptz;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_matricula text;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_en timestamptz;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_clasificacion smallint
+  CHECK (revision_clasificacion IN (1,2,3));
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_motivo text;
+
+-- Lo que vale operativamente. La columna `clasificacion` sigue siendo lo que
+-- firmó quien evaluó, intacta; esta es la que hay que usar para consolidar.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS clasificacion_efectiva smallint
+  GENERATED ALWAYS AS (coalesce(revision_clasificacion, clasificacion)) STORED;
+
+CREATE INDEX IF NOT EXISTS evaluacion_brigada_revision_idx
+  ON evaluacion_brigada (revision_estado, revision_vence);
+
+-- Los rojos que todavía no tienen segunda mirada, los vencidos primero.
+DROP VIEW IF EXISTS rojos_pendientes;
+CREATE VIEW rojos_pendientes AS
+SELECT id, id_local, ts, recibido_en, matricula, inspector, brigada_token,
+       direccion, municipio, barrio, observaciones, justificacion,
+       revision_vence,
+       (revision_vence < now())                       AS vencido,
+       round(extract(epoch FROM (now() - revision_vence)) / 3600.0, 1) AS horas_de_atraso
+  FROM evaluacion_brigada
+ WHERE revision_estado = 'pendiente'
+ ORDER BY revision_vence;
+
 -- Cola de revisión: quién firmó sin estar en el registro. No se rechaza en campo
 -- —perder una evaluación es peor que aceptarla marcada— pero no puede pasar
 -- inadvertido al consolidar.
-CREATE OR REPLACE VIEW pendientes_de_verificacion AS
+DROP VIEW IF EXISTS pendientes_de_verificacion;
+CREATE VIEW pendientes_de_verificacion AS
 SELECT e.id, e.ts, e.matricula, e.inspector, e.brigada AS brigada_declarada,
        e.brigada_token AS brigada_autenticada, e.clasificacion,
        e.municipio, e.barrio
@@ -154,12 +199,18 @@ CREATE TABLE IF NOT EXISTS contacto (
 
 -- Lo único que sale hacia las autoridades: agregado por sector, sin predio ni
 -- dirección (Ley 1581 de 2012), con umbral mínimo de registros por sector.
-CREATE OR REPLACE VIEW consolidado_publico AS
+-- DROP + CREATE y no CREATE OR REPLACE: reemplazar una vista solo admite AGREGAR
+-- columnas al final, y acá se insertó una en medio. Es idempotente igual.
+DROP VIEW IF EXISTS consolidado_publico;
+CREATE VIEW consolidado_publico AS
 SELECT municipio, barrio,
        count(*)                                  AS evaluadas,
-       count(*) FILTER (WHERE clasificacion = 3) AS rojas,
-       count(*) FILTER (WHERE clasificacion = 2) AS amarillas,
-       count(*) FILTER (WHERE clasificacion = 1) AS verdes,
+       -- Efectiva, no la firmada: si un segundo inspector revocó un rojo, el
+       -- consolidado tiene que reflejar la realidad revisada.
+       count(*) FILTER (WHERE clasificacion_efectiva = 3) AS rojas,
+       count(*) FILTER (WHERE clasificacion_efectiva = 2) AS amarillas,
+       count(*) FILTER (WHERE clasificacion_efectiva = 1) AS verdes,
+       count(*) FILTER (WHERE revision_estado = 'pendiente') AS rojas_sin_revisar,
        ST_Centroid(ST_Collect(geom))             AS centro
 FROM evaluacion_brigada
 GROUP BY municipio, barrio

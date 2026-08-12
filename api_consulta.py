@@ -95,7 +95,7 @@ def filtros(municipios_permitidos, municipio, barrio, desde, hasta, clasificacio
     if hasta:
         donde.append("ts < (%s::date + 1)"); args.append(hasta)
     if clasificacion:
-        donde.append("clasificacion = %s"); args.append(clasificacion)
+        donde.append("clasificacion_efectiva = %s"); args.append(clasificacion)
     return " AND ".join(donde), args
 
 
@@ -107,9 +107,12 @@ def sin_cache(contenido):
 # --------------------------------------------------------------- consolidado
 SELECT_CONSOLIDADO = """
 SELECT municipio, barrio, count(*) AS evaluadas,
-       count(*) FILTER (WHERE clasificacion = 3) AS rojas,
-       count(*) FILTER (WHERE clasificacion = 2) AS amarillas,
-       count(*) FILTER (WHERE clasificacion = 1) AS verdes,
+       -- Efectiva: si un segundo inspector revoco un rojo, el consolidado tiene
+       -- que reflejar la realidad revisada, no la primera firma.
+       count(*) FILTER (WHERE clasificacion_efectiva = 3) AS rojas,
+       count(*) FILTER (WHERE clasificacion_efectiva = 2) AS amarillas,
+       count(*) FILTER (WHERE clasificacion_efectiva = 1) AS verdes,
+       count(*) FILTER (WHERE revision_estado = 'pendiente') AS rojas_sin_revisar,
        max(recibido_en) AS ultima,
        ST_X(ST_Centroid(ST_Collect(geom))) AS lon,
        ST_Y(ST_Centroid(ST_Collect(geom))) AS lat
@@ -125,9 +128,9 @@ def _consolidado(cred, municipio, barrio, desde, hasta):
     donde, args = filtros(cred[2], municipio, barrio, desde, hasta, None)
     filas = consultar(SELECT_CONSOLIDADO.format(donde=donde), tuple(args) + (K_ANONIMATO,))
     return [{"municipio": f[0], "barrio": f[1], "evaluadas": f[2], "rojas": f[3],
-             "amarillas": f[4], "verdes": f[5],
-             "ultima_actualizacion": f[6].isoformat() if f[6] else None,
-             "lon": f[7], "lat": f[8]} for f in filas]
+             "amarillas": f[4], "verdes": f[5], "rojas_sin_revisar": f[6],
+             "ultima_actualizacion": f[7].isoformat() if f[7] else None,
+             "lon": f[8], "lat": f[9]} for f in filas]
 
 
 @router.get("/consolidado")
@@ -178,6 +181,10 @@ CAMPOS_DETALLE = [
     ("ocupantes", "ocupantes"), ("danos", "danos"), ("banderas", "banderas"),
     ("clasificacion", "clasificacion"), ("clasificacion_auto", "clasificacion_auto"),
     ("motivo_auto", "motivo_auto"), ("justificacion", "justificacion"),
+    ("clasificacion_efectiva", "clasificacion_efectiva"),
+    ("revision_estado", "revision_estado"), ("revision_matricula", "revision_matricula"),
+    ("revision_clasificacion", "revision_clasificacion"),
+    ("revision_motivo", "revision_motivo"),
     ("observaciones", "observaciones"),
     ("coalesce(jsonb_array_length(fotos),0)", "fotos"),
     ("ST_X(geom)", "lon"), ("ST_Y(geom)", "lat"),

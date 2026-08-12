@@ -189,6 +189,7 @@ input:focus,select:focus{outline:3px solid var(--azul);outline-offset:-1px;borde
   <nav class="nav">
     <a href="/admin" class="{{ 'on' if pag=='inicio' }}">Resumen</a>
     <a href="/admin/reportes" class="{{ 'on' if pag=='reportes' }}">Reportes</a>
+    <a href="/admin/rojos" class="{{ 'on' if pag=='rojos' }}">Rojos</a>
     <a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>
     <a href="/admin/inspectores" class="{{ 'on' if pag=='inspectores' }}">Inspectores</a>
     <a href="/admin/solicitudes" class="{{ 'on' if pag=='solicitudes' }}">Solicitudes</a>
@@ -295,6 +296,12 @@ Mientras esto siga así, una pérdida del disco se lleva el levantamiento comple
 <div class="ok"><strong>Respaldo al día.</strong> Hace {{ r.horas }} horas · {{ r.mensaje }}{% if not r.cifrado %}
  · <strong>sin cifrar</strong>{% endif %}{% if not r.remoto %} · <strong>solo en este servidor</strong>{% endif %}.</div>
 {% endif %}
+{% if t.rojos_pendientes %}
+<div class="{{ 'aviso' if t.rojos_vencidos else 'nota-caja' }}">
+  <strong>{{ t.rojos_pendientes }} rojos</strong> esperan segunda revisión{% if t.rojos_vencidos %},
+  y {{ t.rojos_vencidos }} ya pasaron su plazo{% endif %}.
+  <a href="/admin/rojos">Revisarlos</a>.</div>
+{% endif %}
 {% if t.sin_verificar %}
 <div class="aviso"><strong>{{ t.sin_verificar }} evaluaciones</strong> las firmó una matrícula que no
 está en el registro. Se aceptaron para no perder trabajo de campo, pero hay que revisarlas antes de
@@ -337,11 +344,14 @@ consolidar. <a href="/admin/reportes?verificada=no">Verlas</a>.</div>
 @router.get("/admin", response_class=HTMLResponse)
 def inicio(req: Request):
     exigir(req)
-    (total, rojas, amarillas, verdes, sinv), = consulta("""
+    (total, rojas, amarillas, verdes, sinv, rpend, rvenc), = consulta("""
         SELECT count(*), count(*) FILTER (WHERE clasificacion=3),
                count(*) FILTER (WHERE clasificacion=2),
                count(*) FILTER (WHERE clasificacion=1),
-               count(*) FILTER (WHERE NOT matricula_verificada)
+               count(*) FILTER (WHERE NOT matricula_verificada),
+               count(*) FILTER (WHERE revision_estado = 'pendiente'),
+               count(*) FILTER (WHERE revision_estado = 'pendiente'
+                                  AND revision_vence < now())
           FROM evaluacion_brigada""")
     por_brigada = consulta("""
         SELECT brigada_token, count(*), count(*) FILTER (WHERE clasificacion=3),
@@ -351,7 +361,7 @@ def inicio(req: Request):
     consolidado = consulta("""SELECT municipio, barrio, evaluadas, rojas, amarillas, verdes
                                 FROM consolidado_publico ORDER BY evaluadas DESC""")
     t = {"total": total, "rojas": rojas, "amarillas": amarillas, "verdes": verdes,
-         "sin_verificar": sinv}
+         "sin_verificar": sinv, "rojos_pendientes": rpend, "rojos_vencidos": rvenc}
     import api_brigadas
     return pagina("Resumen", render(INICIO, t=t, por_brigada=por_brigada,
                                     consolidado=consolidado,
@@ -677,3 +687,129 @@ def solicitud_atender(req: Request, id: int = Form(...)):
     exigir(req)
     consulta("UPDATE contacto SET atendido = true WHERE id = %s", (id,))
     return RedirectResponse("/admin/solicitudes", 303)
+
+
+# ------------------------------------------------------------ doble revisión
+ROJOS = """
+<h1>Rojos pendientes de segunda revisión</h1>
+<p class="sub">Un rojo ordena no habitar una edificación. Antes de consolidarlo,
+otro inspector registrado tiene que mirarlo.</p>
+
+{% if error %}<div class="aviso">{{ error }}</div>{% endif %}
+{% if aviso %}<div class="ok">{{ aviso }}</div>{% endif %}
+
+{% if not inspectores %}
+<div class="aviso">No hay inspectores vigentes en el registro, así que no hay quién
+revise. Registre al menos uno en <a href="/admin/inspectores">Inspectores</a>.</div>
+{% endif %}
+
+{% for r in filas %}
+<div class="tarjeta" style="{{ 'border-color:#FECACA' if r.vencido }}">
+  <div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap">
+    <span class="pastilla p3">ROJO</span>
+    <strong>{{ r.id_local or r.id }}</strong>
+    <span class="nota" style="margin:0">{{ r.ts.strftime("%Y-%m-%d %H:%M") }}</span>
+    {% if r.vencido %}
+      <span class="pastilla palerta">Atrasado {{ r.horas }} h</span>
+    {% else %}
+      <span class="pastilla pi">Vence en {{ -r.horas }} h</span>
+    {% endif %}
+  </div>
+
+  <table style="margin-top:14px">
+    <tr><td style="width:22%"><strong>Dónde</strong></td>
+        <td>{{ r.direccion or "—" }}{% if r.municipio %} · {{ r.municipio }}{% endif %}
+            {% if r.barrio %} · {{ r.barrio }}{% endif %}</td></tr>
+    <tr><td><strong>Quién firmó</strong></td>
+        <td>{{ r.inspector or "—" }} · matrícula {{ r.matricula }}
+            {% if r.brigada_token %}<br><span class="nota" style="margin:0">{{ r.brigada_token }}</span>{% endif %}</td></tr>
+    {% if r.justificacion %}<tr><td><strong>Cambió el semáforo</strong></td>
+        <td>{{ r.justificacion }}</td></tr>{% endif %}
+    {% if r.observaciones %}<tr><td><strong>Observaciones</strong></td>
+        <td>{{ r.observaciones }}</td></tr>{% endif %}
+  </table>
+
+  <form method="post" action="/admin/rojos/revisar" style="margin-top:16px"
+        onsubmit="return confirm('¿Registrar esta revisión? Queda con la matrícula de quien revisa.')">
+    <input type="hidden" name="id" value="{{ r.id }}">
+    <div class="fila">
+      <label><span>Quién revisa</span><select name="matricula" required>
+        <option value="">Seleccione</option>
+        {% for i in inspectores %}
+          {# Quien firmó no puede revisarse a sí mismo: si no, no hay segunda mirada. #}
+          {% if i[0] != r.matricula %}<option value="{{ i[0] }}">{{ i[1] }} · {{ i[0] }}</option>{% endif %}
+        {% endfor %}
+      </select></label>
+      <label><span>Resultado</span><select name="resultado" required>
+        <option value="confirmado">Confirmar el rojo</option>
+        <option value="2">Revocar → Amarillo</option>
+        <option value="1">Revocar → Verde</option>
+      </select></label>
+      <label><span>Motivo</span><input name="motivo" placeholder="Criterio técnico"></label>
+      <button class="btn btn-p">Registrar revisión</button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="tarjeta"><p class="vacio" style="margin:0">No hay rojos esperando revisión.</p></div>
+{% endfor %}
+
+<p class="nota">Revocar no borra nada: la clasificación firmada queda tal cual y se
+guarda aparte quién revisó, cuándo y por qué. Lo que cambia es la clasificación
+efectiva, que es la que usan el consolidado y la API.</p>
+<p class="nota">El vencimiento no degrada el rojo. Un rojo atrasado sigue siendo rojo:
+solo aparece marcado para que nadie lo dé por revisado sin estarlo.</p>
+"""
+
+
+def _rojos():
+    crudas = consulta("""SELECT id, id_local, ts, matricula, inspector, brigada_token,
+                                direccion, municipio, barrio, observaciones,
+                                justificacion, vencido, horas_de_atraso
+                           FROM rojos_pendientes LIMIT 100""")
+    return [{"id": r[0], "id_local": r[1], "ts": r[2], "matricula": r[3],
+             "inspector": r[4], "brigada_token": r[5], "direccion": r[6],
+             "municipio": r[7], "barrio": r[8], "observaciones": r[9],
+             "justificacion": r[10], "vencido": r[11],
+             "horas": round(r[12]) if r[12] is not None else 0} for r in crudas]
+
+
+def _inspectores_vigentes():
+    return consulta("SELECT matricula, nombre FROM inspector WHERE vigente ORDER BY nombre")
+
+
+@router.get("/admin/rojos", response_class=HTMLResponse)
+def rojos(req: Request):
+    exigir(req)
+    return pagina("Rojos", render(ROJOS, filas=_rojos(), inspectores=_inspectores_vigentes(),
+                                  error=None, aviso=None), "rojos")
+
+
+@router.post("/admin/rojos/revisar", response_class=HTMLResponse)
+def rojos_revisar(req: Request, id: str = Form(...), matricula: str = Form(...),
+                  resultado: str = Form(...), motivo: str = Form("")):
+    exigir(req)
+    error = aviso = None
+    firmo = consulta("SELECT matricula FROM evaluacion_brigada WHERE id = %s", (id,))
+    if not firmo:
+        error = "Esa evaluación ya no existe."
+    elif firmo[0][0] == matricula:
+        # Cinturón además del tirante: la lista ya excluye al firmante, pero esto
+        # es lo que impide que alguien lo fuerce desde fuera del formulario.
+        error = "Quien firmó no puede revisar su propia evaluación."
+    elif resultado != "confirmado" and not motivo.strip():
+        error = "Revocar un rojo exige escribir el motivo."
+    else:
+        nueva = None if resultado == "confirmado" else int(resultado)
+        consulta("""UPDATE evaluacion_brigada
+                       SET revision_estado = %s, revision_matricula = %s,
+                           revision_en = now(), revision_clasificacion = %s,
+                           revision_motivo = %s
+                     WHERE id = %s AND revision_estado = 'pendiente'""",
+                 ("confirmado" if nueva is None else "revocado", matricula,
+                  nueva, motivo.strip() or None, id))
+        aviso = ("Rojo confirmado." if nueva is None else
+                 f"Rojo revocado a {NOMBRE_CLAS[nueva].lower()}. La clasificación firmada "
+                 "queda registrada igual.")
+    return pagina("Rojos", render(ROJOS, filas=_rojos(), inspectores=_inspectores_vigentes(),
+                                  error=error, aviso=aviso), "rojos")

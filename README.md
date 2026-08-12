@@ -133,6 +133,21 @@ que nadie se entere. Con 503 el registro sobrevive en el teléfono y se reintent
 universidades y asociaciones profesionales. Editable; se regenera con
 `python3 docs/build_presentacion.py` (necesita `python-pptx`).
 
+## Doble revisión de los rojos
+
+Cada evaluación en rojo entra en estado `pendiente` con un plazo
+(`BRIGADA_REVISION_HORAS`, 24 por defecto) y necesita que **otro** inspector
+registrado la mire desde el panel. Quien firmó no puede revisarse a sí mismo, y
+revocar exige motivo escrito.
+
+Dos reglas que no se relajan:
+
+- **El vencimiento no degrada nada.** Un rojo atrasado sigue siendo rojo; solo se
+  vuelve visible. Un temporizador no puede rebajar un desalojo.
+- **La firma original no se borra.** `clasificacion` queda tal cual; la revisión se
+  guarda aparte con su matrícula, su fecha y su motivo. Lo que cambia es
+  `clasificacion_efectiva`, que es la que usan el consolidado y la API.
+
 ## API de consulta
 
 Solo lectura, credenciales propias separadas de las de brigada, alcance por
