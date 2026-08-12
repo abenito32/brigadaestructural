@@ -18,16 +18,20 @@ lo que sale hacia autoridades es la vista consolidado_publico, agregada por sect
 """
 import base64
 import hashlib
+import pathlib
 import hmac
 import os
 import secrets
 import time
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
+                               Response)
 from jinja2 import Environment
 
 CLAVE_HASH = os.getenv("BRIGADA_ADMIN_HASH", "")
+# Mismo umbral que la API de consulta: un solo numero, un solo lugar.
+K_ANONIMATO = 5
 # El correo de contacto sale del entorno, no del codigo: este archivo esta en un
 # repositorio publico y una direccion ahi se rastrea en dias. Solo se muestra en
 # el panel, que ademas lleva noindex.
@@ -38,6 +42,9 @@ VENTANA_INTENTOS = 600
 
 router = APIRouter()
 env = Environment(autoescape=True)  # autoescape: los datos vienen de campo
+# Leaflet se sirve desde el propio servidor: el panel tiene que funcionar sin
+# depender de un CDN, igual que la aplicacion de campo.
+VENDOR = pathlib.Path(os.getenv("BRIGADA_VENDOR", "/opt/brigadas/vendor"))
 intentos: dict[str, list[float]] = {}
 
 
@@ -188,6 +195,7 @@ input:focus,select:focus{outline:3px solid var(--azul);outline-offset:-1px;borde
   <div class="marca">Brigada <span>/</span> administración</div>
   <nav class="nav">
     <a href="/admin" class="{{ 'on' if pag=='inicio' }}">Resumen</a>
+    <a href="/admin/mapa" class="{{ 'on' if pag=='mapa' }}">Mapa</a>
     <a href="/admin/reportes" class="{{ 'on' if pag=='reportes' }}">Reportes</a>
     <a href="/admin/rojos" class="{{ 'on' if pag=='rojos' }}">Rojos</a>
     <a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>
@@ -813,3 +821,231 @@ def rojos_revisar(req: Request, id: str = Form(...), matricula: str = Form(...),
                  "queda registrada igual.")
     return pagina("Rojos", render(ROJOS, filas=_rojos(), inspectores=_inspectores_vigentes(),
                                   error=error, aviso=aviso), "rojos")
+
+
+# ------------------------------------------------------------------- el mapa
+# Rampa secuencial de un solo tono para el % de rojas. Validada: monotona en
+# luminosidad, saltos visibles entre pasos, y el extremo claro se despega del
+# blanco de la tarjeta (2,25:1). No se toca sin volver a validarla.
+RAMPA_ROJAS = ["#F19393", "#E56A6A", "#D13A3A", "#A81A1A", "#751010"]
+CORTES_ROJAS = [0.10, 0.25, 0.50, 0.75]   # % de rojas que separa cada paso
+
+# Teselas del mapa base. Configurable para que una entidad pueda apuntar a su
+# propio servidor o al geoportal municipal en vez de a un tercero.
+TESELAS = os.getenv("BRIGADA_TESELAS", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+TESELAS_CREDITO = os.getenv(
+    "BRIGADA_TESELAS_CREDITO",
+    '&copy; colaboradores de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
+
+
+def alcance_brigada(req: Request) -> str | None:
+    """Qué brigada puede ver quien está mirando. Hoy el panel tiene un solo rol
+    —administrador, que ve todo— y esto devuelve None. Cuando exista el rol de
+    coordinador, se cambia SOLO acá y el mapa y sus consultas quedan acotados
+    sin tocar nada más."""
+    return None
+
+
+def sectores(req: Request, brigada: str | None = None):
+    """Agregado por sector, con el mismo umbral de anonimato del consolidado."""
+    alcance = alcance_brigada(req) or brigada
+    donde, args = "1=1", []
+    if alcance:
+        donde, args = "brigada_token = %s", [alcance]
+    return consulta(f"""
+        SELECT municipio, barrio, count(*),
+               count(*) FILTER (WHERE clasificacion_efectiva = 3),
+               count(*) FILTER (WHERE clasificacion_efectiva = 2),
+               count(*) FILTER (WHERE clasificacion_efectiva = 1),
+               count(*) FILTER (WHERE revision_estado = 'pendiente'),
+               ST_X(ST_Centroid(ST_Collect(geom))), ST_Y(ST_Centroid(ST_Collect(geom))),
+               max(recibido_en)
+          FROM evaluacion_brigada
+         WHERE {donde}
+         GROUP BY municipio, barrio
+        HAVING count(*) >= %s
+         ORDER BY count(*) DESC""", tuple(args) + (K_ANONIMATO,))
+
+
+@router.get("/admin/mapa.geojson")
+def mapa_geojson(req: Request, brigada: str = ""):
+    exigir(req)
+    rasgos = []
+    for m, b, n, rojas, ama, ver, sinrev, lon, lat, ultima in sectores(req, brigada or None):
+        if lon is None:
+            continue
+        rasgos.append({
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            "properties": {"municipio": m or "—", "barrio": b or "—", "evaluadas": n,
+                           "rojas": rojas, "amarillas": ama, "verdes": ver,
+                           "sin_revisar": sinrev,
+                           "ultima": ultima.strftime("%Y-%m-%d %H:%M") if ultima else None},
+        })
+    return JSONResponse({"type": "FeatureCollection", "features": rasgos},
+                        headers={"Cache-Control": "no-store"})
+
+
+MAPA = """
+<h1>Mapa del consolidado</h1>
+<p class="sub">Un círculo por sector. El tamaño es cuántas evaluaciones tiene; el color,
+qué proporción de ellas quedó en rojo.</p>
+
+{% if brigadas|length > 1 %}
+<div class="tarjeta">
+  <form method="get" class="fila">
+    <label><span>Brigada</span><select name="brigada" onchange="this.form.submit()">
+      <option value="">Todas</option>
+      {% for b in brigadas %}<option value="{{ b }}" {{ 'selected' if b==sel }}>{{ b }}</option>{% endfor %}
+    </select></label>
+  </form>
+</div>
+{% endif %}
+
+{% if not filas %}
+<div class="tarjeta"><p class="vacio" style="margin:0">Todavía no hay ningún sector con
+  {{ k }} evaluaciones o más. Los sectores con menos no se muestran, para que el barrio
+  no identifique el predio.</p></div>
+{% else %}
+<div class="tarjeta" style="padding:0;overflow:hidden">
+  <div id="mapa" style="height:520px;background:var(--papel)"></div>
+</div>
+
+<div class="tarjeta">
+  <p class="rotulo">Cómo leerlo</p>
+  <div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start">
+    <div>
+      <p style="font-size:12px;font-weight:700;color:var(--tinta2);margin:0 0 8px">
+        Proporción en rojo</p>
+      <div style="display:flex;align-items:center;gap:0">
+        {% for c in rampa %}<span style="width:44px;height:14px;background:{{ c }}"></span>{% endfor %}
+      </div>
+      <div style="display:flex;justify-content:space-between;width:220px;font-size:11px;
+                  color:var(--tenue);margin-top:4px"><span>0 %</span><span>100 %</span></div>
+    </div>
+    <div>
+      <p style="font-size:12px;font-weight:700;color:var(--tinta2);margin:0 0 8px">
+        Tamaño = evaluaciones</p>
+      <svg width="150" height="58" role="img" aria-label="Círculos de referencia: 5, 25 y 100 evaluaciones">
+        <circle cx="16"  cy="34" r="8"  fill="none" stroke="#94A3B8" stroke-width="1.5"/>
+        <circle cx="56"  cy="28" r="14" fill="none" stroke="#94A3B8" stroke-width="1.5"/>
+        <circle cx="112" cy="23" r="19" fill="none" stroke="#94A3B8" stroke-width="1.5"/>
+        <text x="16"  y="56" font-size="10" fill="#5E6E82" text-anchor="middle">5</text>
+        <text x="56"  y="56" font-size="10" fill="#5E6E82" text-anchor="middle">25</text>
+        <text x="112" y="56" font-size="10" fill="#5E6E82" text-anchor="middle">100</text>
+      </svg>
+    </div>
+    <div>
+      <p style="font-size:12px;font-weight:700;color:var(--tinta2);margin:0 0 8px">
+        Rojos sin segunda revisión</p>
+      <svg width="60" height="40" role="img" aria-label="Círculo con anillo azul">
+        <circle cx="26" cy="20" r="13" fill="#D13A3A" stroke="#0369A1" stroke-width="3.5"/>
+      </svg>
+      <p class="nota" style="margin:0;max-width:190px">El anillo marca los sectores con
+        rojos pendientes. Nunca es solo el color: también salen en la tabla.</p>
+    </div>
+  </div>
+</div>
+
+<div class="tarjeta">
+  <p class="rotulo">Los mismos datos, en tabla</p>
+  <div class="desplaza"><table>
+    <thead><tr><th>Municipio</th><th>Barrio</th><th>Evaluadas</th><th>Rojas</th>
+      <th>Amarillas</th><th>Verdes</th><th>Sin revisar</th><th>Última</th></tr></thead>
+    <tbody>
+    {% for f in filas %}<tr>
+      <td>{{ f[0] or "—" }}</td><td>{{ f[1] or "—" }}</td>
+      <td class="num">{{ f[2] }}</td>
+      <td class="num">{{ f[3] }}</td><td class="num">{{ f[4] }}</td><td class="num">{{ f[5] }}</td>
+      <td class="num">{% if f[6] %}<span class="pastilla palerta">{{ f[6] }}</span>{% else %}0{% endif %}</td>
+      <td class="num">{{ f[9].strftime("%Y-%m-%d %H:%M") if f[9] else "—" }}</td>
+    </tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<p class="nota">Solo aparecen los sectores con {{ k }} evaluaciones o más. Con dos o tres
+registros, decir «el barrio X tiene una roja» equivale a señalar la casa con el dedo
+(Ley 1581 de 2012). El centro de cada círculo es el centroide del sector, no un predio.</p>
+
+<link rel="stylesheet" href="/admin/vendor/leaflet.css">
+<script src="/admin/vendor/leaflet.js"></script>
+<script>
+(function(){
+  "use strict";
+  var RAMPA = {{ rampa|tojson }}, CORTES = {{ cortes|tojson }};
+  function color(rojas, total){
+    var p = total ? rojas / total : 0;
+    for (var i = 0; i < CORTES.length; i++) if (p < CORTES[i]) return RAMPA[i];
+    return RAMPA[RAMPA.length - 1];
+  }
+  // El área es proporcional al conteo, no el radio: si el radio creciera con n,
+  // un sector con el doble de evaluaciones se vería cuatro veces más grande.
+  function radio(n){ return Math.max(7, Math.min(30, 3.6 * Math.sqrt(n))); }
+
+  var mapa = L.map("mapa", {scrollWheelZoom: false});
+  L.tileLayer({{ teselas|tojson }}, {maxZoom: 19, attribution: {{ credito|tojson }}}).addTo(mapa);
+
+  fetch("/admin/mapa.geojson{{ ('?brigada=' + sel) if sel else '' }}", {cache: "no-store"})
+    .then(function(r){ return r.json(); })
+    .then(function(g){
+      if (!g.features.length) return;
+      var capa = L.geoJSON(g, {
+        pointToLayer: function(f, latlng){
+          var p = f.properties;
+          return L.circleMarker(latlng, {
+            radius: radio(p.evaluadas),
+            fillColor: color(p.rojas, p.evaluadas),
+            fillOpacity: 0.85,
+            // Anillo azul = rojos sin revisar. El azul es de la interfaz y no
+            // pertenece al semáforo, así que no se confunde con un estado de daño.
+            color: p.sin_revisar ? "#0369A1" : "#FFFFFF",
+            weight: p.sin_revisar ? 3.5 : 2
+          });
+        },
+        onEachFeature: function(f, capa){
+          var p = f.properties;
+          capa.bindPopup(
+            "<strong>" + p.barrio + "</strong><br>" + p.municipio +
+            "<br><br><strong>" + p.evaluadas + "</strong> evaluaciones<br>" +
+            p.rojas + " rojas · " + p.amarillas + " amarillas · " + p.verdes + " verdes" +
+            (p.sin_revisar ? "<br><strong>" + p.sin_revisar + " rojos sin revisar</strong>" : "") +
+            (p.ultima ? "<br><small>última: " + p.ultima + "</small>" : ""));
+          capa.bindTooltip(p.barrio + " · " + p.evaluadas);
+        }
+      }).addTo(mapa);
+      mapa.fitBounds(capa.getBounds(), {padding: [40, 40], maxZoom: 14});
+    })
+    .catch(function(){
+      document.getElementById("mapa").innerHTML =
+        '<p style="padding:24px;color:#475569">No se pudo cargar la capa. ' +
+        'Los mismos datos están en la tabla de abajo.</p>';
+    });
+})();
+</script>
+{% endif %}
+"""
+
+
+@router.get("/admin/mapa", response_class=HTMLResponse)
+def mapa(req: Request, brigada: str = ""):
+    exigir(req)
+    filas = sectores(req, brigada or None)
+    brigadas = [b for (b,) in consulta("SELECT nombre FROM brigada ORDER BY nombre")]
+    return pagina("Mapa", render(MAPA, filas=filas, brigadas=brigadas, sel=brigada,
+                                 rampa=RAMPA_ROJAS, cortes=CORTES_ROJAS, k=K_ANONIMATO,
+                                 teselas=TESELAS, credito=TESELAS_CREDITO), "mapa")
+
+
+@router.get("/admin/vendor/{archivo}")
+def vendor(req: Request, archivo: str):
+    """Sirve Leaflet desde el propio servidor. Sin sesión a propósito: son archivos
+    de librería, no datos, y exigir cookie complicaría el cacheo del navegador."""
+    if archivo not in ("leaflet.js", "leaflet.css"):
+        raise HTTPException(404, "No existe")
+    ruta = VENDOR / archivo
+    if not ruta.is_file():
+        raise HTTPException(404, "Falta el archivo de la librería en el servidor")
+    tipo = "text/css" if archivo.endswith(".css") else "application/javascript"
+    return Response(ruta.read_bytes(), media_type=tipo,
+                    headers={"Cache-Control": "public, max-age=604800, immutable"})

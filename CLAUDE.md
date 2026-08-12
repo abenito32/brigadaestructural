@@ -86,6 +86,14 @@ Sin dependencias de frontend:
   (firmas fuera del registro), `rojos_pendientes` (segunda revisión, atrasados primero).
   Reemplazarlas exige `DROP` + `CREATE`: `CREATE OR REPLACE VIEW` solo admite agregar
   columnas al final.
+- Mapa del panel (`/admin/mapa`): Leaflet **vendorizado** en `vendor/`, servido desde el
+  propio servidor — el panel no depende de un CDN, igual que la app de campo. Se eligió
+  Leaflet (148 KB) y no MapLibre (~800 KB) porque no hay teselas vectoriales que renderizar.
+  El **área** del círculo es proporcional al conteo (radio ∝ √n), no el radio.
+  La rampa de color está validada; no cambiarla sin volver a validarla.
+- **`alcance_brigada()` en `admin_web.py` es el único punto** donde se decide qué brigada
+  puede ver quien mira. Hoy devuelve `None` (administrador ve todo). Cuando exista el rol
+  de coordinador, se cambia ahí y el mapa y sus consultas quedan acotados solos.
 - `api_consulta.py` — API de consulta (`/api/v1/`), solo lectura, con la tabla
   `consumidor` como credenciales **separadas** de `brigada`: leer y escribir no pueden
   compartir token. El k-anonimato se aplica sobre el resultado ya filtrado.

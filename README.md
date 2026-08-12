@@ -133,6 +133,21 @@ que nadie se entere. Con 503 el registro sobrevive en el teléfono y se reintent
 universidades y asociaciones profesionales. Editable; se regenera con
 `python3 docs/build_presentacion.py` (necesita `python-pptx`).
 
+## El mapa del consolidado
+
+En `/admin/mapa`. Un círculo por sector: el **área** es la cantidad de evaluaciones
+(radio ∝ √n, para que el doble de evaluaciones no se vea cuatro veces más grande) y el
+color, en rampa de un solo tono, la proporción que quedó en rojo. Un anillo azul marca
+los sectores con rojos sin segunda revisión — y también salen en la tabla, para que la
+información nunca dependa solo del color.
+
+Respeta el mismo umbral de anonimato que el consolidado: los sectores con menos de cinco
+evaluaciones no aparecen, y el punto es el centroide del sector, nunca un predio.
+
+Leaflet va vendorizado en `vendor/` y se sirve desde el propio servidor. Las teselas del
+mapa base se configuran con `BRIGADA_TESELAS`, para que una entidad pueda apuntar a su
+geoportal en vez de a un tercero.
+
 ## Doble revisión de los rojos
 
 Cada evaluación en rojo entra en estado `pendiente` con un plazo
