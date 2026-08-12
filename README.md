@@ -136,6 +136,25 @@ panel leen: sin MTA en el servidor, es la forma de enterarse de que dejó de cor
 **Un respaldo en el mismo disco no protege de perder el disco.** Configure
 `BRIGADA_RESPALDO_REMOTO`. Y restaure alguna vez: hasta entonces no sabe si sirve.
 
+### El destino, con la llave restringida
+
+En el servidor de destino, la llave del origen debe poder **escribir y nada más**:
+
+```
+command="/usr/bin/rrsync -wo /srv/respaldos/brigadas",restrict ssh-ed25519 AAAA...
+```
+
+Sin esa restricción, `restrict` por sí solo sigue permitiendo ejecutar comandos:
+el origen puede borrar los respaldos. Lo comprobamos y se borraron. Con `-wo` no
+puede leerlos ni eliminarlos — que es exactamente lo que impide que un atacante en
+el servidor de la app destruya las copias antes de cifrar el original.
+
+Por lo mismo, **la retención del destino la hace el destino**, con su propio cron:
+
+```
+17 4 * * * root find /srv/respaldos/brigadas -maxdepth 1 -type f -mtime +30 -delete
+```
+
 ## Manual
 
 `docs/manual-brigada.pdf` — 22 páginas, tres partes: para el inspector en campo,

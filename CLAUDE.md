@@ -65,6 +65,9 @@ Sin dependencias de frontend:
   HTML; el PDF se regenera con Chrome headless. Al cambiar comportamiento del sistema,
   revisar si el manual quedó desactualizado y reconstruirlo.
 - `respaldo.sh` + `brigadas-respaldo.timer` — respaldo diario cifrado de base y fotos.
+  La llave SSH del destino va restringida con `rrsync -wo`: el origen escribe y nada
+  más. La retención remota la ejecuta el destino, no el origen — darle permiso de
+  borrado sería el camino del ransomware.
   **No hace `source` de `/etc/brigadas.env`**: es un `EnvironmentFile` de systemd y varios
   valores llevan `$` (el hash scrypt), que bash expandiría. Lee con `sed`.
 - `esquema.sql` — **fuente de verdad del esquema**, idempotente. La tabla, los índices
