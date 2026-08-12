@@ -107,7 +107,11 @@ Dos: **admin** (clave maestra en `BRIGADA_ADMIN_HASH`, ve todo) y **coordinador*
 - **`exigir_admin()` protege lo que administra el sistema** (brigadas, solicitudes). Se
   comprueba en el servidor; esconder el enlace del menú no es una defensa.
 - Sin `BRIGADA_ADMIN_HASH` no se monta **ninguna** ruta del panel, tampoco la entrada de
-  coordinadores: hace falta un administrador para crearlos.
+  coordinadores: hace falta un administrador para crearlos. En ese caso se monta
+  `router_sin_clave`, que responde **503 con la explicación** — un 404 en JSON no
+  distingue "falta configurarlo" de "esto está roto".
+- **`/etc/brigadas.env` no se edita a la ligera.** Guarda los tokens de brigada y el hash
+  del panel; borrar una línea es irreversible. Va incluido cifrado en el respaldo diario.
 - `api_consulta.py` — API de consulta (`/api/v1/`), solo lectura, con la tabla
   `consumidor` como credenciales **separadas** de `brigada`: leer y escribir no pueden
   compartir token. El k-anonimato se aplica sobre el resultado ya filtrado.

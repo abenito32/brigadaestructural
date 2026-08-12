@@ -107,6 +107,10 @@ try:
     import admin_web
     if admin_web.CLAVE_HASH:
         app.include_router(admin_web.router)
+    else:
+        # Sin clave no hay panel, pero sí una explicación: un 404 en JSON no
+        # distingue "falta configurarlo" de "esto está roto".
+        app.include_router(admin_web.router_sin_clave)
 except ImportError:
     pass
 

@@ -216,6 +216,13 @@ Vuelca la base y las fotos, verifica que el `.gz` descomprime, cifra con AES-256
 hay `BRIGADA_RESPALDO_CLAVE`, y aplica retención. Con `BRIGADA_RESPALDO_REMOTO`
 copia a un destino externo por rsync — y entonces el cifrado deja de ser opcional.
 
+Incluye **`/etc/brigadas.env`** cifrado: ahí viven los tokens de brigada y el hash de
+la clave del panel. Sin ese archivo, restaurar la base no alcanza — habría que emitir
+tokens nuevos y reconfigurar todos los teléfonos.
+
+⚠️ La passphrase de cifrado vive dentro de ese mismo archivo. **Guárdela fuera del
+servidor**: si lo que perdió es el servidor, sin ella el respaldo no se abre.
+
 El resultado queda en `/var/lib/brigadas/respaldo-estado.json`, que `/api/salud` y el
 panel leen: sin MTA en el servidor, es la forma de enterarse de que dejó de correr.
 

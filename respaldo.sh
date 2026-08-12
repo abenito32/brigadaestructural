@@ -106,20 +106,39 @@ if [ -d /var/lib/brigadas/fotos ]; then
   BYTES_FOTOS=$(stat -c%s "$FOTOS")
 fi
 
+# ------------------------------------------------------------------- secretos
+# El archivo de entorno guarda los tokens de brigada y el hash de la clave del
+# panel. Si se pierde, restaurar la base no alcanza: hay que emitir tokens nuevos
+# y reconfigurar TODOS los teléfonos. Va cifrado como todo lo demás.
+#
+# La passphrase de cifrado vive dentro de este mismo archivo, así que hay que
+# tenerla guardada FUERA del servidor: sin ella este respaldo no se abre.
+SECRETOS=""
+if [ -n "$CLAVE" ] && [ -r "$ENV_FILE" ]; then
+  SECRETOS="$DESTINO/entorno-$FECHA.env.gpg"
+  if ! gpg --batch --yes --quiet --symmetric --cipher-algo AES256 \
+       --passphrase "$CLAVE" --output "$SECRETOS" "$ENV_FILE"; then
+    rm -f "$SECRETOS"; abortar "gpg falló al cifrar el archivo de entorno"
+  fi
+  chmod 600 "$SECRETOS"
+fi
+
 # --------------------------------------------------------------- copia externa
 # Un respaldo en el mismo disco protege de un DELETE accidental o de una
 # corrupción, pero NO de perder el disco, que es la amenaza que importa.
 if [ -n "$REMOTO" ]; then
-  rsync -a --timeout=120 "$BASE" "$FOTOS" "$REMOTO/" \
+  rsync -a --timeout=120 "$BASE" "$FOTOS" ${SECRETOS:+"$SECRETOS"} "$REMOTO/" \
     || abortar "el respaldo local quedó bien pero rsync al destino externo falló"
 fi
 
 # ------------------------------------------------------------------- retención
 find "$DESTINO" -maxdepth 1 -type f -name 'brigadas-*' -mtime +"$DIAS" -delete
 find "$DESTINO" -maxdepth 1 -type f -name 'fotos-*'    -mtime +"$DIAS" -delete
+find "$DESTINO" -maxdepth 1 -type f -name 'entorno-*'  -mtime +"$DIAS" -delete
 
 RESUMEN="base $(numfmt --to=iec "$BYTES_BASE"), fotos $(numfmt --to=iec "$BYTES_FOTOS")"
 [ -n "$REMOTO" ] && RESUMEN="$RESUMEN, copiado afuera"
-[ -z "$CLAVE" ] && RESUMEN="$RESUMEN, SIN CIFRAR"
+[ -n "$SECRETOS" ] && RESUMEN="$RESUMEN, con secretos"
+[ -z "$CLAVE" ] && RESUMEN="$RESUMEN, SIN CIFRAR y SIN secretos"
 escribir_estado true "$RESUMEN" "$BYTES_BASE" "$BYTES_FOTOS"
 echo "respaldo OK · $RESUMEN"

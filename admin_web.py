@@ -1172,3 +1172,38 @@ def vendor(req: Request, archivo: str):
     tipo = "text/css" if archivo.endswith(".css") else "application/javascript"
     return Response(ruta.read_bytes(), media_type=tipo,
                     headers={"Cache-Control": "public, max-age=604800, immutable"})
+
+
+# --------------------------------------------------- panel sin clave configurada
+# Sin BRIGADA_ADMIN_HASH no se monta el panel, y hasta ahora eso daba un
+# {"detail":"Not Found"} en JSON: indistinguible de una URL mal escrita o de un
+# despliegue roto. Quien administra merece saber que le falta un paso, no adivinar.
+router_sin_clave = APIRouter()
+
+SIN_CLAVE = """
+<h1>El panel todavía no tiene clave</h1>
+<p class="sub">No es un error del servidor: falta configurarlo.</p>
+<div class="tarjeta">
+  <p>Las rutas del panel solo existen cuando hay una clave de administrador definida.
+     Es deliberado: así no queda una pantalla de acceso expuesta con una clave por
+     defecto que alguien olvide cambiar.</p>
+  <p style="margin-bottom:0">Para habilitarlo, en el servidor:</p>
+  <pre style="background:var(--papel);border:1px solid var(--linea);border-radius:8px;
+              padding:14px 16px;font-size:13px;overflow-x:auto"><code>sudo /opt/brigadas/venv/bin/python /opt/brigadas/admin_brigadas.py clave
+# pega la línea BRIGADA_ADMIN_HASH=... en /etc/brigadas.env
+sudo systemctl restart brigadas-api</code></pre>
+  <p class="nota">Pide la clave por teclado y nunca la acepta como argumento: ahí
+     quedaría en el historial del shell y en la lista de procesos.</p>
+</div>
+<p class="nota">El resto del sistema no depende de esto. La aplicación de campo sigue
+recibiendo evaluaciones con normalidad.</p>
+"""
+
+
+@router_sin_clave.api_route("/admin", methods=["GET", "POST"], response_class=HTMLResponse)
+@router_sin_clave.api_route("/admin/{resto:path}", methods=["GET", "POST"],
+                            response_class=HTMLResponse)
+def panel_sin_clave(req: Request, resto: str = ""):
+    r = pagina("Sin configurar", render(SIN_CLAVE), sesion=False)
+    r.status_code = 503        # no es "no existe": es "no está listo todavía"
+    return r
