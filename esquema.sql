@@ -20,7 +20,7 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 CREATE TABLE IF NOT EXISTS evaluacion_brigada (
-  id              text PRIMARY KEY,          -- BRG-AAAAMMDD-NNN, generado en el telefono
+  id              text PRIMARY KEY,          -- ULID asignado por el servidor (ver mas abajo)
   ts              timestamptz NOT NULL,      -- cuando se llenó en campo
   recibido_en     timestamptz NOT NULL DEFAULT now(),  -- cuando sincronizó
   matricula       text NOT NULL,             -- quien firma; sin esto no se acepta
@@ -82,6 +82,30 @@ ALTER TABLE evaluacion_brigada
 ALTER TABLE evaluacion_brigada
   ADD COLUMN IF NOT EXISTS matricula_verificada boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS evaluacion_brigada_token_idx ON evaluacion_brigada (brigada_token);
+
+-- Identidad canónica asignada por el servidor.
+--
+-- El id que genera el teléfono (BRG-AAAAMMDD-NNN) se numera contra el total de
+-- registros de ESE teléfono, así que dos brigadas emiten el mismo el mismo día.
+-- Con ese id como clave primaria, la segunda evaluación chocaba contra el
+-- ON CONFLICT, se descartaba en silencio y el teléfono la daba por enviada:
+-- se perdía trabajo de campo, rojos incluidos, sin que nadie se enterara.
+--
+-- Ahora `id` es un ULID del servidor y el id del teléfono baja a `id_local`,
+-- que solo sirve como llave de idempotencia dentro de su propia brigada.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS id_local text;
+UPDATE evaluacion_brigada SET id_local = id WHERE id_local IS NULL;
+
+-- Columna generada porque en SQL dos NULL no son iguales: sin esto, los envíos
+-- con token heredado (brigada_token NULL) escaparían del índice único y
+-- reintentar sí duplicaría.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS origen text
+  GENERATED ALWAYS AS (coalesce(brigada_token, '(sin atribuir)')) STORED;
+
+CREATE UNIQUE INDEX IF NOT EXISTS evaluacion_brigada_idem_idx
+  ON evaluacion_brigada (origen, id_local);
+CREATE INDEX IF NOT EXISTS evaluacion_brigada_id_local_idx
+  ON evaluacion_brigada (id_local);
 
 -- Cola de revisión: quién firmó sin estar en el registro. No se rechaza en campo
 -- —perder una evaluación es peor que aceptarla marcada— pero no puede pasar

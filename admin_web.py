@@ -281,6 +281,14 @@ INICIO = """
   <div class="cifra {{ 'alerta' if t.sin_verificar }}"><b class="num">{{ t.sin_verificar }}</b>
     <span>Firmas fuera del registro</span></div>
 </div>
+{% if not r.ok or not r.reciente %}
+<div class="aviso"><strong>Respaldo:</strong> {{ r.mensaje or "sin información" }}.
+{% if r.horas is defined %}Último intento hace {{ r.horas }} horas.{% endif %}
+Mientras esto siga así, una pérdida del disco se lleva el levantamiento completo.</div>
+{% else %}
+<div class="ok"><strong>Respaldo al día.</strong> Hace {{ r.horas }} horas · {{ r.mensaje }}{% if not r.cifrado %}
+ · <strong>sin cifrar</strong>{% endif %}{% if not r.remoto %} · <strong>solo en este servidor</strong>{% endif %}.</div>
+{% endif %}
 {% if t.sin_verificar %}
 <div class="aviso"><strong>{{ t.sin_verificar }} evaluaciones</strong> las firmó una matrícula que no
 está en el registro. Se aceptaron para no perder trabajo de campo, pero hay que revisarlas antes de
@@ -338,8 +346,10 @@ def inicio(req: Request):
                                 FROM consolidado_publico ORDER BY evaluadas DESC""")
     t = {"total": total, "rojas": rojas, "amarillas": amarillas, "verdes": verdes,
          "sin_verificar": sinv}
+    import api_brigadas
     return pagina("Resumen", render(INICIO, t=t, por_brigada=por_brigada,
-                                    consolidado=consolidado), "inicio")
+                                    consolidado=consolidado,
+                                    r=api_brigadas.estado_respaldo()), "inicio")
 
 
 # --------------------------------------------------------------------- reportes
@@ -374,7 +384,8 @@ REPORTES = """
 <thead><tr><th>ID</th><th>Fecha</th><th>Clasificación</th><th>Dirección</th><th>Sector</th>
   <th>Firma</th><th>Brigada</th><th>Fotos</th></tr></thead><tbody>
 {% for e in filas %}<tr>
-  <td class="num">{{ e.id }}</td>
+  <td class="num">{{ e.id_local or "—" }}<br>
+      <span class="nota" title="Identificador canónico del servidor">{{ e.id[:10] }}…</span></td>
   <td class="num">{{ e.ts.strftime("%Y-%m-%d %H:%M") }}</td>
   <td><span class="pastilla p{{ e.clas }}">{{ e.nombre_clas }}</span>
       {% if e.modificada %}<br><span class="pastilla pn" title="{{ e.justificacion }}">modificada</span>{% endif %}</td>
@@ -423,7 +434,7 @@ def reportes(req: Request, brigada: str = "", clas: str = "", municipio: str = "
     crudas = consulta(f"""
         SELECT id, ts, clasificacion, clasificacion_auto, justificacion, direccion, municipio,
                barrio, inspector, matricula, matricula_verificada, brigada_token,
-               coalesce(jsonb_array_length(fotos),0), ST_Y(geom), ST_X(geom)
+               coalesce(jsonb_array_length(fotos),0), ST_Y(geom), ST_X(geom), id_local
           FROM evaluacion_brigada WHERE {w}
          ORDER BY ts DESC LIMIT %s OFFSET %s""",
         tuple(args) + (POR_PAGINA, (pag - 1) * POR_PAGINA))
@@ -433,6 +444,7 @@ def reportes(req: Request, brigada: str = "", clas: str = "", municipio: str = "
         "direccion": r[5], "municipio": r[6], "barrio": r[7], "inspector": r[8],
         "matricula": r[9], "verificada": r[10], "brigada_token": r[11], "fotos": r[12],
         "geo": (f"{r[13]:.5f}, {r[14]:.5f}" if r[13] is not None else ""),
+        "id_local": r[15],
     } for r in crudas]
     brigadas = [b for (b,) in consulta("SELECT nombre FROM brigada ORDER BY nombre")]
     qs = f"brigada={brigada}&clas={clas}&municipio={municipio}&verificada={verificada}"

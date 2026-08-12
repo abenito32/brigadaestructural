@@ -119,6 +119,23 @@ que nadie se entere. Con 503 el registro sobrevive en el teléfono y se reintent
 universidades y asociaciones profesionales. Editable; se regenera con
 `python3 docs/build_presentacion.py` (necesita `python-pptx`).
 
+## Respaldo
+
+```bash
+sudo /opt/brigadas/respaldo.sh          # a mano
+systemctl list-timers brigadas-respaldo # diario, 03:15 UTC
+```
+
+Vuelca la base y las fotos, verifica que el `.gz` descomprime, cifra con AES-256 si
+hay `BRIGADA_RESPALDO_CLAVE`, y aplica retención. Con `BRIGADA_RESPALDO_REMOTO`
+copia a un destino externo por rsync — y entonces el cifrado deja de ser opcional.
+
+El resultado queda en `/var/lib/brigadas/respaldo-estado.json`, que `/api/salud` y el
+panel leen: sin MTA en el servidor, es la forma de enterarse de que dejó de correr.
+
+**Un respaldo en el mismo disco no protege de perder el disco.** Configure
+`BRIGADA_RESPALDO_REMOTO`. Y restaure alguna vez: hasta entonces no sabe si sirve.
+
 ## Manual
 
 `docs/manual-brigada.pdf` — 22 páginas, tres partes: para el inspector en campo,

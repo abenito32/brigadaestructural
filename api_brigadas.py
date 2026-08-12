@@ -35,7 +35,7 @@ Entorno:
 El esquema vive en esquema.sql, que es la fuente de verdad. Aca solo se escribe.
 """
 
-import base64, hashlib, os, pathlib
+import base64, hashlib, json, os, pathlib, secrets, time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -64,6 +64,10 @@ MAX_BYTES_FOTO = 3_000_000
 # Si la BD no responde, mejor un 503 rapido que un telefono colgado en campo:
 # la app deja el registro pendiente y reintenta cuando haya senal.
 ESPERA_POOL = 5
+# Lo escribe respaldo.sh. Sin MTA en el servidor, esta es la unica forma de
+# enterarse de que el respaldo dejo de correr antes de necesitarlo.
+ESTADO_RESPALDO = pathlib.Path(os.getenv("BRIGADA_RESPALDO_ESTADO",
+                                         "/var/lib/brigadas/respaldo-estado.json"))
 
 pool: ConnectionPool | None = None
 
@@ -171,13 +175,13 @@ def guardar_fotos(eval_id: str, fotos: list[str]) -> list[str]:
 
 INSERT = """
 INSERT INTO evaluacion_brigada (
-  id, ts, matricula, inspector, brigada,
+  id, id_local, ts, matricula, inspector, brigada,
   geom, precision_m, direccion, municipio, barrio,
   sistema, uso, pisos, ocupantes, danos, banderas,
   clasificacion, clasificacion_auto, motivo_auto, justificacion,
   observaciones, fotos, brigada_token, matricula_verificada
 ) VALUES (
-  %(id)s, %(ts)s, %(matricula)s, %(inspector)s, %(brigada)s,
+  %(id)s, %(id_local)s, %(ts)s, %(matricula)s, %(inspector)s, %(brigada)s,
   -- Los ::float8 son obligatorios: sin ellos Postgres no infiere el tipo cuando
   -- la evaluacion viene sin GPS y falla con AmbiguousParameter. Guardar sin
   -- coordenadas es un caso normal en campo, no un error.
@@ -191,9 +195,27 @@ INSERT INTO evaluacion_brigada (
   EXISTS (SELECT 1 FROM inspector
           WHERE matricula = %(matricula)s AND vigente)
 )
-ON CONFLICT (id) DO NOTHING
+-- La idempotencia es por brigada: dos brigadas pueden mandar el mismo id_local
+-- el mismo dia y son evaluaciones distintas, no un reintento.
+ON CONFLICT (origen, id_local) DO NOTHING
 RETURNING id, matricula_verificada
 """
+
+
+# Crockford base32: sin I, L, O ni U, para que nadie confunda un caracter al
+# transcribir un id a mano en un acta.
+_B32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+
+def ulid() -> str:
+    """Identificador canonico: 48 bits de milisegundos + 80 de azar.
+
+    Ordenable por tiempo (util para listar cronologicamente sin tocar `ts`) y con
+    colision practicamente imposible aunque lo generen varias brigadas a la vez.
+    Se implementa aca en vez de traer una dependencia: son doce lineas.
+    """
+    valor = (int(time.time() * 1000) << 80) | secrets.randbits(80)
+    return "".join(_B32[(valor >> despl) & 31] for despl in range(125, -1, -5))
 
 
 def sha(token: str) -> str:
@@ -241,7 +263,8 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
     rutas = guardar_fotos(ev.id, ev.fotos)
 
     datos = {
-        "id": ev.id,
+        "id": ulid(),          # canonico, del servidor
+        "id_local": ev.id,     # lo que numero el telefono; solo idempotencia
         "ts": ev.ts,
         "matricula": matricula,
         "inspector": str(ev.inspector.get("nombre", "")).strip(),
@@ -271,7 +294,18 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
         with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
             cur.execute(INSERT, datos)
             fila = cur.fetchone()
+            previa = None
             verificada = fila[1] if fila else None
+            # Si hubo conflicto no hay RETURNING: se busca el id que ya existe,
+            # para que la respuesta sea la misma en el primer envio y en el reintento.
+            if fila is None:
+                cur.execute("""SELECT id, matricula_verificada FROM evaluacion_brigada
+                                WHERE origen = coalesce(%s, '(sin atribuir)')
+                                  AND id_local = %s""",
+                            (brigada_auth, ev.id))
+                previa = cur.fetchone()
+                if previa:
+                    verificada = previa[1]
     except (psycopg.Error, PoolTimeout) as e:
         # 503 y NO 200: la app deja el registro como pendiente y reintenta.
         # Devolver ok aca perderia la evaluacion sin que nadie se entere.
@@ -281,7 +315,11 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
     # matricula_verificada viaja en la respuesta a proposito: si una brigada
     # sincroniza y ve que todo entra sin verificar, sabe que le falta cargar
     # su gente en el registro antes de que el consolidado sea defendible.
-    return {"ok": True, "id": ev.id, "duplicado": fila is None,
+    # `id` es el que mando el telefono, para que se reconozca su propio registro;
+    # `id_servidor` es el canonico, el que identifica la evaluacion de verdad.
+    return {"ok": True, "id": ev.id,
+            "id_servidor": (fila[0] if fila else (previa[0] if previa else None)),
+            "duplicado": fila is None,
             "brigada": brigada_auth, "matricula_verificada": verificada,
             "recibido_en": datetime.now(timezone.utc).isoformat()}
 
@@ -315,4 +353,21 @@ def salud():
     except (psycopg.Error, PoolTimeout, AttributeError) as e:
         raise HTTPException(503, f"Base de datos no disponible: {e.__class__.__name__}")
     return {"ok": True, "evaluaciones": total, "sin_verificar": sin_verificar,
-            "brigadas": brigadas, "inspectores": inspectores}
+            "brigadas": brigadas, "inspectores": inspectores,
+            "respaldo": estado_respaldo()}
+
+
+def estado_respaldo() -> dict:
+    """Lee el archivo que deja respaldo.sh. Ausente = nunca corrio."""
+    try:
+        d = json.loads(ESTADO_RESPALDO.read_text())
+    except (OSError, ValueError):
+        return {"ok": False, "mensaje": "nunca corrió o no se pudo leer el estado"}
+    try:
+        edad = time.time() - time.mktime(time.strptime(d["ts"], "%Y-%m-%dT%H:%M:%SZ"))
+        d["horas"] = round(edad / 3600, 1)
+        # Corre a diario: pasadas 36 horas dejo de considerarlo reciente.
+        d["reciente"] = edad < 36 * 3600
+    except (KeyError, ValueError):
+        d["reciente"] = False
+    return d

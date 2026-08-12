@@ -64,6 +64,9 @@ Sin dependencias de frontend:
 - `docs/manual.html` + `docs/build_manual.py` — el manual en PDF. La fuente es el
   HTML; el PDF se regenera con Chrome headless. Al cambiar comportamiento del sistema,
   revisar si el manual quedó desactualizado y reconstruirlo.
+- `respaldo.sh` + `brigadas-respaldo.timer` — respaldo diario cifrado de base y fotos.
+  **No hace `source` de `/etc/brigadas.env`**: es un `EnvironmentFile` de systemd y varios
+  valores llevan `$` (el hash scrypt), que bash expandiría. Lee con `sed`.
 - `esquema.sql` — **fuente de verdad del esquema**, idempotente. La tabla, los índices
   y la vista `consolidado_publico` viven ahí, no en el docstring del `.py`.
 
@@ -82,6 +85,10 @@ Sin dependencias de frontend:
 - **Los tokens de `BRIGADA_TOKENS` deben seguir funcionando.** Son el camino de
   compatibilidad para teléfonos ya configurados; entran sin atribución (`brigada:
   null`), no con error.
+- **El `id` de la tabla es un ULID del servidor; el del teléfono vive en `id_local`.**
+  La idempotencia es `UNIQUE (origen, id_local)`, donde `origen` es una columna generada
+  `coalesce(brigada_token,'(sin atribuir)')` — sin ese coalesce, dos `NULL` no son iguales
+  en SQL y los tokens heredados escaparían del índice.
 - El servidor revalida lo que la app ya valida (matrícula, rango de clasificación,
   justificación obligatoria si se cambia el semáforo calculado). Es el registro de
   responsabilidad profesional; no relajarlo porque "el frontend ya lo chequea".
@@ -127,10 +134,10 @@ esa exigencia ni permitir guardar sin matrícula: es el registro de responsabili
 
 ## Trampas conocidas
 
-- `correlativo()` genera `BRG-AAAAMMDD-NNN` a partir del **total de registros del teléfono**,
-  no de un contador por día ni global. Es único por dispositivo, pero dos brigadas distintas
-  pueden emitir el mismo `id` el mismo día — si se consolida entre dispositivos, hay que
-  prefijar por brigada antes de confiar en la idempotencia por `id`.
+- `correlativo()` genera `BRG-AAAAMMDD-NNN` contra el **total de registros del teléfono**, así
+  que dos brigadas emiten el mismo el mismo día. Con ese id como clave primaria, la segunda
+  evaluación se descartaba en silencio y el teléfono la daba por enviada: se perdía trabajo
+  de campo. Resuelto con el ULID del servidor; el id del teléfono ya no es la llave.
 - El JS de `index.html` es ES5 a propósito (`var`, sin arrow functions ni `const`). Seguir el estilo.
 - `Form(...)` de FastAPI exige `python-multipart` instalado, y la falla es un
   `RuntimeError` al definir la ruta, no un `ImportError`: tumba el proceso entero al
