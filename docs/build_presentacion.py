@@ -325,6 +325,36 @@ def semaforo(prs):
     return dia
 
 
+def panel(prs):
+    """Lo que ve quien coordina. Es la mitad que no se ve en una demo del teléfono."""
+    dia = nueva(prs)
+    cabecera(dia, "COORDINACIÓN", "Quien dirige la operación ve lo que llega, en vivo",
+             "Panel web en dirección separada. Los inspectores no tienen cuenta: "
+             "su matrícula es una firma, no un acceso.")
+    tarjetas(dia, [
+        ("Mapa del consolidado",
+         "Un círculo por sector sobre callejero, satélite o híbrida. El área es cuántas "
+         "evaluaciones tiene; el color, qué proporción quedó en rojo."),
+        ("El reporte completo, con fotos",
+         "Cada evaluación se abre con su registro fotográfico y se exporta en un archivo "
+         "que se abre sin conexión, para adjuntarlo a un oficio."),
+        ("Doble revisión de los rojos",
+         "Un rojo ordena no habitar. Entra en cola, lo mira un segundo inspector, y quien "
+         "firmó no puede revisar lo suyo."),
+        ("Evolución de la operación",
+         "Ritmo por día, qué sectores llevan horas sin actividad y qué queda por resolver. "
+         "Sin conteo por persona: la prisa es el riesgo."),
+        ("Cada brigada ve lo suyo",
+         "El coordinador de una brigada entra con su propia clave y ve solo sus reportes. "
+         "El alcance se decide en el servidor, no escondiendo un menú."),
+        ("Consolidado listo para entregar",
+         "Agregado por municipio y barrio, con umbral de anonimato. Es lo que va a la "
+         "autoridad; el predio no sale de ahí."),
+    ])
+    pie_contacto(dia)
+    return dia
+
+
 def ventajas(prs):
     dia = nueva(prs)
     cabecera(dia, "VENTAJAS", "Por qué esta herramienta y no una planilla")
@@ -339,8 +369,8 @@ def ventajas(prs):
          "Cada evaluación queda con matrícula, brigada, fecha, coordenada y fotos. Si el "
          "criterio se modificó, queda el motivo escrito."),
         ("Solo firma quien puede",
-         "El registro controla qué matrículas están habilitadas. Sin matrícula, la aplicación "
-         "no permite guardar."),
+         "Sin matrícula la aplicación no permite guardar. Y ningún rojo queda con una sola "
+         "firma: cada uno pasa por una segunda revisión."),
         ("Protección de datos",
          "Lo que sale hacia autoridades va agregado por sector, con umbral mínimo. El predio "
          "nunca se expone (Ley 1581 de 2012)."),
@@ -550,7 +580,7 @@ def contacto(prs):
 def main() -> None:
     prs = Presentation()
     prs.slide_width, prs.slide_height = ANCHO, ALTO
-    for constructor in (portada, problema, que_es, como_funciona, semaforo, ventajas,
+    for constructor in (portada, problema, que_es, como_funciona, semaforo, panel, ventajas,
                         despliegue, integracion, libre, para_quien, empezar, contacto):
         constructor(prs)
     prs.save(SALIDA)

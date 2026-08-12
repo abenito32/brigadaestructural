@@ -120,6 +120,7 @@ tr:last-child td{border-bottom:0}
 .ficha{border:1px solid var(--linea);border-radius:2mm;padding:4mm;background:#fff}
 .ficha h4{margin:0 0 1.5mm}
 .ficha p{margin:0;font-size:9.5pt;color:var(--tinta2)}
+.nota-fina{font-size:9.5pt;color:var(--tinta2);margin-top:3mm}
 
 /* Colofon: cierra el documento en su propia hoja, a proposito. */
 .pie-doc{break-before:page;height:250mm;display:flex;flex-direction:column;
@@ -174,23 +175,28 @@ tr:last-child td{border-bottom:0}
     <div class="grupo">Parte II · Para quien coordina la brigada</div>
     <ol>
       <li><span class="num">9</span> El panel de administración</li>
-      <li><span class="num">10</span> Registrar brigadas y entregar tokens</li>
-      <li><span class="num">11</span> Registrar inspectores</li>
-      <li><span class="num">12</span> Revisar las firmas fuera del registro</li>
-      <li><span class="num">13</span> El consolidado: qué se entrega y qué no</li>
+      <li><span class="num">10</span> Los dos accesos: administrador y coordinador</li>
+      <li><span class="num">11</span> Registrar brigadas y entregar tokens</li>
+      <li><span class="num">12</span> Registrar inspectores</li>
+      <li><span class="num">13</span> Revisar las firmas fuera del registro</li>
+      <li><span class="num">14</span> La ficha de un reporte y sus fotos</li>
+      <li><span class="num">15</span> La doble revisión de los rojos</li>
+      <li><span class="num">16</span> El mapa</li>
+      <li><span class="num">17</span> Evolución de la operación</li>
+      <li><span class="num">18</span> El consolidado: qué se entrega y qué no</li>
     </ol>
   </li>
   <li>
     <div class="grupo">Parte III · Para quien administra el servidor</div>
     <ol>
-      <li><span class="num">14</span> Cómo está armado el sistema</li>
-      <li><span class="num">15</span> Instalación desde cero</li>
-      <li><span class="num">16</span> Variables de configuración</li>
-      <li><span class="num">17</span> Operación diaria</li>
-      <li><span class="num">18</span> Diagnóstico de problemas</li>
-      <li><span class="num">19</span> Actualizar la aplicación</li>
-      <li><span class="num">20</span> Respaldo y recuperación</li>
-      <li><span class="num">21</span> La API de consulta</li>
+      <li><span class="num">19</span> Cómo está armado el sistema</li>
+      <li><span class="num">20</span> Instalación desde cero</li>
+      <li><span class="num">21</span> Variables de configuración</li>
+      <li><span class="num">22</span> Operación diaria</li>
+      <li><span class="num">23</span> Diagnóstico de problemas</li>
+      <li><span class="num">24</span> Actualizar la aplicación</li>
+      <li><span class="num">25</span> Respaldo y recuperación</li>
+      <li><span class="num">26</span> La API de consulta</li>
     </ol>
   </li>
   <li>
@@ -555,8 +561,9 @@ que no ingrese <em>ni siquiera a sacar cosas</em> hasta que la autoridad lo dete
 <h2>9 · El panel de administración</h2>
 
 <p>Está en <code>https://admin.brigadaestructural.co</code> —un subdominio propio, no
-el mismo sitio que usa la brigada— y tiene <strong>una sola clave</strong>, la de
-coordinación.</p>
+el mismo sitio que usa la brigada— y tiene <strong>dos accesos</strong>: la clave del
+administrador, que ve todo, y la de cada coordinador, que ve solo su brigada
+(sección 10).</p>
 
 <div class="nota-caja">
   <span class="etq">Por qué en otra dirección</span>
@@ -572,26 +579,81 @@ coordinación.</p>
   es el teléfono, con el token de su brigada.
 </div>
 
-<h3>Las cuatro pantallas</h3>
+<h3>Las pantallas</h3>
 <div class="dos">
   <div class="ficha"><h4>Resumen</h4><p>Totales, desglose por color, firmas fuera del
     registro, actividad por brigada y el consolidado por sector.</p></div>
+  <div class="ficha"><h4>Mapa</h4><p>El consolidado sobre callejero, satélite o híbrida,
+    y una capa opcional con los reportes uno a uno (sección 16).</p></div>
+  <div class="ficha"><h4>Evolución</h4><p>Ritmo por día, cobertura por sector y lo que
+    queda por resolver (sección 17).</p></div>
   <div class="ficha"><h4>Reportes</h4><p>Listado completo con filtros por brigada,
-    clasificación, municipio y estado de firma.</p></div>
-  <div class="ficha"><h4>Brigadas</h4><p>Alta con generación de token, y revocación.</p></div>
+    clasificación, municipio y estado de firma. Al tocar una fila se abre la ficha
+    con sus fotos (sección 14).</p></div>
+  <div class="ficha"><h4>Rojos</h4><p>La cola de segunda revisión, con los atrasados
+    primero (sección 15).</p></div>
+  <div class="ficha"><h4>Brigadas</h4><p>Alta con generación de token, revocación,
+    reemisión, y las claves de los coordinadores.</p></div>
   <div class="ficha"><h4>Inspectores</h4><p>Alta y baja de quienes pueden firmar.</p></div>
   <div class="ficha"><h4>Solicitudes</h4><p>Lo que llega por el formulario de la
     página pública, con marca de atendida.</p></div>
 </div>
+<p class="nota-fina">Un coordinador ve las mismas pantallas menos <em>Brigadas</em> y
+<em>Solicitudes</em>, que administran el sistema y no una brigada.</p>
 
 <h3>Si el panel no existe</h3>
-<p>Si el panel devuelve 404, es porque no hay clave configurada: sin ella las
-rutas no se registran siquiera. Es deliberado — no hay clave por defecto ni pantalla de
-acceso expuesta esperando. Vea la sección 16 para activarlo.</p>
+<p>Si el panel responde <strong>503 con una explicación</strong>, es porque no hay clave
+configurada: sin ella no se registra ninguna ruta, tampoco la entrada de coordinadores
+—hace falta un administrador para crearlos—. Es deliberado: no hay clave por defecto ni
+pantalla de acceso esperando. Vea la sección 21 para activarlo.</p>
+
+<div class="nota-caja">
+  <span class="etq">Por qué 503 y no 404</span>
+  Un 404 no distingue «falta configurarlo» de «esto está roto». Quien acaba de instalar
+  el sistema necesita saber cuál de las dos cosas le pasa.
+</div>
 </section>
 
 <section>
-<h2>10 · Registrar brigadas y entregar tokens</h2>
+<h2>10 · Los dos accesos: administrador y coordinador</h2>
+
+<p>Hay <strong>dos roles</strong>, y ninguno de los dos es el inspector.</p>
+
+<div class="dos">
+  <div class="ficha"><h4>Administrador</h4><p>Una sola clave, la del sistema. Ve todas
+    las brigadas, crea y revoca tokens, y es el único que puede crear coordinadores.</p></div>
+  <div class="ficha"><h4>Coordinador</h4><p>Usuario y clave propios, atados a una
+    brigada. Ve <em>solo</em> lo de su brigada: sus reportes, sus rojos, su mapa, su
+    evolución.</p></div>
+</div>
+
+<h3>Crear un coordinador</h3>
+<ol class="pasos">
+  <li><strong>Panel → Brigadas → la brigada → Coordinadores</strong>
+    Nombre de usuario y la persona a la que corresponde.</li>
+  <li><strong>Copiar la clave que aparece</strong>
+    Igual que con los tokens, se muestra <em>una sola vez</em>: la base guarda su
+    huella, no la clave.</li>
+  <li><strong>Entregarla a esa persona, no a un grupo</strong>
+    Con ella se ven direcciones y coordenadas de predios evaluados.</li>
+</ol>
+
+<h3>Dar de baja</h3>
+<p>La baja corta el acceso <strong>en la siguiente petición</strong>, no cuando venza
+la sesión. El servidor vuelve a comprobar contra la base en cada página que se pide;
+sin esa comprobación, alguien dado de baja seguiría dentro hasta ocho horas.</p>
+
+<div class="nota-caja">
+  <span class="etq">El alcance se decide en el servidor</span>
+  Que un coordinador no vea el menú de otra brigada no es la protección: la protección
+  es que cada consulta del panel lleva su brigada incorporada, y que el rol viaja
+  <em>dentro</em> de la firma de la sesión. Forzar el parámetro a mano desde el
+  navegador no devuelve datos ajenos.
+</div>
+</section>
+
+<section>
+<h2>11 · Registrar brigadas y entregar tokens</h2>
 
 <p>Una brigada es una credencial. El <strong>token</strong> es lo que autentica al
 teléfono contra el servidor, y lo que atribuye cada evaluación a quien la envió.</p>
@@ -611,6 +673,12 @@ teléfono contra el servidor, y lo que atribuye cada evaluación a quien la envi
 brigada dejan de sincronizar en el siguiente intento. No borra nada: las evaluaciones
 que ya enviaron siguen en la base y siguen atribuidas a ella.</p>
 
+<h3>Reemitir</h3>
+<p>«Reemitir token» genera uno nuevo para la <em>misma</em> brigada: el anterior deja
+de servir y hay que cargar el nuevo en cada teléfono. Es lo que se usa cuando el token
+se filtró o se perdió. Lo ya enviado sigue atribuido a esa brigada, porque la
+atribución es el nombre, no el token.</p>
+
 <div class="ojo">
   <span class="etq">Revocar deja evaluaciones atrapadas</span>
   Si revoca un token mientras esa brigada tiene evaluaciones sin sincronizar, esas
@@ -620,7 +688,7 @@ que ya enviaron siguen en la base y siguen atribuidas a ella.</p>
 </section>
 
 <section>
-<h2>11 · Registrar inspectores</h2>
+<h2>12 · Registrar inspectores</h2>
 
 <p>El registro de inspectores es lo que permite responder, meses después, quién firmó
 qué. Se llena desde <strong>Panel → Inspectores</strong>: matrícula, nombre, brigada, y
@@ -642,7 +710,7 @@ firmó: su matrícula es parte del registro legal de esas evaluaciones.</p>
 </section>
 
 <section>
-<h2>12 · Revisar las firmas fuera del registro</h2>
+<h2>13 · Revisar las firmas fuera del registro</h2>
 
 <p>En el Resumen aparece el contador, resaltado si hay alguna. El listado está en
 <strong>Reportes → filtro «Fuera del registro»</strong>, y viene ordenado con
@@ -671,7 +739,140 @@ token que realmente envió. Si no coinciden, hay algo que entender.</p>
 </section>
 
 <section>
-<h2>13 · El consolidado: qué se entrega y qué no</h2>
+<h2>14 · La ficha de un reporte y sus fotos</h2>
+
+<p>En <strong>Reportes</strong>, tocar una fila abre la ficha de esa evaluación: dónde
+está, qué se observó, quién firmó, si alguien la revisó después, y el registro
+fotográfico. La misma ficha se abre desde <strong>Rojos</strong> y desde los puntos
+individuales del mapa — es una sola pieza, para que las tres pantallas no terminen
+diciendo cosas distintas del mismo predio.</p>
+
+<h3>Las fotos llevan el número del reporte encima</h3>
+<p>Cada fotografía se muestra con una franja que dice el identificador del reporte y
+el del servidor. La marca se dibuja <strong>al mostrar y al exportar</strong>, nunca
+sobre el archivo guardado: el original queda intacto como evidencia, y aun así una
+captura de pantalla que circule por WhatsApp sigue siendo rastreable hasta su
+evaluación.</p>
+
+<h3>Exportar</h3>
+<div class="dos">
+  <div class="ficha"><h4>HTML autocontenido</h4><p>Un archivo con las fotos incrustadas.
+    Se abre sin conexión y sin sesión, y se imprime. Es lo que se adjunta a un
+    correo.</p></div>
+  <div class="ficha"><h4>JSON con fotos</h4><p>Los mismos datos en crudo, con las
+    imágenes en base64. Para quien vaya a procesarlo con otra herramienta.</p></div>
+</div>
+
+<div class="ojo">
+  <span class="etq">Lo exportado lleva datos personales</span>
+  Dirección, coordenada y fotos del predio. El archivo exportado dice, al pie, que es
+  triaje preliminar y que no debe difundirse (Ley 1581 de 2012). Va a una autoridad o
+  a un expediente, no a un grupo de mensajería.
+</div>
+</section>
+
+<section>
+<h2>15 · La doble revisión de los rojos</h2>
+
+<p>Un rojo ordena no habitar una edificación. Que eso dependa del criterio de una sola
+persona, tomado en veinte minutos y con réplicas de fondo, es mucho pedirle a
+cualquiera. Por eso <strong>cada rojo entra en estado «pendiente»</strong> y necesita
+que lo mire un segundo inspector registrado.</p>
+
+<p>La pantalla <strong>Rojos</strong> es esa cola, con los atrasados primero. Para cada
+uno se registra la matrícula de quien revisa y el resultado:</p>
+
+<table class="tabla-chica">
+  <tr><td><strong>Confirmado</strong></td><td>El rojo se mantiene. Es lo normal.</td></tr>
+  <tr><td><strong>Revocado a amarillo o verde</strong></td><td>Exige motivo escrito.
+    Queda registrado quién lo cambió y por qué.</td></tr>
+</table>
+
+<h3>Tres reglas que no se relajan</h3>
+<ol class="pasos">
+  <li><strong>El vencimiento no degrada el rojo</strong>
+    Pasado el plazo, un rojo vencido <em>sigue siendo rojo</em>; solo se marca como
+    atrasado. Un temporizador no puede rebajar un desalojo.</li>
+  <li><strong>La firma original no se borra</strong>
+    Lo que firmó quien evaluó queda intacto. La revisión es otro acto profesional, con
+    su propia matrícula y su motivo. Los dos quedan en el registro; para consolidar
+    vale el segundo.</li>
+  <li><strong>Nadie revisa lo suyo</strong>
+    Quien firmó una evaluación no puede ser quien la revisa. Lo comprueba el servidor,
+    no basta con esconder la opción en el formulario.</li>
+</ol>
+</section>
+
+<section>
+<h2>16 · El mapa</h2>
+
+<p>El mapa dibuja el consolidado: <strong>un círculo por sector</strong>, donde el área
+—no el radio— es proporcional a cuántas evaluaciones tiene, y el color es qué
+proporción quedó en rojo. Un anillo azul marca los sectores con rojos sin segunda
+revisión. Nunca es solo el color: los mismos datos están en la tabla de abajo.</p>
+
+<h3>Las tres bases</h3>
+<div class="dos">
+  <div class="ficha"><h4>Callejero</h4><p>Nombres de vías y manzanas. Es la vista por
+    defecto.</p></div>
+  <div class="ficha"><h4>Satélite</h4><p>Ortofoto. Después de un sismo es la referencia
+    que la gente reconoce: techos, patios, manzanas.</p></div>
+  <div class="ficha"><h4>Híbrida</h4><p>La ortofoto con los nombres encima. Suele ser
+    la más útil para ubicarse en campo.</p></div>
+</div>
+<p class="nota-fina">La elección se recuerda en ese navegador. Las tres fuentes se
+pueden cambiar por variables de entorno, si la entidad prefiere su propio geoportal
+(sección 21).</p>
+
+<h3>Ver los reportes uno a uno</h3>
+<p>La casilla <em>«Ver los reportes individuales»</em> cambia los círculos por un punto
+por evaluación, con su dirección; al tocar uno se abre la ficha con sus fotos. Mientras
+esa capa está encendida aparece el aviso <strong>«Mostrando datos personales»</strong>,
+porque eso es exactamente lo que hay en pantalla.</p>
+
+<div class="ojo">
+  <span class="etq">Esa capa no sale del panel</span>
+  La API de consulta (sección 26) nunca entrega el predio: ahí sigue mandando el
+  umbral de anonimato. Los puntos individuales existen para quien coordina la
+  operación y responde por esos datos, y solo dentro de su brigada.
+</div>
+</section>
+
+<section>
+<h2>17 · Evolución de la operación</h2>
+
+<p>Responde tres preguntas: a qué ritmo entra el trabajo, dónde se ha trabajado, y qué
+queda por resolver.</p>
+
+<div class="dos">
+  <div class="ficha"><h4>Ritmo</h4><p>Evaluaciones recibidas por día, separadas por
+    color. Es la clasificación ya revisada, no la original.</p></div>
+  <div class="ficha"><h4>Cobertura</h4><p>Cada sector con cuántas lleva, cuándo fue la
+    última y cuántas horas lleva sin actividad.</p></div>
+  <div class="ficha"><h4>Cumplimiento</h4><p>Rojos pendientes y cuántos fuera de plazo,
+    demora media en revisarlos, firmas fuera del registro, evaluaciones sin coordenada
+    y sin foto.</p></div>
+  <div class="ficha"><h4>Por brigada</h4><p>Cuando hay más de una: volumen, sectores,
+    rojos sin revisar y última actividad de cada una.</p></div>
+</div>
+
+<div class="nota-caja">
+  <span class="etq">No mide personas, y es a propósito</span>
+  No hay conteo por inspector. Medir a alguien por cuántas evaluaciones firmó premia
+  la prisa, y acá la prisa es el riesgo: la evaluación que se hace en cuatro minutos
+  para subir en una lista es la que deja gente durmiendo bajo una losa fisurada.
+</div>
+
+<div class="nota-caja">
+  <span class="etq">Cobertura no es avance</span>
+  El sistema no sabe qué había que cubrir —no hay un plan cargado—, así que no puede
+  decir qué porcentaje falta. Muestra dónde se trabajó y hace cuánto que nadie vuelve;
+  el resto lo pone quien coordina.
+</div>
+</section>
+
+<section>
+<h2>18 · El consolidado: qué se entrega y qué no</h2>
 
 <p>Al final del Resumen está la tabla <strong>por sector</strong>. Esa tabla —y solo
 esa— es lo que se entrega a las autoridades.</p>
@@ -707,7 +908,7 @@ No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
   </div>
 
 <section class="seguido">
-<h2>14 · Cómo está armado el sistema</h2>
+<h2>19 · Cómo está armado el sistema</h2>
 
 <p>Cuatro piezas, deliberadamente pocas:</p>
 
@@ -734,7 +935,7 @@ No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
     el almacenamiento del navegador es <strong>por origen</strong>: cambiarlo dejaría
     huérfanas las evaluaciones pendientes de los teléfonos ya instalados.</td></tr>
   <tr><td><code>/api/</code></td><td>Recepción de evaluaciones.</td></tr>
-  <tr><td><code>/api/v1/</code></td><td>API de consulta, solo lectura (sección 21).</td></tr>
+  <tr><td><code>/api/v1/</code></td><td>API de consulta, solo lectura (sección 26).</td></tr>
   <tr><td><code>/sw.js</code></td><td>Desactiva el service worker viejo que quedó con
     alcance <code>/</code>. <strong>No borrar</strong> mientras exista un teléfono con
     ese registro.</td></tr>
@@ -745,6 +946,10 @@ No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
 <pre>Formulario → IndexedDB (pendiente) → POST /api/evaluaciones
    → validación → fotos a disco → INSERT ... ON CONFLICT DO NOTHING
    → 200 → el teléfono marca "enviada"</pre>
+<p>El identificador de la fila lo pone el servidor (un ULID); el que numeró el teléfono
+baja a <code>id_local</code> y solo sirve para no duplicar reintentos de esa misma
+brigada. Los archivos de foto se nombran con el ULID: con el número del teléfono, que
+se repite entre brigadas, la segunda brigada pisaba la foto de la primera.</p>
 
 <div class="aviso">
   <span class="etq">La invariante que no se puede romper</span>
@@ -756,7 +961,7 @@ No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
 </section>
 
 <section>
-<h2>15 · Instalación desde cero</h2>
+<h2>20 · Instalación desde cero</h2>
 
 <h4>1. Los estáticos</h4>
 <pre>rsync -av index.html sw.js manifest.json icono-*.png \
@@ -803,7 +1008,7 @@ certbot renew --dry-run</pre>
 </section>
 
 <section>
-<h2>16 · Variables de configuración</h2>
+<h2>21 · Variables de configuración</h2>
 
 <p>Todas viven en <code>/etc/brigadas.env</code>, con permisos <code>0600 root:root</code>,
 y las lee el servicio por <code>EnvironmentFile</code>. <strong>Nunca en el unit de
@@ -822,6 +1027,15 @@ systemd</strong>, que es legible por cualquiera.</p>
     nunca base64.</td></tr>
   <tr><td><code>BRIGADA_ADMIN_HASH</code></td><td>Hash scrypt de la clave del panel.
     <strong>Sin ella el panel no existe.</strong></td></tr>
+  <tr><td><code>BRIGADA_REVISION_HORAS</code></td><td>Plazo de la segunda revisión de un
+    rojo. Vencido, el rojo <em>sigue siendo rojo</em>: solo sale como atrasado.</td></tr>
+  <tr><td><code>BRIGADA_TESELAS</code><br><code>BRIGADA_TESELAS_CREDITO</code></td>
+    <td>Mapa base callejero y su atribución. Por defecto, OpenStreetMap.</td></tr>
+  <tr><td><code>BRIGADA_TESELAS_SAT</code><br><code>BRIGADA_TESELAS_ROTULOS</code><br>
+    <code>BRIGADA_TESELAS_SAT_CREDITO</code></td><td>Ortofoto, rótulos de la vista
+    híbrida y su atribución. Apúntelas al geoportal propio si no quiere depender de un
+    tercero: pedir teselas le revela a ese proveedor qué zona se está mirando, aunque
+    ningún dato de las evaluaciones salga del navegador.</td></tr>
   <tr><td><code>BRIGADA_ORIGENES</code></td><td>Dominios autorizados a sincronizar desde
     un navegador. Vacío = solo mismo origen, que es lo normal y lo más seguro.</td></tr>
   <tr><td><code>BRIGADA_CONTACTO</code></td><td>Correo que muestra el panel. Va acá y no
@@ -840,7 +1054,7 @@ shell y en la lista de procesos. Cambiar la clave cierra todas las sesiones abie
 </section>
 
 <section>
-<h2>17 · Operación diaria</h2>
+<h2>22 · Operación diaria</h2>
 
 <pre># estado
 systemctl status brigadas-api
@@ -875,7 +1089,7 @@ SELECT brigada_token, count(*), max(recibido_en)
 </section>
 
 <section>
-<h2>18 · Diagnóstico de problemas</h2>
+<h2>23 · Diagnóstico de problemas</h2>
 
 <table class="tabla-chica">
   <tr><th style="width:30%">Síntoma</th><th>Causa probable y solución</th></tr>
@@ -897,7 +1111,7 @@ SELECT brigada_token, count(*), max(recibido_en)
       cancela el envío en el preflight y el fallo no se ve por ningún lado.</td></tr>
 
   <tr><td><strong>Los teléfonos siguen con la versión vieja</strong></td>
-    <td>No se subió <code>CACHE</code> en <code>sw.js</code>. Vea la sección 19.</td></tr>
+    <td>No se subió <code>CACHE</code> en <code>sw.js</code>. Vea la sección 24.</td></tr>
 
   <tr><td><strong>Un error viejo quedó pegado en un teléfono</strong></td>
     <td>El service worker cachea respuestas. Desde la versión actual solo cachea
@@ -911,7 +1125,7 @@ SELECT brigada_token, count(*), max(recibido_en)
 </section>
 
 <section>
-<h2>19 · Actualizar la aplicación</h2>
+<h2>24 · Actualizar la aplicación</h2>
 
 <div class="aviso">
   <span class="etq">La regla que no se puede olvidar</span>
@@ -938,7 +1152,7 @@ y trae los <code>ADD COLUMN IF NOT EXISTS</code> de las columnas nuevas.</p>
 </section>
 
 <section>
-<h2>20 · Respaldo y recuperación</h2>
+<h2>25 · Respaldo y recuperación</h2>
 
 <p>Corre solo, todos los días a las 03:15 UTC, con <code>brigadas-respaldo.timer</code>.
 Vuelca la base y las fotos, comprueba que el archivo descomprime, lo cifra con AES-256 y
@@ -985,7 +1199,7 @@ tar xzf fotos-2026-08-11.tar.gz -C /var/lib/brigadas</pre>
 
 
 <section>
-<h2>21 · La API de consulta</h2>
+<h2>26 · La API de consulta</h2>
 
 <p>Sirve para que los reportes lleguen a los sistemas que la entidad ya usa —un tablero
 de gestión del riesgo, un geoportal municipal— sin exportar planillas a mano. Es de
@@ -1122,7 +1336,7 @@ está consultando mucho más de lo que debería.</p>
 
 <h3>Otras rutas</h3>
 <table class="tabla-chica">
-  <tr><td><code>GET /api/v1/…</code></td><td>API de consulta, solo lectura. Vea la sección 21.</td></tr>
+  <tr><td><code>GET /api/v1/…</code></td><td>API de consulta, solo lectura. Vea la sección 26.</td></tr>
   <tr><td><code>GET /api/salud</code></td><td>Estado del receptor, la base, el respaldo y el disco.</td></tr>
   <tr><td><code>GET /api/fuente</code></td><td>Redirige al código fuente (AGPL §13).</td></tr>
 </table>
