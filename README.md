@@ -261,6 +261,22 @@ riesgo externo (vecino inestable o talud), elementos pesados sueltos sobre el ac
   el mismo día. Antes de consolidar entre dispositivos hay que prefijarlos por
   brigada; la idempotencia por `id` depende de eso.
 
+## Sostener el proyecto
+
+La herramienta es libre y no tiene costo de licencia. Lo que cuesta dinero es
+sostenerla: operar el servidor, respaldar fuera de él, acompañar a las brigadas
+durante una activación, y construir las integraciones que cada entidad necesita.
+
+Las formas de apoyar son institucionales —convenio, contrato de soporte,
+financiamiento de una integración concreta, cooperación académica— y se acuerdan
+con Rollout Comercio e Servicios Limitada, con factura. Escriba por los
+[issues](https://github.com/abenito32/brigadaestructural/issues) o por el
+formulario de <https://brigadaestructural.co>.
+
+**Lo que una entidad financie queda disponible para todas.** La AGPL obliga a
+publicar las mejoras: quien pague una integración no compra una función privada,
+paga una que queda en el repositorio para el siguiente municipio que la necesite.
+
 ## Licencia
 
 Desarrollada con Amor por **Andrés Benito Revollo Vélez** · Rollout Comercio e
