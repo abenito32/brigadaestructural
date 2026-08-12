@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<!--
+  Brigada · Evaluación estructural en campo — página pública
+  Copyright (C) 2026 Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez
+  Software libre bajo GNU AGPL v3. Vea <https://www.gnu.org/licenses/>.
+
+  La aplicación vive en /app/. Esta página existe para explicar qué es antes de
+  que alguien caiga dentro de un formulario de inspección sin contexto.
+-->
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brigada · Evaluación estructural en campo tras un sismo</title>
+<meta name="description" content="Aplicación libre y offline para que ingenieros con matrícula evalúen daño estructural en campo tras un sismo, y consoliden los resultados de forma trazable. Semáforo ATC-20 adaptado a NSR-10.">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="icon" href="/app/icono-192.png">
+<meta property="og:title" content="Brigada · Evaluación estructural en campo">
+<meta property="og:description" content="Levantamiento de daño estructural tras un sismo, sin depender de la señal.">
+<meta property="og:type" content="website">
+<style>
+:root{
+  --papel:#F1F5F9;--carta:#FFFFFF;--tinta:#0F172A;--tinta2:#475569;--tenue:#5E6E82;
+  --borde:#CBD5E1;--linea:#E2E8F0;--azul:#0369A1;--azul-osc:#075985;--azul-tinte:#E0F2FE;
+  --verde:#15803D;--ambar:#FACC15;--ambar-tinta:#422006;--rojo:#B91C1C;--rojo-tinte:#FEF2F2;
+  --r:8px;--r-l:14px;--sombra:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.08);
+}
+*{box-sizing:border-box}
+html{color-scheme:light;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--carta);color:var(--tinta);
+  font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-text-size-adjust:100%}
+.wrap{max-width:1060px;margin:0 auto;padding:0 22px}
+h1,h2,h3{line-height:1.15;letter-spacing:-.02em;margin:0}
+a{color:var(--azul-osc)}
+p{margin:0 0 14px}
+
+/* barra */
+.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);
+  backdrop-filter:saturate(180%) blur(8px);border-bottom:1px solid var(--linea)}
+.top .wrap{display:flex;align-items:center;gap:14px;padding-top:13px;padding-bottom:13px}
+.marca{font-weight:700;font-size:16px;text-decoration:none;color:var(--tinta)}
+.marca span{color:var(--azul)}
+.top nav{margin-left:auto;display:flex;gap:20px;align-items:center}
+.top nav a{font-size:14px;font-weight:600;color:var(--tinta2);text-decoration:none}
+.top nav a:hover{color:var(--tinta)}
+/* `.top nav a` gana en especificidad sobre `.btn-p` y le pisaba el color:
+   texto oscuro sobre azul, ilegible. */
+.top nav a.btn-p{color:#fff}
+.top nav a.btn-p:hover{color:#fff}
+@media (max-width:720px){.top nav a.oculta-movil{display:none}}
+
+.btn{display:inline-block;border-radius:var(--r);padding:14px 22px;font-weight:600;
+  font-size:16px;text-decoration:none;border:1px solid var(--borde);background:var(--carta);
+  color:var(--tinta);box-shadow:var(--sombra);cursor:pointer}
+.btn:hover{background:var(--papel)}
+.btn-p{background:var(--azul);color:#fff;border-color:var(--azul)}
+.btn-p:hover{background:var(--azul-osc)}
+.btn-s{padding:10px 16px;font-size:14px}
+
+/* portada */
+.hero{background:var(--papel);border-bottom:1px solid var(--linea);
+  padding:70px 0 64px}
+.hero h1{font-size:clamp(32px,5.2vw,54px);margin-bottom:20px;max-width:16ch}
+.hero .bajada{font-size:clamp(17px,2.1vw,21px);color:var(--tinta2);max-width:60ch;margin-bottom:26px}
+.semaforo{display:flex;gap:8px;max-width:340px;margin:0 0 30px}
+.semaforo div{height:10px;border-radius:3px}
+.semaforo .v{flex:1;background:var(--verde)}
+.semaforo .a{flex:1.4;background:var(--ambar)}
+.semaforo .r{flex:2.1;background:var(--rojo)}
+.acciones{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.hero .nota{font-size:14px;color:var(--tenue);margin-top:18px}
+
+/* secciones */
+section{padding:64px 0;border-bottom:1px solid var(--linea)}
+.rotulo{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--azul);margin-bottom:12px}
+h2{font-size:clamp(24px,3.2vw,32px);margin-bottom:14px}
+.intro{color:var(--tinta2);font-size:17px;max-width:66ch;margin-bottom:34px}
+
+.rejilla{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}
+.ficha{background:var(--carta);border:1px solid var(--linea);border-radius:var(--r-l);
+  padding:24px;box-shadow:var(--sombra)}
+.ficha h3{font-size:17px;margin-bottom:8px;color:var(--azul-osc)}
+.ficha p{font-size:15px;color:var(--tinta2);margin:0}
+.ficha .n{display:inline-flex;width:30px;height:30px;border-radius:50%;background:var(--azul);
+  color:#fff;font-size:14px;font-weight:700;align-items:center;justify-content:center;margin-bottom:12px}
+
+/* semaforo explicado */
+.regla{display:grid;gap:12px}
+.fila{display:grid;grid-template-columns:130px 1fr;gap:20px;align-items:start;
+  background:var(--carta);border:1px solid var(--linea);border-radius:var(--r-l);padding:20px 22px}
+.chip{display:inline-block;padding:7px 0;border-radius:6px;font-weight:700;font-size:14px;
+  text-align:center;width:100%}
+.c-r{background:var(--rojo);color:#fff}
+.c-a{background:var(--ambar);color:var(--ambar-tinta)}
+.c-v{background:var(--verde);color:#fff}
+.fila b{display:block;margin-bottom:3px}
+.fila p{font-size:15px;color:var(--tinta2);margin:0}
+@media (max-width:620px){.fila{grid-template-columns:1fr;gap:10px}.chip{width:120px}}
+
+/* despliegue */
+.dos{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.opcion{border:1px solid var(--linea);border-radius:var(--r-l);overflow:hidden;box-shadow:var(--sombra)}
+.opcion .cab{background:var(--azul);color:#fff;padding:16px 22px;font-weight:700;font-size:17px}
+.opcion.b .cab{background:var(--azul-osc)}
+.opcion ul{margin:0;padding:20px 22px 22px 40px;color:var(--tinta2);font-size:15px}
+.opcion li{margin-bottom:8px}
+
+/* aviso */
+.aviso{border:1px solid #FECACA;border-left:4px solid var(--rojo);background:var(--rojo-tinte);
+  border-radius:var(--r);padding:16px 20px;font-size:15px;color:var(--tinta2)}
+.aviso strong{color:var(--tinta)}
+
+/* formulario */
+.form-caja{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r-l);padding:28px}
+label{display:block;margin-bottom:16px}
+label>span{display:block;font-size:14px;font-weight:600;color:var(--tinta2);margin-bottom:6px}
+input,select,textarea{width:100%;padding:13px 14px;font:inherit;border:1px solid var(--borde);
+  border-radius:var(--r);background:var(--carta);color:var(--tinta);min-height:50px}
+textarea{min-height:110px;resize:vertical;line-height:1.5}
+input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-offset:-1px;border-color:var(--azul)}
+.par{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+@media (max-width:620px){.par{grid-template-columns:1fr}}
+.acepto{display:flex;gap:12px;align-items:flex-start;font-size:14px;color:var(--tinta2);margin-bottom:18px}
+.acepto input{width:22px;height:22px;min-height:22px;flex:0 0 22px;margin:2px 0 0;accent-color:var(--azul)}
+.trampa{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+#respuesta{margin-top:16px;font-size:15px;font-weight:600}
+
+footer{padding:44px 0 56px;color:var(--tenue);font-size:14px;background:var(--papel)}
+footer a{color:var(--tinta2)}
+footer .linea{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:14px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="marca" href="/">Brigada <span>/</span> evaluación estructural</a>
+    <nav>
+      <a href="#como" class="oculta-movil">Cómo funciona</a>
+      <a href="#criterio" class="oculta-movil">Criterio técnico</a>
+      <a href="#contacto">Contacto</a>
+      <a class="btn btn-p btn-s" href="/app/">Abrir la aplicación</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <h1>Evaluación estructural en campo, sin depender de la señal</h1>
+    <p class="bajada">Aplicación libre para que ingenieros con matrícula levanten daño
+      estructural tras un sismo y consoliden los resultados de forma trazable. Funciona
+      completa sin conexión y sincroniza cuando vuelve la red.</p>
+    <div class="semaforo"><div class="v"></div><div class="a"></div><div class="r"></div></div>
+    <div class="acciones">
+      <a class="btn btn-p" href="/app/">Abrir la aplicación</a>
+      <a class="btn" href="#contacto">Solicitar información</a>
+    </div>
+    <p class="nota">Semáforo ATC-20 adaptado a la NSR-10 · Software libre AGPL v3 ·
+      Sin costo de licencia</p>
+  </div>
+</div>
+
+<section id="problema">
+  <div class="wrap">
+    <div class="rotulo">Para qué sirve</div>
+    <h2>Las primeras 72 horas deciden a dónde va la ayuda</h2>
+    <p class="intro">Y en esas horas la información se levanta en papel, con criterios que
+      no coinciden entre brigadas y sin forma de saber después quién evaluó qué.</p>
+    <div class="rejilla">
+      <div class="ficha"><h3>Sin señal, no hay sistema</h3>
+        <p>Las herramientas en línea dejan de servir justo donde se necesitan. La red celular
+          es lo primero que cae y lo último que vuelve.</p></div>
+      <div class="ficha"><h3>Criterios que no coinciden</h3>
+        <p>Cada brigada evalúa con su propio criterio. Consolidar veinte planillas distintas
+          produce un número en el que nadie confía.</p></div>
+      <div class="ficha"><h3>Nadie sabe quién firmó qué</h3>
+        <p>Sin trazabilidad no hay forma de auditar una decisión que ordenó evacuar un
+          edificio o que permitió volver a habitarlo.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="como">
+  <div class="wrap">
+    <div class="rotulo">Cómo funciona</div>
+    <h2>Tres pasos, y ninguno depende de que haya red</h2>
+    <div class="rejilla">
+      <div class="ficha"><span class="n">1</span><h3>Se prepara una vez</h3>
+        <p>Con señal, el inspector instala la aplicación en su teléfono y registra su
+          matrícula y su brigada. Cinco minutos, una sola vez por equipo.</p></div>
+      <div class="ficha"><span class="n">2</span><h3>Se evalúa sin conexión</h3>
+        <p>Ubicación, tipo de edificación, nivel de daño en cuatro categorías, condiciones
+          que obligan cierre y hasta cuatro fotos. El semáforo se calcula solo.</p></div>
+      <div class="ficha"><span class="n">3</span><h3>Se sincroniza al volver</h3>
+        <p>Un botón envía todo lo pendiente. Reintentar nunca duplica, y si el servidor no
+          puede grabar, la evaluación permanece en el teléfono.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="criterio">
+  <div class="wrap">
+    <div class="rotulo">Criterio técnico</div>
+    <h2>Semáforo ATC-20 adaptado a la NSR-10</h2>
+    <p class="intro">La regla es determinista: los mismos datos producen siempre la misma
+      clasificación. El ingeniero puede modificarla, pero entonces debe dejar por escrito
+      el criterio, y se guardan ambos valores.</p>
+    <div class="regla">
+      <div class="fila"><span class="chip c-r">ROJO</span>
+        <div><b>Inseguro · no ingresar</b>
+        <p>Cualquier condición de cierre marcada, o daño severo en elementos portantes,
+          entrepisos o terreno de soporte.</p></div></div>
+      <div class="fila"><span class="chip c-a">AMARILLO</span>
+        <div><b>Uso restringido</b>
+        <p>Daño moderado en portantes, entrepisos o terreno; o daño severo solo en muros
+          divisorios y fachada.</p></div></div>
+      <div class="fila"><span class="chip c-v">VERDE</span>
+        <div><b>Habitable</b>
+        <p>Daño leve o nulo, sin ninguna condición de cierre presente.</p></div></div>
+    </div>
+    <p class="intro" style="margin-top:26px;margin-bottom:0">
+      <a href="/manual-brigada.pdf">Descargar el manual completo (PDF, 22 páginas)</a> —
+      incluye la tarjeta de referencia del semáforo, pensada para imprimirse y llevarse
+      a terreno.</p>
+  </div>
+</section>
+
+<section id="donde">
+  <div class="wrap">
+    <div class="rotulo">Dónde viven los datos</div>
+    <h2>Dos formas de desplegarlo</h2>
+    <p class="intro">La decisión no es irreversible: es el mismo software y los datos son
+      exportables.</p>
+    <div class="dos">
+      <div class="opcion"><div class="cab">Sobre nuestro servidor</div>
+        <ul>
+          <li>Alojamos el receptor y la base de datos.</li>
+          <li>La entidad recibe accesos y empieza a operar el mismo día.</li>
+          <li>Sin infraestructura ni personal de sistemas.</li>
+          <li>Cada evaluación queda atribuida a la brigada que la envió.</li>
+        </ul></div>
+      <div class="opcion b"><div class="cab">Sobre servidor propio</div>
+        <ul>
+          <li>La entidad instala el sistema en su infraestructura.</li>
+          <li>Los datos nunca salen de sus servidores.</li>
+          <li>Código abierto e instalación documentada.</li>
+          <li>Acompañamos la puesta en marcha.</li>
+        </ul></div>
+    </div>
+  </div>
+</section>
+
+<section id="limites">
+  <div class="wrap">
+    <div class="rotulo">Alcance</div>
+    <h2>Qué es y qué no es</h2>
+    <div class="aviso" style="margin-bottom:18px">
+      <strong>Es triaje preliminar.</strong> La habilitación definitiva de una edificación
+      es competencia de la UNGRD, la Defensa Civil, los bomberos y las alcaldías. Lo que la
+      herramienta produce es insumo para esa decisión, no la decisión.
+    </div>
+    <div class="rejilla">
+      <div class="ficha"><h3>No es auto-reporte ciudadano</h3>
+        <p>Quien llena el formulario es el inspector, en sitio. Solo firma quien tenga
+          matrícula profesional vigente (Ley 400 de 1997, NSR-10).</p></div>
+      <div class="ficha"><h3>No emite dictámenes</h3>
+        <p>El semáforo es una sugerencia calculada sobre lo observado. Quien decide es el
+          ingeniero, y queda su matrícula respaldando esa decisión.</p></div>
+      <div class="ficha"><h3>Protege el dato personal</h3>
+        <p>Dirección y coordenada son dato personal (Ley 1581 de 2012). Lo que se entrega a
+          las autoridades va agregado por sector, nunca por predio.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="contacto">
+  <div class="wrap">
+    <div class="rotulo">Contacto</div>
+    <h2>Hablemos de su operación</h2>
+    <p class="intro">Alcaldías, universidades y asociaciones profesionales: escríbanos y
+      coordinamos una demostración con su equipo. También puede abrir la aplicación y
+      probarla ahora mismo, sin pedir nada.</p>
+    <div class="form-caja">
+      <form id="f" novalidate>
+        <div class="par">
+          <label><span>Nombre completo</span>
+            <input name="nombre" autocomplete="name" required></label>
+          <label><span>Entidad u organización</span>
+            <input name="entidad" autocomplete="organization" required></label>
+        </div>
+        <div class="par">
+          <label><span>Correo</span>
+            <input name="correo" type="email" autocomplete="email" required></label>
+          <label><span>Teléfono <em style="font-weight:400;font-style:normal">(opcional)</em></span>
+            <input name="telefono" type="tel" autocomplete="tel"></label>
+        </div>
+        <label><span>¿Qué necesita?</span>
+          <textarea name="mensaje" placeholder="Cuántas brigadas, en qué municipio, para cuándo..."></textarea></label>
+        <!-- Trampa para robots: un humano no la ve y por tanto no la llena. -->
+        <div class="trampa" aria-hidden="true">
+          <label>No llenar este campo<input name="sitio" tabindex="-1" autocomplete="off"></label>
+        </div>
+        <label class="acepto">
+          <input type="checkbox" name="autoriza" required>
+          <span>Autorizo el tratamiento de estos datos con la única finalidad de responder
+            esta solicitud. No se comparten con terceros y puede pedir su eliminación
+            escribiendo al mismo contacto (Ley 1581 de 2012).</span>
+        </label>
+        <button class="btn btn-p" type="submit" id="enviar">Enviar solicitud</button>
+        <p id="respuesta" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="linea">
+      <a href="/app/">Aplicación</a>
+      <a href="/manual-brigada.pdf">Manual (PDF)</a>
+      <a href="https://github.com/abenito32/brigadaestructural" rel="noopener">Código fuente</a>
+      <a href="https://www.gnu.org/licenses/agpl-3.0.html" rel="license noopener">Licencia AGPL v3</a>
+    </div>
+    <p style="margin:0">Desarrollada con Amor por Andrés Benito Revollo Vélez ·
+      Rollout Comercio e Servicios Limitada · www.artificialintelligence.tec.br</p>
+    <p style="margin:6px 0 0">Copyright © 2026. Software libre bajo GNU AGPL v3.
+      Si lo modifica y lo ofrece como servicio, debe publicar sus cambios.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var f = document.getElementById("f");
+  var r = document.getElementById("respuesta");
+  var b = document.getElementById("enviar");
+
+  f.addEventListener("submit", function(e){
+    e.preventDefault();
+    var d = {};
+    ["nombre","entidad","correo","telefono","mensaje","sitio"].forEach(function(k){
+      d[k] = (f.elements[k].value || "").trim();
+    });
+    d.autoriza = f.elements.autoriza.checked;
+
+    if(!d.nombre || !d.entidad || !d.correo){ r.style.color="#B91C1C";
+      r.textContent = "Complete nombre, entidad y correo."; return; }
+    if(d.correo.indexOf("@") < 1){ r.style.color="#B91C1C";
+      r.textContent = "Revise el correo."; return; }
+    if(!d.autoriza){ r.style.color="#B91C1C";
+      r.textContent = "Necesitamos su autorización para responderle."; return; }
+
+    b.disabled = true; r.style.color="#475569"; r.textContent = "Enviando...";
+    fetch("/api/contacto", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(d)})
+      .then(function(res){
+        if(res.ok){
+          f.reset(); r.style.color="#15803D";
+          r.textContent = "Recibido. Le respondemos al correo que dejó.";
+        }else if(res.status === 429){
+          r.style.color="#B45309";
+          r.textContent = "Demasiadas solicitudes por ahora. Intente en unos minutos.";
+        }else{
+          r.style.color="#B91C1C";
+          r.textContent = "No se pudo enviar. Escríbanos directamente si sigue fallando.";
+        }
+      })
+      .catch(function(){
+        r.style.color="#B91C1C";
+        r.textContent = "Sin conexión con el servidor. Intente de nuevo.";
+      })
+      .then(function(){ b.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>

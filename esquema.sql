@@ -118,6 +118,20 @@ FROM evaluacion_brigada e
 WHERE NOT e.matricula_verificada
 ORDER BY e.clasificacion DESC, e.ts DESC;   -- los rojos primero
 
+-- Solicitudes de información desde la página pública. Son datos personales de
+-- un funcionario (Ley 1581 de 2012): se piden con autorización explícita, con
+-- una finalidad declarada —responder esa solicitud— y nada más.
+CREATE TABLE IF NOT EXISTS contacto (
+  id         bigserial PRIMARY KEY,
+  recibido_en timestamptz NOT NULL DEFAULT now(),
+  nombre     text NOT NULL,
+  entidad    text NOT NULL,
+  correo     text NOT NULL,
+  telefono   text,
+  mensaje    text,
+  atendido   boolean NOT NULL DEFAULT false
+);
+
 -- Lo único que sale hacia las autoridades: agregado por sector, sin predio ni
 -- dirección (Ley 1581 de 2012), con umbral mínimo de registros por sector.
 CREATE OR REPLACE VIEW consolidado_publico AS

@@ -324,6 +324,45 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
             "recibido_en": datetime.now(timezone.utc).isoformat()}
 
 
+class Contacto(BaseModel):
+    nombre: str = ""
+    entidad: str = ""
+    correo: str = ""
+    telefono: str = ""
+    mensaje: str = ""
+    autoriza: bool = False
+    sitio: str = ""     # trampa para robots: si viene llena, no fue una persona
+
+
+@app.post("/api/contacto")
+def contacto(c: Contacto):
+    """Solicitudes desde la pagina publica. Sin token: es un formulario abierto.
+
+    El limite de tasa de nginx lo cubre (cae en el cubo sin token). Aca solo se
+    valida lo minimo y se corta la basura evidente.
+    """
+    if c.sitio:
+        # Un robot lleno el campo oculto. Se responde 200 a proposito: si
+        # devolvieramos error, ajustarian el robot hasta pasar.
+        return {"ok": True}
+    nombre, entidad, correo = c.nombre.strip(), c.entidad.strip(), c.correo.strip()
+    if not (nombre and entidad and correo) or "@" not in correo[1:]:
+        raise HTTPException(422, "Faltan nombre, entidad o correo válido")
+    if not c.autoriza:
+        raise HTTPException(422, "Falta la autorización de tratamiento de datos")
+    if max(len(nombre), len(entidad), len(correo)) > 200 or len(c.mensaje) > 4000:
+        raise HTTPException(422, "Contenido demasiado largo")
+    try:
+        with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
+            cur.execute("""INSERT INTO contacto (nombre, entidad, correo, telefono, mensaje)
+                           VALUES (%s,%s,%s,%s,%s)""",
+                        (nombre[:200], entidad[:200], correo[:200],
+                         c.telefono.strip()[:60] or None, c.mensaje.strip()[:4000] or None))
+    except (psycopg.Error, PoolTimeout):
+        raise HTTPException(503, "No se pudo registrar la solicitud")
+    return {"ok": True}
+
+
 @app.get("/api/fuente")
 def fuente():
     """AGPL §13: ofrecer la fuente a quien interactúa con el programa por red.

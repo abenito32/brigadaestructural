@@ -28,6 +28,14 @@ pip install fastapi uvicorn "psycopg[binary,pool]"
 uvicorn api_brigadas:app --port 8004     # con BRIGADA_TOKENS/DSN/FOTOS en el entorno
 ```
 
+**Rutas públicas**: `/` es la landing, `/app/` la PWA, `/api/` el receptor, y el panel
+vive en **`admin.brigadaestructural.co`**, en origen separado.
+
+La app está en `/app/` y no en un subdominio a propósito: IndexedDB y localStorage son
+**por origen**, así que mover el origen dejaría huérfanas las evaluaciones pendientes y la
+configuración de los teléfonos ya instalados. `landing/sw.js` se sirve en `/sw.js` solo
+para desactivar el service worker viejo que quedó con alcance `/`; **no borrarlo**.
+
 **Producción** (el VPS es compartido con otros servicios: no tocar nada fuera de estas rutas):
 estáticos en `/var/www/brigadaestructural`, código en `/opt/brigadas`, secretos en
 `/etc/brigadas.env` (root 0600), servicio `brigadas-api`, base `brigadas-db` en

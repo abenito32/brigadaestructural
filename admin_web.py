@@ -191,6 +191,7 @@ input:focus,select:focus{outline:3px solid var(--azul);outline-offset:-1px;borde
     <a href="/admin/reportes" class="{{ 'on' if pag=='reportes' }}">Reportes</a>
     <a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>
     <a href="/admin/inspectores" class="{{ 'on' if pag=='inspectores' }}">Inspectores</a>
+    <a href="/admin/solicitudes" class="{{ 'on' if pag=='solicitudes' }}">Solicitudes</a>
     <a href="/admin/salir" class="salir">Salir</a>
   </nav>
 </div></header>
@@ -633,3 +634,46 @@ def inspectores_baja(req: Request, matricula: str = Form(...)):
     exigir(req)
     consulta("UPDATE inspector SET vigente=false WHERE matricula=%s", (matricula,))
     return RedirectResponse("/admin/inspectores", 303)
+
+
+# ------------------------------------------------------------------ solicitudes
+SOLICITUDES = """
+<h1>Solicitudes de información</h1>
+<p class="sub">Lo que llega por el formulario de la página pública.</p>
+<div class="tarjeta">
+<div class="desplaza"><table>
+<thead><tr><th>Recibida</th><th>Quién</th><th>Entidad</th><th>Contacto</th>
+  <th>Mensaje</th><th></th></tr></thead><tbody>
+{% for s in filas %}<tr>
+  <td class="num">{{ s[1].strftime("%Y-%m-%d %H:%M") }}</td>
+  <td>{{ s[2] }}</td><td>{{ s[3] }}</td>
+  <td><a href="mailto:{{ s[4] }}">{{ s[4] }}</a>{% if s[5] %}<br>{{ s[5] }}{% endif %}</td>
+  <td>{{ s[6] or "—" }}</td>
+  <td>{% if s[7] %}<span class="pastilla pn">Atendida</span>{% else %}
+    <form method="post" action="/admin/solicitudes/atender">
+      <input type="hidden" name="id" value="{{ s[0] }}">
+      <button class="btn btn-r" style="color:var(--azul);border-color:var(--borde);background:var(--carta)">
+        Marcar atendida</button></form>{% endif %}</td>
+</tr>{% else %}<tr><td colspan="6" class="vacio">Todavía no hay solicitudes.</td></tr>{% endfor %}
+</tbody></table></div>
+</div>
+<p class="nota">Estos son datos personales de un funcionario, entregados con autorización
+para una finalidad concreta: responder su solicitud. No se usan para nada más, y quien
+lo pida tiene derecho a que se eliminen (Ley 1581 de 2012).</p>
+"""
+
+
+@router.get("/admin/solicitudes", response_class=HTMLResponse)
+def solicitudes(req: Request):
+    exigir(req)
+    filas = consulta("""SELECT id, recibido_en, nombre, entidad, correo, telefono,
+                               mensaje, atendido
+                          FROM contacto ORDER BY atendido, recibido_en DESC LIMIT 200""")
+    return pagina("Solicitudes", render(SOLICITUDES, filas=filas), "solicitudes")
+
+
+@router.post("/admin/solicitudes/atender")
+def solicitud_atender(req: Request, id: int = Form(...)):
+    exigir(req)
+    consulta("UPDATE contacto SET atendido = true WHERE id = %s", (id,))
+    return RedirectResponse("/admin/solicitudes", 303)

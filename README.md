@@ -7,6 +7,16 @@ No es auto-reporte ciudadano. Quien llena el formulario es el inspector, en siti
 
 ## Desplegar
 
+### 0. Las rutas
+
+```
+/            landing pública (landing/index.html)
+/app/        la PWA
+/api/        el receptor
+/sw.js       desactivador del service worker viejo — no borrar
+admin.<dominio>   el panel, en origen separado
+```
+
 ### 1. Los estáticos
 
 `index.html`, `sw.js`, `manifest.json` y los dos iconos van a cualquier carpeta
