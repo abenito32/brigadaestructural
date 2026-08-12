@@ -169,8 +169,13 @@ def entero(v: Any) -> int | None:
 def guardar_fotos(eval_id: str, fotos: list[str]) -> list[str]:
     """Saca el base64 del payload y lo deja en disco. La BD guarda rutas.
 
-    Los nombres son deterministas (<id>_<n>.jpg), asi que un reintento
-    sobrescribe en vez de acumular basura.
+    `eval_id` tiene que ser el ULID del servidor, NO el id que numero el telefono:
+    ese se repite entre brigadas, y con el como nombre de archivo la segunda
+    brigada pisaba la foto de la primera. Dos evaluaciones distintas terminaban
+    apuntando al mismo archivo, y el panel mostraria el edificio equivocado.
+
+    Con el ULID el nombre es unico, y sigue siendo determinista: un reintento
+    reescribe su propio archivo en vez de acumular basura.
     """
     rutas = []
     for i, dataurl in enumerate(fotos[:MAX_FOTOS]):
@@ -281,10 +286,11 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
             and not ev.justificacion.strip()):
         raise HTTPException(422, "Modificar la clasificación calculada exige justificación")
 
-    rutas = guardar_fotos(ev.id, ev.fotos)
+    canonico = ulid()
+    rutas = guardar_fotos(canonico, ev.fotos)
 
     datos = {
-        "id": ulid(),          # canonico, del servidor
+        "id": canonico,        # canonico, del servidor
         "id_local": ev.id,     # lo que numero el telefono; solo idempotencia
         "ts": ev.ts,
         "matricula": matricula,

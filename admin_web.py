@@ -210,6 +210,12 @@ label>span{display:block;font-size:13px;font-weight:600;color:var(--tinta2);marg
 input,select{width:100%;padding:11px 12px;font:inherit;border:1px solid var(--borde);
  border-radius:var(--r);background:var(--carta);color:var(--tinta);min-height:46px}
 input:focus,select:focus{outline:3px solid var(--azul);outline-offset:-1px;border-color:var(--azul)}
+/* Las casillas y los radios no son campos de texto: sin esto heredan el ancho
+   completo y los 46px de alto y salen como un recuadro vacío enorme. */
+input[type=checkbox],input[type=radio]{width:auto;min-height:0;padding:0;
+ margin:0 8px 0 0;accent-color:var(--azul);flex:none}
+label.acepto{display:flex;align-items:flex-start;gap:2px;max-width:640px}
+label.acepto>span{display:inline;font-weight:400;font-size:14px;margin:0;color:var(--tinta2)}
 .btn{display:inline-block;border:1px solid var(--borde);background:var(--carta);color:var(--tinta);
  font:inherit;font-weight:600;font-size:15px;padding:12px 18px;border-radius:var(--r);cursor:pointer;
  text-decoration:none;box-shadow:var(--sombra)}
@@ -227,6 +233,7 @@ input:focus,select:focus{outline:3px solid var(--azul);outline-offset:-1px;borde
 .token{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;background:var(--carta);
  border:1px dashed var(--borde);border-radius:var(--r);padding:11px 13px;margin:10px 0;
  word-break:break-all;user-select:all}
+.oculto{display:none!important}
 .vacio{color:var(--tinta2);padding:30px 0;text-align:center}
 .desplaza{overflow-x:auto}
 .pag{display:flex;gap:9px;align-items:center;margin-top:16px;font-size:14px;color:var(--tinta2)}
@@ -241,6 +248,7 @@ input:focus,select:focus{outline:3px solid var(--azul);outline-offset:-1px;borde
   <nav class="nav">
     <a href="/admin" class="{{ 'on' if pag=='inicio' }}">Resumen</a>
     <a href="/admin/mapa" class="{{ 'on' if pag=='mapa' }}">Mapa</a>
+    <a href="/admin/evolucion" class="{{ 'on' if pag=='evolucion' }}">Evolución</a>
     <a href="/admin/reportes" class="{{ 'on' if pag=='reportes' }}">Reportes</a>
     <a href="/admin/rojos" class="{{ 'on' if pag=='rojos' }}">Rojos</a>
     {% if rol == 'admin' %}<a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>{% endif %}
@@ -278,6 +286,213 @@ def consulta(sql, args=()):
     with api_brigadas.pool.connection(timeout=api_brigadas.ESPERA_POOL) as con, con.cursor() as cur:
         cur.execute(sql, args)
         return cur.fetchall() if cur.description else []
+
+
+# ---------------------------------------------------------------- el modal
+# Una sola pieza, compartida por Reportes, Rojos y el mapa: si el detalle de una
+# evaluación se dibujara en tres sitios distintos, tarde o temprano dirían cosas
+# distintas sobre el mismo predio.
+MODAL_HTML = """
+<dialog id="ficha">
+  <div class="ficha-cab">
+    <div>
+      <span id="f-chip" class="pastilla">—</span>
+      <strong id="f-id" class="num"></strong>
+      <span id="f-rev" class="pastilla pn oculto"></span>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-s" id="f-html">Exportar HTML</button>
+      <button class="btn btn-s" id="f-json">JSON con fotos</button>
+      <button class="btn btn-s" id="f-cerrar" aria-label="Cerrar">Cerrar</button>
+    </div>
+  </div>
+  <div class="ficha-cuerpo" id="f-cuerpo"></div>
+</dialog>
+
+<style>
+#ficha{border:0;border-radius:var(--r-l);padding:0;max-width:900px;width:94vw;
+  box-shadow:0 12px 40px rgba(15,23,42,.28)}
+#ficha::backdrop{background:rgba(15,23,42,.55)}
+.ficha-cab{display:flex;gap:12px;align-items:center;padding:16px 20px;
+  border-bottom:1px solid var(--linea);position:sticky;top:0;background:var(--carta);
+  flex-wrap:wrap}
+.ficha-cuerpo{padding:20px;max-height:74vh;overflow-y:auto}
+.ficha-cuerpo h4{margin:18px 0 8px;font-size:12px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--tenue)}
+.ficha-cuerpo h4:first-child{margin-top:0}
+.ficha-cuerpo table{width:100%;font-size:14px}
+.ficha-cuerpo td:first-child{width:34%;color:var(--tinta2)}
+.fotos-ficha{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.foto-marco{position:relative;border:1px solid var(--linea);border-radius:var(--r);
+  overflow:hidden;background:var(--papel)}
+.foto-marco img{width:100%;display:block}
+/* La marca va sobre la imagen, no dentro del archivo: el original guardado sigue
+   siendo la evidencia intacta, y aun así una captura de pantalla sale trazable. */
+.foto-marca{position:absolute;left:0;right:0;bottom:0;padding:6px 9px;
+  background:rgba(15,23,42,.72);color:#fff;font-size:11px;line-height:1.35;
+  font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+.escala-mini{display:flex;gap:4px;flex-wrap:wrap}
+.escala-mini span{padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600}
+</style>
+
+<script>
+(function(){
+  "use strict";
+  var dlg = document.getElementById("ficha");
+  if (!dlg) return;
+  var NIV = ["N/A","Leve","Moderado","Severo"];
+  var COLOR_NIV = ["#EEF2F6","#DCFCE7","#FEF3C7","#FEE2E2"];
+  var TINTA_NIV = ["#475569","#14532D","#422006","#7F1D1D"];
+  var CATEG = {portantes:"Elementos portantes", horizontal:"Vigas y entrepisos",
+               nostruct:"Muros divisorios y fachada", terreno:"Terreno y entorno"};
+  var BAND = {colapso:"Colapso total o parcial", inclina:"Inclinación visible",
+              acero:"Acero expuesto o pandeado", pasante:"Grietas pasantes",
+              vecino:"Riesgo externo", acceso:"Elementos sobre el acceso"};
+  var actual = null;
+
+  function esc(t){ var d=document.createElement("div"); d.textContent = t==null?"":t; return d.innerHTML; }
+  function fecha(s){ return s ? s.replace("T"," ").slice(0,16) : "—"; }
+
+  function filas(pares){
+    return "<table>" + pares.filter(function(p){ return p[1]; })
+      .map(function(p){ return "<tr><td>"+esc(p[0])+"</td><td>"+p[1]+"</td></tr>"; })
+      .join("") + "</table>";
+  }
+
+  function cuerpo(e, fotosHtml){
+    var d = e.danos || {}, b = e.banderas || {};
+    var niveles = Object.keys(CATEG).map(function(k){
+      var v = d[k] || 0;
+      return '<span style="background:'+COLOR_NIV[v]+';color:'+TINTA_NIV[v]+'">'
+           + esc(CATEG[k]) + ": " + NIV[v] + "</span>";
+    }).join("");
+    var marcadas = Object.keys(BAND).filter(function(k){ return b[k]; })
+      .map(function(k){ return "<li>"+esc(BAND[k])+"</li>"; }).join("");
+
+    var html = "<h4>Dónde</h4>" + filas([
+      ["Dirección", esc(e.direccion)],
+      ["Municipio y barrio", esc([e.municipio, e.barrio].filter(Boolean).join(" · "))],
+      ["Coordenadas", e.lat!=null ? e.lat.toFixed(5)+", "+e.lon.toFixed(5)
+        + (e.precision_m ? " (±"+e.precision_m+" m)" : "") : ""],
+    ]);
+    html += "<h4>Edificación</h4>" + filas([
+      ["Sistema constructivo", esc(e.sistema)], ["Uso", esc(e.uso)],
+      ["Pisos", e.pisos], ["Ocupantes", e.ocupantes],
+    ]);
+    html += "<h4>Daño observado</h4><div class='escala-mini'>" + niveles + "</div>";
+    if (marcadas) html += "<h4>Condiciones que obligan cierre</h4><ul>" + marcadas + "</ul>";
+    html += "<h4>Quién firma</h4>" + filas([
+      ["Inspector", esc(e.inspector)],
+      ["Matrícula", esc(e.matricula) + (e.matricula_verificada ? "" :
+        ' <span class="pastilla palerta">fuera del registro</span>')],
+      ["Brigada", esc(e.brigada_token || e.brigada)],
+      ["Evaluada", fecha(e.ts)], ["Recibida", fecha(e.recibido_en)],
+    ]);
+    if (e.clasificacion_auto != null && e.clasificacion !== e.clasificacion_auto)
+      html += "<h4>Clasificación modificada por el inspector</h4>" + filas([
+        ["Calculada", NIV[e.clasificacion_auto]], ["Firmada", NIV[e.clasificacion]],
+        ["Motivo", esc(e.justificacion)]]);
+    if (e.revision_estado) html += "<h4>Segunda revisión</h4>" + filas([
+      ["Estado", esc(e.revision_estado)], ["Revisó", esc(e.revision_matricula)],
+      ["Cuándo", fecha(e.revision_en)], ["Motivo", esc(e.revision_motivo)]]);
+    if (e.observaciones) html += "<h4>Observaciones</h4><p>" + esc(e.observaciones) + "</p>";
+    if (fotosHtml) html += "<h4>Registro fotográfico</h4><div class='fotos-ficha'>"
+      + fotosHtml + "</div>";
+    return html;
+  }
+
+  function marca(e, i){
+    return esc(e.id_local || e.id) + " · foto " + (i+1) + "<br>" + esc(e.id);
+  }
+
+  function abrir(id){
+    fetch("/admin/evaluacion/" + encodeURIComponent(id) + ".json", {cache:"no-store"})
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(e){
+        actual = e;
+        document.getElementById("f-id").textContent = e.id_local || e.id;
+        var chip = document.getElementById("f-chip");
+        chip.className = "pastilla p" + e.clasificacion_efectiva;
+        chip.textContent = e.nombre_clas;
+        var rev = document.getElementById("f-rev");
+        rev.classList.toggle("oculto", !e.revision_estado);
+        rev.textContent = e.revision_estado || "";
+        var fotos = "";
+        for (var i = 0; i < e.fotos; i++)
+          fotos += '<figure class="foto-marco" style="margin:0">'
+                 + '<img loading="lazy" alt="Fotografía ' + (i+1) + ' de la evaluación" src="/admin/foto/'
+                 + encodeURIComponent(e.id) + '/' + i + '">'
+                 + '<figcaption class="foto-marca">' + marca(e, i) + '</figcaption></figure>';
+        document.getElementById("f-cuerpo").innerHTML = cuerpo(e, fotos);
+        dlg.showModal();
+      })
+      .catch(function(){ alert("No se pudo abrir esa evaluación."); });
+  }
+  window.abrirFicha = abrir;
+
+  document.getElementById("f-cerrar").onclick = function(){ dlg.close(); };
+
+  function bajar(nombre, texto, tipo){
+    var u = URL.createObjectURL(new Blob([texto], {type:tipo}));
+    var a = document.createElement("a"); a.href = u; a.download = nombre; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 2000);
+  }
+
+  // Las fotos se incrustan en base64: el archivo exportado se abre sin conexión
+  // y sin sesión, que es lo que hace falta para adjuntarlo a un correo.
+  function conFotos(e){
+    var tareas = [];
+    for (var i = 0; i < e.fotos; i++)
+      tareas.push(fetch("/admin/foto/"+encodeURIComponent(e.id)+"/"+i)
+        .then(function(r){ return r.blob(); })
+        .then(function(b){ return new Promise(function(res){
+          var fr = new FileReader(); fr.onload = function(){ res(fr.result); };
+          fr.readAsDataURL(b); }); }));
+    return Promise.all(tareas);
+  }
+
+  document.getElementById("f-html").onclick = function(){
+    if (!actual) return;
+    var e = actual;
+    conFotos(e).then(function(datos){
+      var fotos = datos.map(function(src, i){
+        return '<figure class="foto-marco" style="margin:0"><img src="'+src+'">'
+             + '<figcaption class="foto-marca">' + marca(e, i) + '</figcaption></figure>';
+      }).join("");
+      var css = document.querySelector("style").textContent
+              + document.querySelectorAll("style")[1].textContent;
+      var doc = "<!DOCTYPE html><html lang=es-CO><head><meta charset=utf-8>"
+        + "<title>Evaluación " + esc(e.id_local || e.id) + "</title><style>" + css
+        + "body{padding:28px;max-width:860px;margin:0 auto}"
+        + "@media print{.foto-marca{background:rgba(15,23,42,.72)!important;"
+        + "-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>"
+        + "<h1 style='font-size:22px;margin:0 0 4px'>Evaluación estructural "
+        + esc(e.id_local || e.id) + "</h1>"
+        + "<p class=sub style='margin:0 0 6px'><span class='pastilla p"
+        + e.clasificacion_efectiva + "'>" + esc(e.nombre_clas) + "</span></p>"
+        + "<p class=nota style='margin:0 0 18px'>Identificador del servidor: " + esc(e.id) + "</p>"
+        + cuerpo(e, fotos)
+        + "<p class=nota style='margin-top:24px;border-top:1px solid #E2E8F0;padding-top:12px'>"
+        + "Triaje preliminar. La habilitación definitiva de una edificación es competencia "
+        + "de UNGRD, Defensa Civil, bomberos y las alcaldías. Contiene datos personales "
+        + "(Ley 1581 de 2012): no difundir.</p></body></html>";
+      bajar("evaluacion-" + (e.id_local || e.id) + ".html", doc, "text/html;charset=utf-8");
+    });
+  };
+
+  document.getElementById("f-json").onclick = function(){
+    if (!actual) return;
+    var e = actual;
+    conFotos(e).then(function(datos){
+      var copia = JSON.parse(JSON.stringify(e));
+      copia.fotos = datos;
+      bajar("evaluacion-" + (e.id_local || e.id) + ".json",
+            JSON.stringify(copia, null, 1), "application/json");
+    });
+  };
+})();
+</script>
+"""
 
 
 # ---------------------------------------------------------------------- entrar
@@ -498,7 +713,9 @@ REPORTES = """
 <div class="desplaza"><table>
 <thead><tr><th>ID</th><th>Fecha</th><th>Clasificación</th><th>Dirección</th><th>Sector</th>
   <th>Firma</th><th>Brigada</th><th>Fotos</th></tr></thead><tbody>
-{% for e in filas %}<tr>
+{% for e in filas %}<tr onclick="abrirFicha('{{ e.id }}')" style="cursor:pointer"
+   tabindex="0" onkeydown="if(event.key==='Enter')abrirFicha('{{ e.id }}')"
+   title="Abrir la evaluación completa">
   <td class="num">{{ e.id_local or "—" }}<br>
       <span class="nota" title="Identificador canónico del servidor">{{ e.id[:10] }}…</span></td>
   <td class="num">{{ e.ts.strftime("%Y-%m-%d %H:%M") }}</td>
@@ -518,6 +735,9 @@ REPORTES = """
   {% if pagina_n < paginas %}<a class="btn" href="?{{ qs }}&pag={{ pagina_n+1 }}">Siguientes</a>{% endif %}
 </div>
 </div>
+<p class="nota">Toque una fila para abrir la evaluación completa, con sus fotos, y
+exportarla.</p>
+""" + MODAL_HTML + """
 <p class="nota">Esta pantalla muestra dirección y coordenadas, que son dato personal
 (Ley 1581 de 2012). Sirve para coordinar la brigada; lo que se entrega a las autoridades
 es el consolidado por sector del Resumen, nunca este listado.</p>
@@ -926,6 +1146,22 @@ revise. Registre al menos uno en <a href="/admin/inspectores">Inspectores</a>.</
         <td>{{ r.observaciones }}</td></tr>{% endif %}
   </table>
 
+  {% if r.fotos %}
+  <div class="fotos-ficha" style="margin-top:14px">
+    {% for i in range(r.fotos) %}
+      <figure class="foto-marco" style="margin:0">
+        <img loading="lazy" src="/admin/foto/{{ r.id }}/{{ i }}"
+             alt="Fotografía {{ i + 1 }} de la evaluación {{ r.id_local or r.id }}">
+        <figcaption class="foto-marca">{{ r.id_local or r.id }} · foto {{ i + 1 }}<br>{{ r.id }}</figcaption>
+      </figure>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="nota">Esta evaluación se guardó sin fotografías.</p>
+  {% endif %}
+  <p class="nota"><a href="#" onclick="abrirFicha('{{ r.id }}');return false">Ver la
+    evaluación completa</a> — con el detalle del daño y la opción de exportarla.</p>
+
   <form method="post" action="/admin/rojos/revisar" style="margin-top:16px"
         onsubmit="return confirm('¿Registrar esta revisión? Queda con la matrícula de quien revisa.')">
     <input type="hidden" name="id" value="{{ r.id }}">
@@ -956,6 +1192,7 @@ guarda aparte quién revisó, cuándo y por qué. Lo que cambia es la clasificac
 efectiva, que es la que usan el consolidado y la API.</p>
 <p class="nota">El vencimiento no degrada el rojo. Un rojo atrasado sigue siendo rojo:
 solo aparece marcado para que nadie lo dé por revisado sin estarlo.</p>
+""" + MODAL_HTML + """
 """
 
 
@@ -963,13 +1200,16 @@ def _rojos(req: Request):
     w, wa = filtro_alcance(req)
     crudas = consulta(f"""SELECT id, id_local, ts, matricula, inspector, brigada_token,
                                 direccion, municipio, barrio, observaciones,
-                                justificacion, vencido, horas_de_atraso
+                                justificacion, vencido, horas_de_atraso,
+                                (SELECT coalesce(jsonb_array_length(e.fotos), 0)
+                                   FROM evaluacion_brigada e WHERE e.id = rojos_pendientes.id)
                            FROM rojos_pendientes WHERE {w} LIMIT 100""", tuple(wa))
     return [{"id": r[0], "id_local": r[1], "ts": r[2], "matricula": r[3],
              "inspector": r[4], "brigada_token": r[5], "direccion": r[6],
              "municipio": r[7], "barrio": r[8], "observaciones": r[9],
              "justificacion": r[10], "vencido": r[11],
-             "horas": round(r[12]) if r[12] is not None else 0} for r in crudas]
+             "horas": round(r[12]) if r[12] is not None else 0,
+             "fotos": r[13]} for r in crudas]
 
 
 def _inspectores_vigentes(req: Request):
@@ -1035,6 +1275,26 @@ TESELAS_CREDITO = os.getenv(
     "BRIGADA_TESELAS_CREDITO",
     '&copy; colaboradores de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
 
+# Ortofoto y rótulos para las vistas satélite e híbrida. Después de un sismo la
+# imagen aérea es la referencia que la gente reconoce —techos, patios, manzanas—
+# mucho antes que el callejero.
+#
+# Pedir teselas revela a ese proveedor qué zona se está mirando, igual que ya
+# ocurre con OpenStreetMap. No viaja ningún dato de las evaluaciones: los puntos
+# se dibujan en el navegador sobre la imagen. Aun así, una entidad que no quiera
+# depender de un tercero apunta estas variables a su propio geoportal.
+TESELAS_SAT = os.getenv(
+    "BRIGADA_TESELAS_SAT",
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/"
+    "MapServer/tile/{z}/{y}/{x}")
+TESELAS_ROTULOS = os.getenv(
+    "BRIGADA_TESELAS_ROTULOS",
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/"
+    "World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}")
+TESELAS_SAT_CREDITO = os.getenv(
+    "BRIGADA_TESELAS_SAT_CREDITO",
+    "Imágenes &copy; Esri, Maxar, Earthstar Geographics")
+
 
 def alcance_brigada(req: Request) -> str | None:
     """Qué brigada puede ver quien está mirando. None = todas (administrador).
@@ -1069,6 +1329,32 @@ def sectores(req: Request, brigada: str | None = None):
          GROUP BY municipio, barrio
         HAVING count(*) >= %s
          ORDER BY count(*) DESC""", tuple(args) + (K_ANONIMATO,))
+
+
+@router.get("/admin/individual.geojson")
+def individual_geojson(req: Request, brigada: str = ""):
+    """Un punto por evaluación, con su dirección. Es dato personal, así que vive
+    detrás de la sesión y del alcance de brigada, y NO se expone por la API de
+    consulta: ahí el umbral de anonimato sigue mandando."""
+    ses = exigir(req)
+    w, wa = filtro_alcance(req)
+    args = list(wa)
+    if brigada and ses.rol == "admin":
+        w += " AND brigada_token = %s"; args.append(brigada)
+    filas = consulta(f"""
+        SELECT id, id_local, clasificacion_efectiva, direccion, barrio,
+               revision_estado, coalesce(jsonb_array_length(fotos), 0),
+               ST_X(geom), ST_Y(geom)
+          FROM evaluacion_brigada
+         WHERE {w} AND geom IS NOT NULL
+         ORDER BY ts DESC LIMIT 2000""", tuple(args))
+    return JSONResponse({"type": "FeatureCollection", "features": [
+        {"type": "Feature",
+         "geometry": {"type": "Point", "coordinates": [f[7], f[8]]},
+         "properties": {"id": f[0], "id_local": f[1], "clas": f[2],
+                        "direccion": f[3], "barrio": f[4],
+                        "sin_revisar": f[5] == "pendiente", "fotos": f[6]}}
+        for f in filas]}, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/admin/mapa.geojson")
@@ -1113,6 +1399,16 @@ qué proporción de ellas quedó en rojo.</p>
   {{ k }} evaluaciones o más. Los sectores con menos no se muestran, para que el barrio
   no identifique el predio.</p></div>
 {% else %}
+<div class="tarjeta" style="padding:14px 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+  <label class="acepto" style="margin:0">
+    <input type="checkbox" id="capa-individual">
+    <span><strong>Ver los reportes individuales</strong> — un punto por evaluación,
+      con su dirección. Toque uno para abrir la ficha con sus fotos.</span>
+  </label>
+  <span id="aviso-individual" class="pastilla palerta oculto" style="margin-left:auto">
+    Mostrando datos personales</span>
+</div>
+
 <div class="tarjeta" style="padding:0;overflow:hidden">
   <div id="mapa" style="height:520px;background:var(--papel)"></div>
 </div>
@@ -1170,6 +1466,7 @@ qué proporción de ellas quedó en rojo.</p>
   </table></div>
 </div>
 
+""" + MODAL_HTML + """
 <p class="nota">Solo aparecen los sectores con {{ k }} evaluaciones o más. Con dos o tres
 registros, decir «el barrio X tiene una roja» equivale a señalar la casa con el dedo
 (Ley 1581 de 2012). El centro de cada círculo es el centroide del sector, no un predio.</p>
@@ -1190,7 +1487,32 @@ registros, decir «el barrio X tiene una roja» equivale a señalar la casa con 
   function radio(n){ return Math.max(7, Math.min(30, 3.6 * Math.sqrt(n))); }
 
   var mapa = L.map("mapa", {scrollWheelZoom: false});
-  L.tileLayer({{ teselas|tojson }}, {maxZoom: 19, attribution: {{ credito|tojson }}}).addTo(mapa);
+
+  // Tres bases: callejero, ortofoto y la híbrida (ortofoto + rótulos encima).
+  // La híbrida instancia su propia capa de imagen porque una misma tileLayer no
+  // puede pertenecer a dos bases a la vez.
+  function ortofoto(){
+    return L.tileLayer({{ satelite|tojson }},
+      {maxZoom: 19, attribution: {{ credito_sat|tojson }}});
+  }
+  var BASES = {
+    "Callejero": L.tileLayer({{ teselas|tojson }},
+      {maxZoom: 19, attribution: {{ credito|tojson }}}),
+    "Satélite": ortofoto(),
+    "Híbrida": L.layerGroup([ortofoto(), L.tileLayer({{ rotulos|tojson }},
+      {maxZoom: 19, attribution: {{ credito_sat|tojson }}})])
+  };
+  // La elección se recuerda: quien trabaja sobre ortofoto no quiere volver a
+  // elegirla cada vez que entra al mapa.
+  var guardada = null;
+  try { guardada = localStorage.getItem("brg_capa_base"); } catch (e) {}
+  (BASES[guardada] || BASES["Callejero"]).addTo(mapa);
+  // Desplegado y no en icono: el icono de Leaflet es una imagen que no está
+  // vendorizada, y además tres nombres visibles se eligen de un toque.
+  L.control.layers(BASES, null, {position: "topright", collapsed: false}).addTo(mapa);
+  mapa.on("baselayerchange", function(ev){
+    try { localStorage.setItem("brg_capa_base", ev.name); } catch (e) {}
+  });
 
   fetch("/admin/mapa.geojson{{ ('?brigada=' + sel) if sel else '' }}", {cache: "no-store"})
     .then(function(r){ return r.json(); })
@@ -1221,12 +1543,48 @@ registros, decir «el barrio X tiene una roja» equivale a señalar la casa con 
         }
       }).addTo(mapa);
       mapa.fitBounds(capa.getBounds(), {padding: [40, 40], maxZoom: 14});
+      preparaIndividual(capa);
     })
     .catch(function(){
       document.getElementById("mapa").innerHTML =
         '<p style="padding:24px;color:#475569">No se pudo cargar la capa. ' +
         'Los mismos datos están en la tabla de abajo.</p>';
     });
+
+  // Segunda capa: un punto por evaluación. Se carga solo si alguien la pide, y
+  // el aviso deja claro que a partir de ahí hay direcciones en pantalla.
+  var CLAS_COLOR = {1:"#15803D", 2:"#FACC15", 3:"#B91C1C"};
+  function preparaIndividual(capaAgregada){
+    var casilla = document.getElementById("capa-individual");
+    var aviso = document.getElementById("aviso-individual");
+    if (!casilla) return;
+    var capa = null;
+    casilla.addEventListener("change", function(){
+      aviso.classList.toggle("oculto", !casilla.checked);
+      if (!casilla.checked){ if (capa) mapa.removeLayer(capa); mapa.addLayer(capaAgregada); return; }
+      mapa.removeLayer(capaAgregada);
+      if (capa){ mapa.addLayer(capa); return; }
+      fetch("/admin/individual.geojson{{ ('?brigada=' + sel) if sel else '' }}",
+            {cache:"no-store"})
+        .then(function(r){ return r.json(); })
+        .then(function(g){
+          capa = L.geoJSON(g, {
+            pointToLayer: function(f, ll){
+              var p = f.properties;
+              return L.circleMarker(ll, {radius: 7,
+                fillColor: CLAS_COLOR[p.clas] || "#94A3B8", fillOpacity: .9,
+                color: p.sin_revisar ? "#0369A1" : "#FFFFFF",
+                weight: p.sin_revisar ? 3 : 1.5});
+            },
+            onEachFeature: function(f, c){
+              var p = f.properties;
+              c.bindTooltip((p.id_local || "") + " · " + (p.direccion || p.barrio || ""));
+              c.on("click", function(){ window.abrirFicha(p.id); });
+            }
+          }).addTo(mapa);
+        });
+    });
+  }
 })();
 </script>
 {% endif %}
@@ -1243,7 +1601,9 @@ def mapa(req: Request, brigada: str = ""):
                 if ses.rol == "admin" else [])
     return pagina("Mapa", render(MAPA, filas=filas, brigadas=brigadas, sel=brigada,
                                  rampa=RAMPA_ROJAS, cortes=CORTES_ROJAS, k=K_ANONIMATO,
-                                 teselas=TESELAS, credito=TESELAS_CREDITO), "mapa", ses=ses)
+                                 teselas=TESELAS, credito=TESELAS_CREDITO,
+                                 satelite=TESELAS_SAT, rotulos=TESELAS_ROTULOS,
+                                 credito_sat=TESELAS_SAT_CREDITO), "mapa", ses=ses)
 
 
 @router.get("/admin/vendor/{archivo}")
@@ -1326,3 +1686,286 @@ def coordinadores_baja(req: Request, usuario: str = Form(...)):
     exigir_admin(req)
     consulta("UPDATE coordinador SET activo = false WHERE usuario = %s", (usuario,))
     return RedirectResponse("/admin/brigadas", 303)
+
+
+# ------------------------------------------------------------------- las fotos
+# Se sirven por (evaluación, índice), NUNCA por nombre de archivo: el cliente no
+# elige rutas, así que no hay forma de pedir algo fuera del directorio de fotos.
+# Y van con el alcance de brigada aplicado: un coordinador solo ve las suyas.
+@router.get("/admin/foto/{ident}/{n}")
+def foto(req: Request, ident: str, n: int):
+    exigir(req)
+    w, wa = filtro_alcance(req)
+    fila = consulta(f"SELECT fotos FROM evaluacion_brigada WHERE id = %s AND {w}",
+                    (ident, *wa))
+    if not fila or not fila[0][0] or n < 0 or n >= len(fila[0][0]):
+        raise HTTPException(404, "No existe esa foto")
+
+    import api_brigadas
+    ruta = pathlib.Path(fila[0][0][n]).resolve()
+    # Cinturón: aunque la ruta salga de la base, se comprueba que caiga dentro
+    # del directorio de fotos antes de leer nada del disco.
+    if not ruta.is_file() or api_brigadas.FOTOS.resolve() not in ruta.parents:
+        raise HTTPException(404, "El archivo ya no está")
+    return Response(ruta.read_bytes(), media_type="image/jpeg",
+                    # Dato personal: no se queda en cachés intermedias.
+                    headers={"Cache-Control": "private, no-store"})
+
+
+def _evaluacion(req: Request, ident: str):
+    """Una evaluación completa, con su alcance aplicado. None si no le pertenece."""
+    w, wa = filtro_alcance(req)
+    filas = consulta(f"""
+        SELECT id, id_local, ts, recibido_en, matricula, inspector, brigada,
+               brigada_token, matricula_verificada, direccion, municipio, barrio,
+               sistema, uso, pisos, ocupantes, danos, banderas, clasificacion,
+               clasificacion_auto, motivo_auto, justificacion, observaciones,
+               coalesce(jsonb_array_length(fotos), 0), ST_Y(geom), ST_X(geom),
+               precision_m, revision_estado, revision_matricula, revision_en,
+               revision_clasificacion, revision_motivo, clasificacion_efectiva
+          FROM evaluacion_brigada WHERE id = %s AND {w}""", (ident, *wa))
+    if not filas:
+        return None
+    campos = ["id", "id_local", "ts", "recibido_en", "matricula", "inspector",
+              "brigada", "brigada_token", "matricula_verificada", "direccion",
+              "municipio", "barrio", "sistema", "uso", "pisos", "ocupantes",
+              "danos", "banderas", "clasificacion", "clasificacion_auto",
+              "motivo_auto", "justificacion", "observaciones", "fotos", "lat",
+              "lon", "precision_m", "revision_estado", "revision_matricula",
+              "revision_en", "revision_clasificacion", "revision_motivo",
+              "clasificacion_efectiva"]
+    return dict(zip(campos, filas[0], strict=True))
+
+
+@router.get("/admin/evaluacion/{ident}.json")
+def evaluacion_json(req: Request, ident: str):
+    """Lo que consume el modal de Reportes y el globo del mapa."""
+    exigir(req)
+    e = _evaluacion(req, ident)
+    if e is None:
+        raise HTTPException(404, "No existe o no pertenece a su brigada")
+    for k in ("ts", "recibido_en", "revision_en"):
+        e[k] = e[k].isoformat() if e[k] else None
+    e["nombre_clas"] = NOMBRE_CLAS.get(e["clasificacion_efectiva"], "?")
+    return JSONResponse(e, headers={"Cache-Control": "no-store"})
+
+
+# ------------------------------------------------------- evolución de la operación
+# Ritmo, cobertura y cumplimiento. A propósito NO hay conteo por inspector: medir a
+# una persona por cuántas evaluaciones firmó premia la prisa, y en este trabajo la
+# prisa es exactamente el riesgo. Lo que se mide es la operación.
+#
+# El amarillo del mapa (#FACC15) no se reutiliza aquí: sobre una tarjeta blanca no
+# llega a 3:1 y las barras finas se pierden. #CA8A04 conserva el significado y pasa
+# el chequeo de daltonismo contra el verde (ΔE 9.9 protan).
+ALTO_BARRA = 140       # px del área de dibujo; las etiquetas van debajo
+COLOR_CLAS = {3: "#B91C1C", 2: "#CA8A04", 1: "#15803D"}
+
+TABLERO_HTML = """
+<h1>Evolución de la operación</h1>
+<p class="sub">Cómo avanza el levantamiento, qué sectores llevan horas sin actividad
+y qué queda por resolver.</p>
+
+<div class="cifras">
+  <div class="cifra"><b class="num">{{ t.total }}</b><span>Evaluaciones</span></div>
+  <div class="cifra"><b class="num">{{ t.dias }}</b><span>Días con actividad</span></div>
+  <div class="cifra"><b class="num">{{ t.sectores }}</b><span>Sectores trabajados</span></div>
+  <div class="cifra {{ 'alerta' if t.rojos_vencidos }}"><b class="num">{{ t.rojos_pend }}</b>
+    <span>Rojos sin segunda revisión</span></div>
+  <div class="cifra {{ 'alerta' if t.sin_registro }}"><b class="num">{{ t.sin_registro }}</b>
+    <span>Firmas fuera del registro</span></div>
+</div>
+
+{% if not serie %}
+<div class="tarjeta"><p class="vacio" style="margin:0">Todavía no hay evaluaciones
+  que mostrar.</p></div>
+{% else %}
+
+<div class="tarjeta">
+  <p class="rotulo">Ritmo · evaluaciones recibidas por día</p>
+  <div class="desplaza"><div class="barras">
+    {% for d in serie %}
+    <div class="barra-col">
+      <span class="barra-val num">{{ d.total }}</span>
+      <div class="barra-pila" style="height:{{ d.alto }}px"
+           title="{{ d.fecha }} · {{ d.rojas }} rojas, {{ d.amarillas }} amarillas, {{ d.verdes }} verdes">
+        {% for seg in d.segmentos %}
+        <div style="height:{{ seg.alto }}px;background:{{ seg.color }}"></div>
+        {% endfor %}
+      </div>
+      <span class="barra-eti">{{ d.etiqueta }}</span>
+    </div>
+    {% endfor %}
+  </div></div>
+  <div class="leyenda">
+    <span><i style="background:#B91C1C"></i>Rojas</span>
+    <span><i style="background:#CA8A04"></i>Amarillas</span>
+    <span><i style="background:#15803D"></i>Verdes</span>
+    <span style="color:var(--tenue)">Clasificación ya revisada, no la original.</span>
+  </div>
+  <details class="detalle">
+    <summary>Ver los mismos datos en tabla</summary>
+    <div class="desplaza"><table>
+      <thead><tr><th>Día</th><th>Rojas</th><th>Amarillas</th><th>Verdes</th><th>Total</th></tr></thead>
+      <tbody>{% for d in serie|reverse %}<tr><td class="num">{{ d.fecha }}</td>
+        <td class="num">{{ d.rojas }}</td><td class="num">{{ d.amarillas }}</td>
+        <td class="num">{{ d.verdes }}</td><td class="num">{{ d.total }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </details>
+</div>
+
+<div class="tarjeta">
+  <p class="rotulo">Cobertura · dónde se trabajó y cuándo fue la última vez</p>
+  <div class="desplaza"><table>
+    <thead><tr><th>Municipio</th><th>Barrio</th><th>Evaluadas</th><th>Rojas</th>
+      <th>Última evaluación</th><th>Sin actividad</th></tr></thead>
+    <tbody>
+    {% for c in cobertura %}<tr>
+      <td>{{ c.municipio or "—" }}</td><td>{{ c.barrio or "—" }}</td>
+      <td class="num">{{ c.evaluadas }}</td>
+      <td class="num">{% if c.rojas %}<span class="pastilla p3">{{ c.rojas }}</span>{% else %}0{% endif %}</td>
+      <td class="num">{{ c.ultima }}</td>
+      <td class="num">{% if c.horas >= 24 %}<span class="pastilla palerta">{{ c.horas }} h</span>
+        {% else %}{{ c.horas }} h{% endif %}</td>
+    </tr>{% endfor %}
+    </tbody></table></div>
+  <p class="nota">El sistema no sabe qué había que cubrir —no hay un plan cargado—, así
+    que no puede decir qué falta. Lo que sí muestra es dónde se trabajó y cuánto hace
+    que nadie vuelve.</p>
+</div>
+
+{% if por_brigada|length > 1 %}
+<div class="tarjeta">
+  <p class="rotulo">Por brigada</p>
+  <div class="desplaza"><table>
+    <thead><tr><th>Brigada</th><th>Evaluaciones</th><th>Sectores</th><th>Firmas distintas</th>
+      <th>Rojos sin revisar</th><th>Última actividad</th></tr></thead>
+    <tbody>
+    {% for b in por_brigada %}<tr>
+      <td>{{ b.nombre }}</td>
+      <td class="num">{{ b.total }}</td><td class="num">{{ b.sectores }}</td>
+      <td class="num">{{ b.matriculas }}</td>
+      <td class="num">{% if b.pendientes %}<span class="pastilla palerta">{{ b.pendientes }}</span>
+        {% else %}0{% endif %}</td>
+      <td class="num">{{ b.ultima }}</td>
+    </tr>{% endfor %}
+    </tbody></table></div>
+</div>
+{% endif %}
+
+<div class="tarjeta">
+  <p class="rotulo">Cumplimiento · lo que queda por resolver</p>
+  <table>
+    <tr><td style="width:58%">Rojos esperando segunda revisión</td>
+      <td class="num">{{ t.rojos_pend }}{% if t.rojos_vencidos %}
+        <span class="pastilla palerta">{{ t.rojos_vencidos }} fuera de plazo</span>{% endif %}</td></tr>
+    <tr><td>Demora media en revisar un rojo</td><td class="num">{{ t.demora or "—" }}</td></tr>
+    <tr><td>Evaluaciones firmadas por matrícula fuera del registro</td>
+      <td class="num">{{ t.sin_registro }}</td></tr>
+    <tr><td>Evaluaciones sin coordenada</td><td class="num">{{ t.sin_geo }}</td></tr>
+    <tr><td>Evaluaciones sin fotografía</td><td class="num">{{ t.sin_foto }}</td></tr>
+  </table>
+  <p class="nota">No hay conteo por inspector, a propósito: medir a alguien por cuántas
+    evaluaciones firmó premia la prisa en un trabajo donde la prisa es el riesgo.</p>
+</div>
+{% endif %}
+
+<style>
+.barras{display:flex;gap:10px;align-items:flex-end;justify-content:flex-start;padding:4px 2px 0}
+/* max-width para que con un solo día la barra quede a la izquierda y no flotando
+   en el centro de una columna del ancho de la tarjeta. */
+.barra-col{display:flex;flex-direction:column;align-items:center;gap:5px;
+  flex:1 1 36px;min-width:36px;max-width:72px}
+.barra-pila{width:100%;max-width:44px;display:flex;flex-direction:column-reverse;
+  gap:2px;border-radius:4px;overflow:hidden}
+.barra-val{font-size:12px;font-weight:700;color:var(--tinta2);font-variant-numeric:tabular-nums}
+.barra-eti{font-size:11px;color:var(--tenue);white-space:nowrap}
+.leyenda{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:16px;font-size:12px;
+  color:var(--tinta2)}
+.leyenda i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;
+  vertical-align:-1px}
+.detalle{margin-top:14px;font-size:13px}
+.detalle summary{cursor:pointer;color:var(--azul);font-weight:600}
+.detalle table{margin-top:10px}
+</style>
+"""
+
+
+def _segmentos(dia: dict, alto: int) -> list:
+    """Reparte la altura en píxeles entre las tres clases.
+
+    Se calcula en el servidor y no con `flex`, para que el último segmento absorba
+    el redondeo y la pila mida exactamente lo que dice la barra.
+    """
+    segs, usado = [], 0
+    presentes = [(c, dia[k]) for c, k in
+                 ((3, "rojas"), (2, "amarillas"), (1, "verdes")) if dia[k]]
+    for i, (clas, n) in enumerate(presentes):
+        parte = (alto - usado if i == len(presentes) - 1
+                 else max(2, round(alto * n / dia["total"])))
+        usado += parte
+        segs.append({"color": COLOR_CLAS[clas], "alto": max(2, parte)})
+    return segs
+
+
+@router.get("/admin/evolucion", response_class=HTMLResponse)
+def evolucion(req: Request):
+    ses = exigir(req)
+    w, wa = filtro_alcance(req)
+
+    (total, dias, sectores, rojos_pend, rojos_venc, sin_reg, sin_geo, sin_foto,
+     demora), = consulta(f"""
+        SELECT count(*), count(DISTINCT ts::date), count(DISTINCT (municipio, barrio)),
+               count(*) FILTER (WHERE revision_estado = 'pendiente'),
+               count(*) FILTER (WHERE revision_estado = 'pendiente'
+                                  AND revision_vence < now()),
+               count(*) FILTER (WHERE NOT matricula_verificada),
+               count(*) FILTER (WHERE geom IS NULL),
+               count(*) FILTER (WHERE coalesce(jsonb_array_length(fotos), 0) = 0),
+               round((avg(extract(epoch FROM (revision_en - recibido_en)) / 3600.0)
+                      FILTER (WHERE revision_en IS NOT NULL))::numeric, 1)
+          FROM evaluacion_brigada WHERE {w}""", tuple(wa))
+
+    crudas = consulta(f"""
+        SELECT ts::date, count(*),
+               count(*) FILTER (WHERE clasificacion_efectiva = 3),
+               count(*) FILTER (WHERE clasificacion_efectiva = 2),
+               count(*) FILTER (WHERE clasificacion_efectiva = 1)
+          FROM evaluacion_brigada WHERE {w}
+         GROUP BY 1 ORDER BY 1 DESC LIMIT 21""", tuple(wa))
+    serie = [{"fecha": f[0].isoformat(), "etiqueta": f[0].strftime("%d/%m"),
+              "total": f[1], "rojas": f[2], "amarillas": f[3], "verdes": f[4]}
+             for f in reversed(crudas)]
+    maximo = max((d["total"] for d in serie), default=1)
+    for d in serie:
+        d["alto"] = max(4, round(ALTO_BARRA * d["total"] / maximo))
+        d["segmentos"] = _segmentos(d, d["alto"])
+
+    cobertura = [{"municipio": f[0], "barrio": f[1], "evaluadas": f[2], "rojas": f[3],
+                  "ultima": f[4].strftime("%Y-%m-%d %H:%M"), "horas": round(f[5])}
+                 for f in consulta(f"""
+        SELECT municipio, barrio, count(*),
+               count(*) FILTER (WHERE clasificacion_efectiva = 3),
+               max(recibido_en),
+               extract(epoch FROM (now() - max(recibido_en))) / 3600.0
+          FROM evaluacion_brigada WHERE {w}
+         GROUP BY municipio, barrio ORDER BY max(recibido_en) DESC""", tuple(wa))]
+
+    por_brigada = [{"nombre": f[0] or "— sin atribuir", "total": f[1], "sectores": f[2],
+                    "matriculas": f[3], "pendientes": f[4],
+                    "ultima": f[5].strftime("%Y-%m-%d %H:%M")}
+                   for f in consulta(f"""
+        SELECT brigada_token, count(*), count(DISTINCT (municipio, barrio)),
+               count(DISTINCT matricula),
+               count(*) FILTER (WHERE revision_estado = 'pendiente'),
+               max(recibido_en)
+          FROM evaluacion_brigada WHERE {w}
+         GROUP BY brigada_token ORDER BY count(*) DESC""", tuple(wa))]
+
+    t = {"total": total, "dias": dias, "sectores": sectores, "rojos_pend": rojos_pend,
+         "rojos_vencidos": rojos_venc, "sin_registro": sin_reg, "sin_geo": sin_geo,
+         "sin_foto": sin_foto, "demora": f"{demora} h" if demora is not None else None}
+    return pagina("Evolución",
+                  render(TABLERO_HTML, t=t, serie=serie, cobertura=cobertura,
+                         por_brigada=por_brigada),
+                  "evolucion", ses=ses)
