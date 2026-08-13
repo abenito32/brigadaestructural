@@ -36,7 +36,8 @@ BLANCO = RGBColor(0xFF, 0xFF, 0xFF)
 VERDE = RGBColor(0x15, 0x80, 0x3D)
 AMBAR = RGBColor(0xFA, 0xCC, 0x15)
 AMBAR_T = RGBColor(0x42, 0x20, 0x06)
-ROJO = RGBColor(0xB9, 0x1C, 0x1C)
+NARANJA = RGBColor(0xC2, 0x41, 0x0C)
+ROJO = RGBColor(0x7F, 0x1D, 0x1D)
 
 FUENTE = "Arial"          # disponible en Windows, macOS y LibreOffice
 ANCHO, ALTO = Inches(13.333), Inches(7.5)
@@ -101,7 +102,7 @@ def caja(dia, x, y, w, h, *, relleno=BLANCO, borde=LINEA, radio=True, grosor=1):
 
 def barra_semaforo(dia, x, y, ancho_total, alto=Inches(0.22)):
     """El motivo de la portada: las tres franjas del semáforo."""
-    props = [(VERDE, .24), (AMBAR, .3), (ROJO, .46)]
+    props = [(VERDE, .22), (AMBAR, .26), (NARANJA, .28), (ROJO, .24)]
     cursor = x
     for color, frac in props:
         w = Emu(int(ancho_total * frac) - Inches(0.08))
@@ -288,38 +289,41 @@ def como_funciona(prs):
 
 def semaforo(prs):
     dia = nueva(prs)
-    cabecera(dia, "CRITERIO TÉCNICO", "Semáforo ATC-20 adaptado a la NSR-10",
+    cabecera(dia, "CRITERIO TÉCNICO", "Los cuatro niveles del formulario V2F del IDIGER",
              "La regla es determinista: los mismos datos producen siempre la misma clasificación.")
     filas = [
-        (ROJO, BLANCO, "ROJO", "Inseguro · no ingresar",
-         "Cualquier condición de cierre marcada, o daño severo en elementos portantes, "
-         "entrepisos o terreno de soporte."),
-        (AMBAR, AMBAR_T, "AMARILLO", "Uso restringido",
-         "Daño moderado en portantes, entrepisos o terreno; o daño severo solo en muros "
+        (ROJO, BLANCO, "4 · COLAPSO", "Peligro de colapso",
+         "Evacuar y acordonar el entorno. Colapso, inclinación visible, o núcleo de "
+         "columna triturado."),
+        (NARANJA, BLANCO, "3 · NO HAB.", "No habitable",
+         "Evacuar. Daño severo en portantes o entrepisos, grietas pasantes, riesgo "
+         "externo."),
+        (AMBAR, AMBAR_T, "2 · RESTRING.", "Uso restringido",
+         "Daño moderado en portantes, entrepisos o terreno; o severo solo en muros "
          "divisorios y fachada."),
-        (VERDE, BLANCO, "VERDE", "Habitable",
+        (VERDE, BLANCO, "1 · HABITABLE", "Habitable",
          "Daño leve o nulo, sin ninguna condición de cierre presente."),
     ]
-    y = Inches(2.65)
+    y = Inches(2.35)
     for fondo, tinta_chip, nombre, sentido, regla in filas:
-        caja(dia, Inches(0.9), y, Inches(7.6), Inches(1.15), relleno=BLANCO, borde=LINEA)
-        caja(dia, Inches(1.15), Emu(y + Inches(0.28)), Inches(1.5), Inches(0.58),
+        caja(dia, Inches(0.9), y, Inches(7.6), Inches(0.92), relleno=BLANCO, borde=LINEA)
+        caja(dia, Inches(1.15), Emu(y + Inches(0.19)), Inches(1.6), Inches(0.52),
              relleno=fondo, borde=None)
-        texto(dia, Inches(1.15), Emu(y + Inches(0.42)), Inches(1.5), Inches(0.3), nombre,
-              tam=13, negrita=True, color=tinta_chip, align=PP_ALIGN.CENTER)
-        texto(dia, Inches(2.85), Emu(y + Inches(0.22)), Inches(5.4), Inches(0.3), sentido,
-              tam=14, negrita=True, color=TINTA)
-        texto(dia, Inches(2.85), Emu(y + Inches(0.55)), Inches(5.4), Inches(0.5), regla,
-              tam=11.5, color=TINTA2, interlineado=1.2)
-        y = Emu(y + Inches(1.32))
+        texto(dia, Inches(1.15), Emu(y + Inches(0.31)), Inches(1.6), Inches(0.3), nombre,
+              tam=11.5, negrita=True, color=tinta_chip, align=PP_ALIGN.CENTER)
+        texto(dia, Inches(2.95), Emu(y + Inches(0.14)), Inches(5.3), Inches(0.3), sentido,
+              tam=13, negrita=True, color=TINTA)
+        texto(dia, Inches(2.95), Emu(y + Inches(0.42)), Inches(5.3), Inches(0.46), regla,
+              tam=10.5, color=TINTA2, interlineado=1.12)
+        y = Emu(y + Inches(1.02))
     captura = ASSETS / "app-placa.png"
     if captura.exists():
-        caja(dia, Inches(8.85), Inches(2.65), Inches(3.55), Inches(3.5),
+        caja(dia, Inches(8.85), Inches(2.35), Inches(3.55), Inches(3.9),
              relleno=PAPEL, borde=LINEA)
-        dia.shapes.add_picture(str(captura), Inches(9.0), Inches(2.8), width=Inches(3.25))
-    texto(dia, Inches(0.9), Inches(6.48), Inches(7.6), Inches(0.4),
-          "Seis condiciones fuerzan el rojo sin importar lo demás: colapso, inclinación, "
-          "acero expuesto, grietas pasantes, riesgo externo y elementos sueltos sobre el acceso.",
+        dia.shapes.add_picture(str(captura), Inches(9.0), Inches(2.5), width=Inches(3.25))
+    texto(dia, Inches(0.9), Inches(6.5), Inches(11.5), Inches(0.36),
+          "La global es la peor de cinco parciales —estado general, geotécnicos, no "
+          "estructurales, estructurales y entorno—, como manda el V2F.",
           tam=11, color=TENUE, interlineado=1.2)
     pie_contacto(dia)
     return dia
@@ -334,22 +338,22 @@ def panel(prs):
     tarjetas(dia, [
         ("Mapa del consolidado",
          "Un círculo por sector sobre callejero, satélite o híbrida. El área es cuántas "
-         "evaluaciones tiene; el color, qué proporción quedó en rojo."),
+         "evaluaciones tiene; el color, qué proporción quedó sin poder habitarse."),
         ("El reporte completo, con fotos",
          "Cada evaluación se abre con su registro fotográfico y se exporta en un archivo "
          "que se abre sin conexión, para adjuntarlo a un oficio."),
-        ("Doble revisión de los rojos",
-         "Un rojo ordena no habitar. Entra en cola, lo mira un segundo inspector, y quien "
-         "firmó no puede revisar lo suyo."),
+        ("Doble revisión de los desalojos",
+         "No habitable y peligro de colapso entran en cola; el segundo va primero y con "
+         "plazo más corto. Quien firmó no puede revisar lo suyo."),
         ("Evolución de la operación",
          "Ritmo por día, qué sectores llevan horas sin actividad y qué queda por resolver. "
          "Sin conteo por persona: la prisa es el riesgo."),
         ("Cada brigada ve lo suyo",
          "El coordinador de una brigada entra con su propia clave y ve solo sus reportes. "
          "El alcance se decide en el servidor, no escondiendo un menú."),
-        ("Consolidado listo para entregar",
-         "Agregado por municipio y barrio, con umbral de anonimato. Es lo que va a la "
-         "autoridad; el predio no sale de ahí."),
+        ("Exportación al formulario V2F",
+         "Una columna por casilla del formulario del IDIGER, con sus códigos, en CSV, "
+         "JSON o por API. Sin transcribir nada a mano."),
     ])
     pie_contacto(dia)
     return dia
@@ -369,8 +373,8 @@ def ventajas(prs):
          "Cada evaluación queda con matrícula, brigada, fecha, coordenada y fotos. Si el "
          "criterio se modificó, queda el motivo escrito."),
         ("Solo firma quien puede",
-         "Sin matrícula la aplicación no permite guardar. Y ningún rojo queda con una sola "
-         "firma: cada uno pasa por una segunda revisión."),
+         "Sin matrícula la aplicación no permite guardar. Y ningún desalojo queda con una "
+         "sola firma: cada uno pasa por una segunda revisión."),
         ("Protección de datos",
          "Lo que sale hacia autoridades va agregado por sector, con umbral mínimo. El predio "
          "nunca se expone (Ley 1581 de 2012)."),
@@ -425,6 +429,9 @@ def integracion(prs):
              "API de consulta en funcionamiento: solo lectura, credenciales propias "
              "y alcance por municipio.")
     tarjetas(dia, [
+        ("Formulario V2F del IDIGER",
+         "Cada evaluación aplanada a las casillas del formulario oficial, con sus "
+         "códigos. Es el estándar que ya usan las brigadas."),
         ("Consolidado por sector",
          "Conteos por municipio y barrio con el umbral de anonimato aplicado. Sin dato "
          "personal: apto para un tablero público."),
@@ -434,7 +441,7 @@ def integracion(prs):
         ("Detalle para la entidad dueña",
          "Direcciones y coordenadas, solo para quien responde por esos datos y con "
          "finalidad declarada (Ley 1581 de 2012)."),
-    ], y=Inches(2.85), alto=Inches(2.0))
+    ], y=Inches(2.85), alto=Inches(1.9), cols=4)
     caja(dia, Inches(0.9), Inches(5.2), Inches(11.5), Inches(1.3), relleno=PAPEL, borde=LINEA)
     texto(dia, Inches(1.2), Inches(5.45), Inches(10.9), Inches(0.9),
           "Las credenciales de lectura están separadas de las de brigada: una brigada "

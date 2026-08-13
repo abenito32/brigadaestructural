@@ -18,8 +18,8 @@
   --tinta:#0F172A; --tinta2:#334155; --tenue:#5E6E82;
   --linea:#D9E0E8; --papel:#F4F7FA;
   --azul:#0369A1; --azul-osc:#075985; --azul-tinte:#E8F4FB;
-  --verde:#15803D; --ambar:#B45309; --ambar-fondo:#FACC15; --ambar-tinta:#422006;
-  --rojo:#B91C1C; --rojo-tinte:#FDF1F1;
+  --verde:#15803D; --ambar:#B45309; --ambar-fondo:#EAB308; --ambar-tinta:#422006;
+  --naranja:#C2410C; --rojo:#7F1D1D; --rojo-tinte:#FDF1F1;
 }
 *{box-sizing:border-box}
 html{-webkit-print-color-adjust:exact; print-color-adjust:exact}
@@ -56,6 +56,7 @@ a{color:var(--azul-osc)}
 .semaforo-portada div{height:9mm;border-radius:1.5mm}
 .semaforo-portada .v{flex:1;background:var(--verde)}
 .semaforo-portada .a{flex:1.5;background:var(--ambar-fondo)}
+.semaforo-portada .o{flex:1.8;background:var(--naranja)}
 .semaforo-portada .r{flex:2.2;background:var(--rojo)}
 .portada .pie{margin-top:auto;font-size:9.5pt;color:var(--tinta2);line-height:1.65}
 .portada .pie strong{color:var(--tinta)}
@@ -94,6 +95,7 @@ tr:last-child td{border-bottom:0}
   font-weight:700;white-space:nowrap}
 .c-v{background:#DCFCE7;color:#14532D}
 .c-a{background:#FEF3C7;color:var(--ambar-tinta)}
+.c-o{background:#FFEDD5;color:#7C2D12}
 .c-r{background:#FEE2E2;color:#7F1D1D}
 .c-n{background:#EEF2F6;color:var(--tinta2)}
 
@@ -130,6 +132,7 @@ tr:last-child td{border-bottom:0}
 .pie-doc .barra div{height:4mm;border-radius:1mm}
 .pie-doc .barra .v{flex:1;background:var(--verde)}
 .pie-doc .barra .a{flex:1.5;background:var(--ambar-fondo)}
+.pie-doc .barra .o{flex:1.8;background:var(--naranja)}
 .pie-doc .barra .r{flex:2.2;background:var(--rojo)}
 .pie-doc strong{color:var(--tinta)}
 </style>
@@ -142,10 +145,10 @@ tr:last-child td{border-bottom:0}
   <h1>Brigada<br>Evaluación estructural<br>en campo</h1>
   <p class="bajada">Aplicación offline para el levantamiento de daño estructural
     tras un sismo, y el sistema que recibe y consolida lo levantado.</p>
-  <div class="semaforo-portada"><div class="v"></div><div class="a"></div><div class="r"></div></div>
+  <div class="semaforo-portada"><div class="v"></div><div class="a"></div><div class="o"></div><div class="r"></div></div>
   <div class="pie">
-    <strong>Versión 1.0</strong> · Agosto de 2026<br>
-    Semáforo ATC-20 adaptado a NSR-10 · Colombia<br><br>
+    <strong>Versión 2.0</strong> · Agosto de 2026<br>
+    Formulario V2F del IDIGER · ATC-20 adaptado a NSR-10 · Colombia<br><br>
     Desarrollada con Amor por <strong>Andrés Benito Revollo Vélez</strong><br>
     Rollout Comercio e Servicios Limitada<br><br>
     Software libre bajo GNU AGPL v3<br>
@@ -164,7 +167,7 @@ tr:last-child td{border-bottom:0}
       <li><span class="num">1</span> Qué es esta app, y qué no es</li>
       <li><span class="num">2</span> Antes de salir: preparar el teléfono</li>
       <li><span class="num">3</span> Evaluar una edificación, paso a paso</li>
-      <li><span class="num">4</span> Cómo se calcula el semáforo</li>
+      <li><span class="num">4</span> Cómo se calcula la habitabilidad</li>
       <li><span class="num">5</span> Cuándo cambiar la clasificación, y cómo</li>
       <li><span class="num">6</span> Sincronizar al volver la señal</li>
       <li><span class="num">7</span> Si algo sale mal</li>
@@ -180,29 +183,32 @@ tr:last-child td{border-bottom:0}
       <li><span class="num">12</span> Registrar inspectores</li>
       <li><span class="num">13</span> Revisar las firmas fuera del registro</li>
       <li><span class="num">14</span> La ficha de un reporte y sus fotos</li>
-      <li><span class="num">15</span> La doble revisión de los rojos</li>
+      <li><span class="num">15</span> La segunda revisión de los desalojos</li>
       <li><span class="num">16</span> El mapa</li>
       <li><span class="num">17</span> Evolución de la operación</li>
-      <li><span class="num">18</span> El consolidado: qué se entrega y qué no</li>
+      <li><span class="num">18</span> Exportar al formulario V2F</li>
+      <li><span class="num">19</span> Predios sin código catastral</li>
+      <li><span class="num">20</span> La historia de un predio</li>
+      <li><span class="num">21</span> El consolidado: qué se entrega y qué no</li>
     </ol>
   </li>
   <li>
     <div class="grupo">Parte III · Para quien administra el servidor</div>
     <ol>
-      <li><span class="num">19</span> Cómo está armado el sistema</li>
-      <li><span class="num">20</span> Instalación desde cero</li>
-      <li><span class="num">21</span> Variables de configuración</li>
-      <li><span class="num">22</span> Operación diaria</li>
-      <li><span class="num">23</span> Diagnóstico de problemas</li>
-      <li><span class="num">24</span> Actualizar la aplicación</li>
-      <li><span class="num">25</span> Respaldo y recuperación</li>
-      <li><span class="num">26</span> La API de consulta</li>
+      <li><span class="num">22</span> Cómo está armado el sistema</li>
+      <li><span class="num">23</span> Instalación desde cero</li>
+      <li><span class="num">24</span> Variables de configuración</li>
+      <li><span class="num">25</span> Operación diaria</li>
+      <li><span class="num">26</span> Diagnóstico de problemas</li>
+      <li><span class="num">27</span> Actualizar la aplicación</li>
+      <li><span class="num">28</span> Respaldo y recuperación</li>
+      <li><span class="num">29</span> La API de consulta</li>
     </ol>
   </li>
   <li>
     <div class="grupo">Anexos</div>
     <ol>
-      <li><span class="num">A</span> Tarjeta de referencia del semáforo</li>
+      <li><span class="num">A</span> Tarjeta de referencia de la habitabilidad</li>
       <li><span class="num">B</span> Referencia de la API</li>
       <li><span class="num">C</span> Esquema de la base de datos</li>
       <li><span class="num">D</span> Glosario</li>
@@ -231,7 +237,7 @@ tr:last-child td{border-bottom:0}
 
 <p>Es una herramienta de <strong>triaje estructural preliminar</strong>. Sirve para que un
 ingeniero con matrícula vigente recorra una zona afectada, evalúe edificación por
-edificación, y deje registrado un semáforo —verde, amarillo o rojo— junto con la
+edificación, y deje registrada una habitabilidad —de habitable a peligro de colapso— junto con la
 evidencia que lo sustenta.</p>
 
 <p>Funciona <strong>sin señal</strong>. Todo se guarda en el teléfono y se envía cuando
@@ -242,7 +248,7 @@ red celular es lo primero que se cae y lo último que vuelve.</p>
 <ul>
   <li><strong>No es auto-reporte ciudadano.</strong> Quien llena el formulario es el
     inspector, en sitio. No se le entrega al propietario para que la diligencie.</li>
-  <li><strong>No emite dictámenes.</strong> El semáforo que calcula es una sugerencia
+  <li><strong>No emite dictámenes.</strong> La clasificación que calcula es una sugerencia
     basada en lo que usted marcó. Quien decide es usted, y queda su matrícula firmando.</li>
   <li><strong>No habilita ni clausura edificaciones.</strong> Eso es competencia de la
     UNGRD, la Defensa Civil, los bomberos y las alcaldías. Lo que usted produce es
@@ -314,14 +320,34 @@ georreferencia después, en gabinete. Escriba siempre la dirección o un punto d
 referencia reconocible —«frente a la escuela», «tercera casa después del puente»—
 porque en zonas rurales la nomenclatura suele no existir.</p>
 
+<p><strong>Ajustar en el mapa</strong> abre un mapa centrado en la lectura del GPS
+—o en el municipio, si todavía no hay lectura— y deja arrastrar el marcador hasta la
+fachada. Vale la pena: el GPS da ±18 m en un buen día, y en una manzana densa eso es
+el edificio de al lado. De esa coordenada dependen el mapa del panel y la agrupación
+de evaluaciones del mismo predio.</p>
+
+<div class="nota-caja">
+  <span class="etq">El mapa necesita señal, el resto no</span>
+  Las imágenes del mapa vienen de la red. Sin conexión el botón lo dice y no pasa
+  nada más: se captura con el GPS y se sigue. El punto se puede corregir después
+  desde el panel.
+</div>
+
+<p>El <strong>municipio</strong> se escribe con tres letras y se elige de la lista:
+son los 1 122 del DANE, con su departamento. Elegirlo de la lista no es un capricho
+de orden — escrito a mano, el consolidado termina con «Bogota», «BOGOTÁ» y «Bogotá,
+D.C.» como tres sectores distintos, y el umbral de anonimato los cuenta por separado.
+Si el sitio no está en la lista (una vereda, un corregimiento), se escribe a mano y
+se guarda tal cual.</p>
+
 <h3>02 · Edificación</h3>
 <p>Sistema constructivo, uso, número de pisos y ocupantes aproximados. El número de
-ocupantes importa para priorizar: no es lo mismo un edificio rojo vacío que uno rojo
+ocupantes importa para priorizar: no es lo mismo una edificación no habitable vacía que una
 con veinte personas esperando afuera.</p>
 
 <h3>03 · Nivel de daño observado</h3>
 <p>Cuatro categorías, cada una en una escala de cuatro niveles. <strong>Esta es la parte
-que determina el semáforo</strong>, así que vale la pena ser preciso.</p>
+que determina la habitabilidad</strong>, así que vale la pena ser preciso.</p>
 
 <table>
   <tr><th style="width:38%">Categoría</th><th>Qué mirar</th></tr>
@@ -340,7 +366,8 @@ que determina el semáforo</strong>, así que vale la pena ser preciso.</p>
 arrancan en N/A; hay que tocar el que corresponda.</p>
 
 <h3>04 · Condiciones que obligan cierre</h3>
-<p>Seis casillas. <strong>Marcar cualquiera de ellas fuerza el rojo</strong>, sin
+<p>Seis casillas. <strong>Marcar cualquiera fuerza al menos «no habitable»</strong>, y las
+tres primeras llevan directo a «peligro de colapso», sin
 importar lo demás que haya marcado.</p>
 
 <ul>
@@ -357,6 +384,23 @@ importar lo demás que haya marcado.</p>
 no se llene y el envío no falle con mala señal. Priorice: la foto del daño que sustenta
 la clasificación vale más que la fachada completa.</p>
 
+<h3>V2F · Formulario completo del IDIGER</h3>
+<p>Una casilla enciende el formulario oficial completo: doce secciones plegadas, unas
+setenta preguntas. Cada sección dice cuántas lleva respondidas y se pone en verde al
+completarse. Se abre solo lo que se va a llenar.</p>
+
+<p>Sin marcarla, la evaluación <strong>vale y clasifica igual</strong>: lo que cambia
+es que el V2F sale marcado como parcial. La sección 5 explica cuándo conviene cada
+modo; en un barrido inicial, el triaje es lo razonable.</p>
+
+<div class="ojo">
+  <span class="etq">La sección de ocupantes lleva datos de otra persona</span>
+  Muertos, heridos, y nombre, teléfono y correo de quien atiende. Son datos personales
+  de un tercero (Ley 1581 de 2012): pídalos con esa finalidad y no otra. No aparecen
+  en el listado, ni en el CSV, ni en la API; salen solo en el V2F que va a la
+  autoridad.
+</div>
+
 <h3>06 · Clasificación y firma</h3>
 <p>Acá aparece la placa con el resultado calculado y, debajo, la línea con su nombre y
 matrícula. Revise que sea correcta y guarde. La evaluación recibe un identificador
@@ -371,48 +415,83 @@ matrícula. Revise que sea correcta y guarde. La evaluación recibe un identific
 </section>
 
 <section>
-<h2>4 · Cómo se calcula el semáforo</h2>
+<h2>4 · Cómo se calcula la habitabilidad</h2>
 
-<p>La regla es determinista: con los mismos datos siempre da el mismo resultado. Se
-evalúa en este orden, y <strong>el primero que aplica gana</strong>.</p>
+<p>Son <strong>cuatro niveles</strong>, los del formulario V2F del IDIGER. La escala
+anterior tenía tres y su rojo mezclaba dos decisiones que en terreno son distintas:
+no entrar a esta edificación, y esta edificación puede caerse sobre la calle. La
+segunda acordona la vía y evacúa a los vecinos.</p>
 
 <table>
-  <tr><th style="width:22%">Resultado</th><th>Se dispara cuando</th></tr>
-  <tr>
-    <td><span class="chip c-r">Rojo</span><br><small>Inseguro · no ingresar</small></td>
-    <td>
-      <strong>1.</strong> Hay <em>cualquier</em> condición de cierre marcada (las seis de
-      la sección 04), o<br>
-      <strong>2.</strong> daño <em>severo</em> en elementos portantes o en vigas,
-      entrepisos y cubierta, o<br>
-      <strong>3.</strong> daño <em>severo</em> en el terreno de soporte.
-    </td>
-  </tr>
-  <tr>
-    <td><span class="chip c-a">Amarillo</span><br><small>Uso restringido</small></td>
-    <td>Daño <em>moderado</em> en portantes, en entrepisos o en terreno; o daño
-      <em>severo</em> únicamente en muros divisorios y fachada.</td>
-  </tr>
-  <tr>
-    <td><span class="chip c-v">Verde</span><br><small>Habitable</small></td>
-    <td>Daño leve, o daño solo en elementos no estructurales, sin ninguna condición
-      de cierre.</td>
-  </tr>
-  <tr>
-    <td><span class="chip c-n">Sin evaluar</span></td>
-    <td>Las cuatro categorías siguen en N/A. La app no deja guardar así.</td>
-  </tr>
+  <tr><th style="width:26%">Nivel</th><th>Qué significa</th></tr>
+  <tr><td><span class="chip c-v">1 · Habitable</span></td>
+    <td>Puede ocuparse. No quiere decir intacto.</td></tr>
+  <tr><td><span class="chip c-a">2 · Uso restringido</span></td>
+    <td>Ocupación limitada: parte de la edificación no se puede usar.</td></tr>
+  <tr><td><span class="chip c-o">3 · No habitable</span></td>
+    <td>No ingresar. Se evacúa la edificación.</td></tr>
+  <tr><td><span class="chip c-r">4 · Peligro de colapso</span></td>
+    <td>Además de evacuar, se acordona el entorno: puede caer sobre la vía o sobre
+      las edificaciones vecinas.</td></tr>
 </table>
 
-<p>Nótese la asimetría deliberada: el daño severo en fachada da <strong>amarillo</strong>,
-no rojo, porque no compromete la estabilidad; pero sí restringe el uso, porque un
-antepecho suelto mata a quien pase por debajo.</p>
+<h3>Cinco parciales, y manda la peor</h3>
+<p>La app calcula una clasificación por cada bloque del formulario y la global es
+<strong>la más crítica de las cinco</strong>. Es la regla del V2F; lo que agrega la app
+es calcularlas en vez de dejarlas al ojo, para que dos brigadas distintas frente al
+mismo edificio lleguen al mismo número.</p>
+
+<table class="tabla-chica">
+  <tr><td style="width:12%"><strong>A</strong></td><td>Estado general: colapso,
+    desviación o inclinación, falla de la cimentación.</td></tr>
+  <tr><td><strong>B</strong></td><td>Problemas geotécnicos: talud, asentamiento,
+    grietas en el terreno.</td></tr>
+  <tr><td><strong>C</strong></td><td>Daños no estructurales. <em>Tope 3.</em></td></tr>
+  <tr><td><strong>D</strong></td><td>Daños estructurales: columnas, vigas, nudos,
+    entrepisos.</td></tr>
+  <tr><td><strong>E</strong></td><td>Problemas del entorno. <em>Tope 3.</em></td></tr>
+</table>
+
+<p>Las cinco aparecen bajo la placa con su letra y su número, y la que manda va
+marcada. Si una sale en gris con una raya, es que <strong>ese bloque no tiene
+datos</strong> — y un bloque vacío no vale «sin daño»: vale que nadie lo miró.</p>
+
+<div class="nota-caja">
+  <span class="etq">Por qué C y E no llegan a 4</span>
+  Lo dice el formulario sin explicarlo, y tiene sentido: por un antepecho suelto o
+  por un vecino inestable se cierra la edificación, pero eso no vuelve inminente el
+  colapso de <em>esta</em> estructura. Se llega a «no habitable», no a «peligro de
+  colapso».
+</div>
+
+<h3>En triaje, sin el formulario largo</h3>
+<p>Con la escala corta de daño (0 a 3) y las seis condiciones de cierre, la app
+resuelve las cinco parciales igual. Estas tres condiciones son las que llevan
+directo a <strong>peligro de colapso</strong>:</p>
+
+<table class="tabla-chica">
+  <tr><td style="width:52%">Colapso total o parcial de algún nivel</td>
+    <td>→ A = 4</td></tr>
+  <tr><td>Inclinación o desplome visible</td><td>→ A = 4</td></tr>
+  <tr><td>Columna con núcleo triturado, acero expuesto o pandeado</td><td>→ D = 4</td></tr>
+</table>
+
+<p>Las otras tres —grietas pasantes, riesgo externo, elementos sobre el acceso— llevan
+a <strong>no habitable</strong>. El daño severo en portantes o entrepisos, también.</p>
 
 <div class="ojo">
-  <span class="etq">Verde no quiere decir «intacto»</span>
-  Quiere decir <em>habitable</em>: que la estructura no está comprometida. Una casa
-  verde puede tener daños importantes que haya que reparar. Explíqueselo al ocupante,
-  porque la palabra «verde» genera más confianza de la que corresponde.
+  <span class="etq">Habitable no quiere decir «intacto»</span>
+  Quiere decir que la estructura no está comprometida. Una casa habitable puede tener
+  daños importantes que haya que reparar. Explíqueselo al ocupante, porque el verde
+  genera más confianza de la que corresponde.
+</div>
+
+<div class="nota-caja">
+  <span class="etq">Un umbral que está en revisión</span>
+  El daño severo en muros divisorios y fachada da <strong>uso restringido</strong> y no
+  «no habitable». Es el umbral que traía la escala de tres y se conservó tal cual al
+  migrar: mover el límite es una decisión profesional, no un efecto secundario de
+  cambiar la escala. Está anotado en el código para discutirlo con quien firme.
 </div>
 </section>
 
@@ -436,7 +515,7 @@ aparece un campo obligatorio: <strong>el motivo</strong>.</p>
 <p>Escriba criterio técnico, no justificaciones vagas. «Se observa apuntalamiento
 provisional en buen estado que restituye la capacidad portante del pórtico afectado»
 sirve. «A criterio del inspector» no sirve para nada, y dentro de seis meses, cuando
-alguien revise por qué ese edificio quedó amarillo, es lo único que va a quedar.</p>
+alguien revise por qué ese edificio quedó en uso restringido, es lo único que va a quedar.</p>
 
 <div class="aviso">
   <span class="etq">Esto queda en el registro permanente</span>
@@ -503,6 +582,13 @@ cambiar de manos.</p>
   <tr><td><strong>La app quedó en una versión vieja</strong></td>
     <td>Ciérrela por completo y ábrala de nuevo con señal. Se actualiza sola.</td></tr>
 
+  <tr><td><strong>Se cerró la app a media evaluación</strong></td>
+    <td>No se perdió: lo que estaba llenando se guarda solo mientras trabaja. Al
+      volver a abrir, arriba aparece <em>«Quedó una evaluación a medio llenar»</em>
+      con dos botones, <strong>Seguir con ella</strong> o <strong>Descartar</strong>.
+      Se guardan también las fotos. Se abren las secciones del V2F que ya tenían
+      respuestas.</td></tr>
+
   <tr><td><strong>Aviso: «este navegador no guarda en disco»</strong></td>
     <td><strong>Grave.</strong> Las evaluaciones se pierden al cerrar. Suele pasar en
       modo incógnito. Salga del modo privado e instale la app correctamente
@@ -544,7 +630,8 @@ el listado a nadie que no sea su coordinación.</p>
 
 <h3>Lo que le diga al ocupante</h3>
 <p>Que la evaluación es preliminar, que la decisión definitiva la toma la autoridad
-competente, y que el resultado no es una autorización para volver a habitar. Si es rojo,
+competente, y que el resultado no es una autorización para volver a habitar. Si no es
+habitable,
 que no ingrese <em>ni siquiera a sacar cosas</em> hasta que la autoridad lo determine.</p>
 </section>
 </div>
@@ -590,7 +677,7 @@ administrador, que ve todo, y la de cada coordinador, que ve solo su brigada
   <div class="ficha"><h4>Reportes</h4><p>Listado completo con filtros por brigada,
     clasificación, municipio y estado de firma. Al tocar una fila se abre la ficha
     con sus fotos (sección 14).</p></div>
-  <div class="ficha"><h4>Rojos</h4><p>La cola de segunda revisión, con los atrasados
+  <div class="ficha"><h4>Revisión</h4><p>La cola de segunda revisión, con los atrasados
     primero (sección 15).</p></div>
   <div class="ficha"><h4>Brigadas</h4><p>Alta con generación de token, revocación,
     reemisión, y las claves de los coordinadores.</p></div>
@@ -605,7 +692,7 @@ administrador, que ve todo, y la de cada coordinador, que ve solo su brigada
 <p>Si el panel responde <strong>503 con una explicación</strong>, es porque no hay clave
 configurada: sin ella no se registra ninguna ruta, tampoco la entrada de coordinadores
 —hace falta un administrador para crearlos—. Es deliberado: no hay clave por defecto ni
-pantalla de acceso esperando. Vea la sección 21 para activarlo.</p>
+pantalla de acceso esperando. Vea la sección 24 para activarlo.</p>
 
 <div class="nota-caja">
   <span class="etq">Por qué 503 y no 404</span>
@@ -623,7 +710,7 @@ pantalla de acceso esperando. Vea la sección 21 para activarlo.</p>
   <div class="ficha"><h4>Administrador</h4><p>Una sola clave, la del sistema. Ve todas
     las brigadas, crea y revoca tokens, y es el único que puede crear coordinadores.</p></div>
   <div class="ficha"><h4>Coordinador</h4><p>Usuario y clave propios, atados a una
-    brigada. Ve <em>solo</em> lo de su brigada: sus reportes, sus rojos, su mapa, su
+    brigada. Ve <em>solo</em> lo de su brigada: sus reportes, su cola de revisión, su mapa, su
     evolución.</p></div>
 </div>
 
@@ -714,7 +801,7 @@ firmó: su matrícula es parte del registro legal de esas evaluaciones.</p>
 
 <p>En el Resumen aparece el contador, resaltado si hay alguna. El listado está en
 <strong>Reportes → filtro «Fuera del registro»</strong>, y viene ordenado con
-<strong>los rojos primero</strong>, porque son los que tienen consecuencias de desalojo.</p>
+<strong>los desalojos primero</strong>, porque son los que tienen consecuencias.</p>
 
 <p>Para cada una hay tres posibilidades:</p>
 <ul>
@@ -733,7 +820,7 @@ token que realmente envió. Si no coinciden, hay algo que entender.</p>
 <div class="nota-caja">
   <span class="etq">Antes de consolidar</span>
   Esta cola debería estar en cero antes de entregar un consolidado a las autoridades.
-  Un rojo firmado por alguien fuera del registro es exactamente el dato que no quiere
+  Un desalojo firmado por alguien fuera del registro es exactamente el dato que no quiere
   tener que explicar después.
 </div>
 </section>
@@ -743,7 +830,7 @@ token que realmente envió. Si no coinciden, hay algo que entender.</p>
 
 <p>En <strong>Reportes</strong>, tocar una fila abre la ficha de esa evaluación: dónde
 está, qué se observó, quién firmó, si alguien la revisó después, y el registro
-fotográfico. La misma ficha se abre desde <strong>Rojos</strong> y desde los puntos
+fotográfico. La misma ficha se abre desde <strong>Revisión</strong> y desde los puntos
 individuales del mapa — es una sola pieza, para que las tres pantallas no terminen
 diciendo cosas distintas del mismo predio.</p>
 
@@ -772,27 +859,33 @@ evaluación.</p>
 </section>
 
 <section>
-<h2>15 · La doble revisión de los rojos</h2>
+<h2>15 · La segunda revisión de los desalojos</h2>
 
-<p>Un rojo ordena no habitar una edificación. Que eso dependa del criterio de una sola
-persona, tomado en veinte minutos y con réplicas de fondo, es mucho pedirle a
-cualquiera. Por eso <strong>cada rojo entra en estado «pendiente»</strong> y necesita
-que lo mire un segundo inspector registrado.</p>
+<p>Una clasificación de <strong>no habitable</strong> o de <strong>peligro de
+colapso</strong> ordena vaciar una edificación. Que eso dependa del criterio de una
+sola persona, tomado en veinte minutos y con réplicas de fondo, es mucho pedirle a
+cualquiera. Por eso las dos entran en estado «pendiente» y necesitan que las mire un
+segundo inspector registrado.</p>
 
-<p>La pantalla <strong>Rojos</strong> es esa cola, con los atrasados primero. Para cada
-uno se registra la matrícula de quien revisa y el resultado:</p>
+<p>La pantalla <strong>Revisión</strong> es esa cola. El peligro de colapso va primero
+y con plazo propio, más corto: no solo vacía el edificio, también compromete la vía y
+a los vecinos.</p>
 
 <table class="tabla-chica">
-  <tr><td><strong>Confirmado</strong></td><td>El rojo se mantiene. Es lo normal.</td></tr>
-  <tr><td><strong>Revocado a amarillo o verde</strong></td><td>Exige motivo escrito.
-    Queda registrado quién lo cambió y por qué.</td></tr>
+  <tr><th style="width:34%">Nivel</th><th>Plazo por defecto</th></tr>
+  <tr><td><span class="chip c-r">4 · Peligro de colapso</span></td><td>8 horas</td></tr>
+  <tr><td><span class="chip c-o">3 · No habitable</span></td><td>24 horas</td></tr>
 </table>
+
+<p>Para cada una se registra la matrícula de quien revisa y el resultado: confirmar la
+clasificación, o revocarla a un nivel menor. Revocar exige motivo escrito.</p>
 
 <h3>Tres reglas que no se relajan</h3>
 <ol class="pasos">
-  <li><strong>El vencimiento no degrada el rojo</strong>
-    Pasado el plazo, un rojo vencido <em>sigue siendo rojo</em>; solo se marca como
-    atrasado. Un temporizador no puede rebajar un desalojo.</li>
+  <li><strong>El vencimiento no degrada nada</strong>
+    Pasado el plazo, un peligro de colapso vencido <em>sigue siendo peligro de
+    colapso</em>; solo se marca como atrasado. Un temporizador no puede rebajar un
+    desalojo.</li>
   <li><strong>La firma original no se borra</strong>
     Lo que firmó quien evaluó queda intacto. La revisión es otro acto profesional, con
     su propia matrícula y su motivo. Los dos quedan en el registro; para consolidar
@@ -808,7 +901,7 @@ uno se registra la matrícula de quien revisa y el resultado:</p>
 
 <p>El mapa dibuja el consolidado: <strong>un círculo por sector</strong>, donde el área
 —no el radio— es proporcional a cuántas evaluaciones tiene, y el color es qué
-proporción quedó en rojo. Un anillo azul marca los sectores con rojos sin segunda
+proporción quedó sin poder habitarse. Un anillo azul marca los sectores con desalojos sin segunda
 revisión. Nunca es solo el color: los mismos datos están en la tabla de abajo.</p>
 
 <h3>Las tres bases</h3>
@@ -822,7 +915,7 @@ revisión. Nunca es solo el color: los mismos datos están en la tabla de abajo.
 </div>
 <p class="nota-fina">La elección se recuerda en ese navegador. Las tres fuentes se
 pueden cambiar por variables de entorno, si la entidad prefiere su propio geoportal
-(sección 21).</p>
+(sección 24).</p>
 
 <h3>Ver los reportes uno a uno</h3>
 <p>La casilla <em>«Ver los reportes individuales»</em> cambia los círculos por un punto
@@ -832,7 +925,7 @@ porque eso es exactamente lo que hay en pantalla.</p>
 
 <div class="ojo">
   <span class="etq">Esa capa no sale del panel</span>
-  La API de consulta (sección 26) nunca entrega el predio: ahí sigue mandando el
+  La API de consulta (sección 29) nunca entrega el predio: ahí sigue mandando el
   umbral de anonimato. Los puntos individuales existen para quien coordina la
   operación y responde por esos datos, y solo dentro de su brigada.
 </div>
@@ -849,11 +942,11 @@ queda por resolver.</p>
     color. Es la clasificación ya revisada, no la original.</p></div>
   <div class="ficha"><h4>Cobertura</h4><p>Cada sector con cuántas lleva, cuándo fue la
     última y cuántas horas lleva sin actividad.</p></div>
-  <div class="ficha"><h4>Cumplimiento</h4><p>Rojos pendientes y cuántos fuera de plazo,
+  <div class="ficha"><h4>Cumplimiento</h4><p>Desalojos pendientes y cuántos fuera de plazo,
     demora media en revisarlos, firmas fuera del registro, evaluaciones sin coordenada
     y sin foto.</p></div>
   <div class="ficha"><h4>Por brigada</h4><p>Cuando hay más de una: volumen, sectores,
-    rojos sin revisar y última actividad de cada una.</p></div>
+    desalojos sin revisar y última actividad de cada una.</p></div>
 </div>
 
 <div class="nota-caja">
@@ -872,7 +965,86 @@ queda por resolver.</p>
 </section>
 
 <section>
-<h2>18 · El consolidado: qué se entrega y qué no</h2>
+<h2>18 · Exportar al formulario V2F</h2>
+
+<p>En <strong>Exportar</strong> se descarga lo evaluado con una columna por casilla del
+formulario del IDIGER y con <em>sus</em> códigos: el sistema estructural sale como
+<code>21</code>, no como «mampostería». Quien lo recibe conoce el V2F, no nuestro
+modelo de datos.</p>
+
+<p>Se filtra por fecha y por clasificación, en CSV y en JSON. Un coordinador exporta
+lo de su brigada; el administrador, todo.</p>
+
+<table class="tabla-chica">
+  <tr><td style="width:34%"><strong>Lo que no se llenó</strong></td>
+    <td>Sale <em>vacío</em>, nunca en cero. Un cero en la casilla de un daño afirma
+      que alguien lo miró.</td></tr>
+  <tr><td><strong>Evaluaciones de triaje</strong></td>
+    <td>La grilla de porcentajes del bloque D va en blanco —nadie contó los
+      elementos— y lo observado con la escala corta baja escrito en comentarios. La
+      columna <code>modo</code> lo dice y <code>bloques_sin_datos</code> enumera lo
+      que quedó sin mirar.</td></tr>
+  <tr><td><strong>Datos personales de terceros</strong></td>
+    <td>Persona de contacto y efecto en los ocupantes <strong>sí van</strong>: es el
+      documento que va a la autoridad y sin ellos el V2F está incompleto.</td></tr>
+  <tr><td><strong>Por la API</strong></td>
+    <td>La misma exportación está en <code>/api/v1/v2f</code> <strong>sin</strong> ese
+      bloque reservado. Lo descarga del panel una persona que responde por el archivo;
+      una credencial de máquina no es esa persona.</td></tr>
+</table>
+
+<div class="ojo">
+  <span class="etq">Es un archivo con direcciones y datos personales</span>
+  Va a la entidad competente por un canal que usted controle. No es un archivo para
+  un grupo de mensajería.
+</div>
+</section>
+
+<section>
+<h2>19 · Predios sin código catastral</h2>
+
+<p>El código catastral es la llave con la que el distrito cruza contra su catastro, y
+en campo casi nadie lo sabe de memoria. Por eso es opcional en el teléfono y se
+completa desde <strong>Resumen → Sin código catastral</strong>, que es trabajo de
+escritorio: con conexión, pantalla grande y la coordenada enlazada para ubicar el
+predio.</p>
+
+<p>Queda registrado si lo puso el campo o el panel. No es lo mismo leerlo de un recibo
+en la puerta que deducirlo cruzando una dirección.</p>
+</section>
+
+<section>
+<h2>20 · La historia de un predio</h2>
+
+<p>El V2F pregunta si existe una clasificación previa. Desde la ficha de cualquier
+evaluación, <strong>Historia del predio</strong> muestra lo que hay a menos de 25 m,
+con su distancia, su dirección y sus fotografías.</p>
+
+<div class="aviso">
+  <span class="etq">La cercanía agrupa; usted decide</span>
+  El sistema <em>no sabe</em> si son el mismo edificio. Con precisión de ±18 m, en una
+  manzana densa caben tres o cuatro predios dentro del radio. Por eso nada se enlaza
+  solo: compare la dirección y la foto antes de declarar nada.
+</div>
+
+<p>Al declarar que una evaluación reemplaza a otra, la anterior <strong>sigue en los
+listados y en la exportación</strong> —esa inspección ocurrió y está firmada— pero
+deja de contar en el consolidado, el mapa y las colas, para que un predio reevaluado
+no se cuente dos veces. Se puede deshacer.</p>
+
+<h3>Lo que el reemplazo no permite</h3>
+<ul>
+  <li>Declararlo desde la evaluación más antigua: la que reemplaza es la posterior.</li>
+  <li>Reemplazar algo que ya figura reemplazado.</li>
+  <li><strong>Que la misma matrícula rebaje su propio desalojo</strong> mientras espera
+    segunda revisión. Sería revisar lo propio por la puerta de atrás: volver al predio
+    uno mismo no es que otro lo mire. Si la evaluación nueva es igual o más grave no
+    hay tal atajo —entra en la cola por su cuenta— y entonces sí se permite.</li>
+</ul>
+</section>
+
+<section>
+<h2>21 · El consolidado: qué se entrega y qué no</h2>
 
 <p>Al final del Resumen está la tabla <strong>por sector</strong>. Esa tabla —y solo
 esa— es lo que se entrega a las autoridades.</p>
@@ -880,8 +1052,9 @@ esa— es lo que se entrega a las autoridades.</p>
 <table>
   <tr><th style="width:50%">Se entrega</th><th>No se entrega</th></tr>
   <tr>
-    <td>Conteos por municipio y barrio: cuántas evaluadas, cuántas rojas, amarillas
-      y verdes. Centroide del sector.</td>
+    <td>Conteos por municipio y barrio: cuántas evaluadas, y cuántas habitables, de
+      uso restringido, no habitables y en peligro de colapso. Centroide del
+      sector.</td>
     <td>Dirección, coordenada del predio, nombre del propietario, o cualquier cosa
       que permita identificar una edificación puntual.</td>
   </tr>
@@ -908,9 +1081,9 @@ No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
   </div>
 
 <section class="seguido">
-<h2>19 · Cómo está armado el sistema</h2>
+<h2>22 · Cómo está armado el sistema</h2>
 
-<p>Cuatro piezas, deliberadamente pocas:</p>
+<p>Las piezas, deliberadamente pocas:</p>
 
 <table>
   <tr><th style="width:30%">Pieza</th><th>Qué hace</th></tr>
@@ -923,6 +1096,14 @@ No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
       escribe en PostGIS.</td></tr>
   <tr><td><strong>El panel</strong><br><code>admin_web.py</code></td>
     <td>HTML renderizado en el servidor. Se monta sobre la misma app, solo si hay clave.</td></tr>
+  <tr><td><strong>El catálogo del V2F</strong><br><code>v2f.py</code></td>
+    <td>Fuente única de los códigos del formulario del IDIGER y de la regla de
+      clasificación. Lo usan el receptor, el exportador y la app.</td></tr>
+  <tr><td><strong>Los generadores</strong><br><code>build_catalogo.py</code>,
+      <code>herramientas/actualizar_municipios.py</code></td>
+    <td>Escriben dentro de <code>index.html</code>, entre marcadores, el catálogo del
+      V2F y los 1 122 municipios del DANE. Se corren a mano cuando cambian; no hay
+      bundler. <code>--revisar</code> avisa si quedó desactualizado.</td></tr>
   <tr><td><strong>La base</strong><br>PostgreSQL 16 + PostGIS 3.4</td>
     <td>En contenedor propio, escuchando solo en loopback.</td></tr>
 </table>
@@ -935,10 +1116,12 @@ No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
     el almacenamiento del navegador es <strong>por origen</strong>: cambiarlo dejaría
     huérfanas las evaluaciones pendientes de los teléfonos ya instalados.</td></tr>
   <tr><td><code>/api/</code></td><td>Recepción de evaluaciones.</td></tr>
-  <tr><td><code>/api/v1/</code></td><td>API de consulta, solo lectura (sección 26).</td></tr>
+  <tr><td><code>/api/v1/</code></td><td>API de consulta, solo lectura (sección 29).</td></tr>
   <tr><td><code>/sw.js</code></td><td>Desactiva el service worker viejo que quedó con
     alcance <code>/</code>. <strong>No borrar</strong> mientras exista un teléfono con
     ese registro.</td></tr>
+  <tr><td><code>/app/vendor/</code></td><td>Leaflet, servido desde el propio origen.
+    El mapa no depende de un CDN, igual que el panel.</td></tr>
   <tr><td><code>admin.&lt;dominio&gt;</code></td><td>El panel, en origen separado.</td></tr>
 </table>
 
@@ -961,12 +1144,19 @@ se repite entre brigadas, la segunda brigada pisaba la foto de la primera.</p>
 </section>
 
 <section>
-<h2>20 · Instalación desde cero</h2>
+<h2>23 · Instalación desde cero</h2>
 
 <h4>1. Los estáticos</h4>
 <pre>rsync -av index.html sw.js manifest.json icono-*.png \
-  servidor:/var/www/brigadaestructural/
+  servidor:/var/www/brigadaestructural/app/
+rsync -av vendor/ servidor:/var/www/brigadaestructural/app/vendor/
+rsync -av landing/ servidor:/var/www/brigadaestructural/
 chown -R www-data:www-data /var/www/brigadaestructural</pre>
+<p class="nota"><code>vendor/</code> lleva Leaflet, que sirve el mapa desde el propio
+origen. Si falta, la app funciona igual y el mapa avisa: el service worker guarda el
+armazón con <code>addAll</code> —si falta, la app no existe y debe fallar— y los
+extras uno a uno, tragándose el error, para que un archivo ausente no deje al
+teléfono sin modo sin conexión.</p>
 
 <h4>2. La base</h4>
 <pre>cp docker-compose.example.yml docker-compose.yml
@@ -1008,7 +1198,7 @@ certbot renew --dry-run</pre>
 </section>
 
 <section>
-<h2>21 · Variables de configuración</h2>
+<h2>24 · Variables de configuración</h2>
 
 <p>Todas viven en <code>/etc/brigadas.env</code>, con permisos <code>0600 root:root</code>,
 y las lee el servicio por <code>EnvironmentFile</code>. <strong>Nunca en el unit de
@@ -1027,8 +1217,14 @@ systemd</strong>, que es legible por cualquiera.</p>
     nunca base64.</td></tr>
   <tr><td><code>BRIGADA_ADMIN_HASH</code></td><td>Hash scrypt de la clave del panel.
     <strong>Sin ella el panel no existe.</strong></td></tr>
-  <tr><td><code>BRIGADA_REVISION_HORAS</code></td><td>Plazo de la segunda revisión de un
-    rojo. Vencido, el rojo <em>sigue siendo rojo</em>: solo sale como atrasado.</td></tr>
+  <tr><td><code>BRIGADA_REVISION_HORAS</code></td><td>Plazo de la segunda revisión de
+    una clasificación «no habitable». Por defecto 24. Vencido, <em>no degrada nada</em>:
+    solo sale como atrasada.</td></tr>
+  <tr><td><code>BRIGADA_REVISION_HORAS_COLAPSO</code></td><td>Lo mismo para «peligro de
+    colapso». Por defecto 8: además de vaciar el edificio compromete la vía.</td></tr>
+  <tr><td><code>BRIGADA_RADIO_PREDIO</code></td><td>Radio en metros para agrupar
+    evaluaciones del mismo predio. Por defecto 25. Solo agrupa para mostrar: el
+    reemplazo siempre lo declara una persona.</td></tr>
   <tr><td><code>BRIGADA_TESELAS</code><br><code>BRIGADA_TESELAS_CREDITO</code></td>
     <td>Mapa base callejero y su atribución. Por defecto, OpenStreetMap.</td></tr>
   <tr><td><code>BRIGADA_TESELAS_SAT</code><br><code>BRIGADA_TESELAS_ROTULOS</code><br>
@@ -1054,7 +1250,7 @@ shell y en la lista de procesos. Cambiar la clave cierra todas las sesiones abie
 </section>
 
 <section>
-<h2>22 · Operación diaria</h2>
+<h2>25 · Operación diaria</h2>
 
 <pre># estado
 systemctl status brigadas-api
@@ -1081,7 +1277,7 @@ receptor que no puede grabar no está sano, aunque el proceso esté vivo.</p>
 
 -- lo que se puede entregar
 SELECT * FROM consolidado_publico;
--- cola de revisión, rojos primero
+-- cola de revisión, los mas graves primero
 SELECT * FROM pendientes_de_verificacion LIMIT 20;
 -- actividad por brigada
 SELECT brigada_token, count(*), max(recibido_en)
@@ -1089,7 +1285,7 @@ SELECT brigada_token, count(*), max(recibido_en)
 </section>
 
 <section>
-<h2>23 · Diagnóstico de problemas</h2>
+<h2>26 · Diagnóstico de problemas</h2>
 
 <table class="tabla-chica">
   <tr><th style="width:30%">Síntoma</th><th>Causa probable y solución</th></tr>
@@ -1111,7 +1307,7 @@ SELECT brigada_token, count(*), max(recibido_en)
       cancela el envío en el preflight y el fallo no se ve por ningún lado.</td></tr>
 
   <tr><td><strong>Los teléfonos siguen con la versión vieja</strong></td>
-    <td>No se subió <code>CACHE</code> en <code>sw.js</code>. Vea la sección 24.</td></tr>
+    <td>No se subió <code>CACHE</code> en <code>sw.js</code>. Vea la sección 27.</td></tr>
 
   <tr><td><strong>Un error viejo quedó pegado en un teléfono</strong></td>
     <td>El service worker cachea respuestas. Desde la versión actual solo cachea
@@ -1125,22 +1321,28 @@ SELECT brigada_token, count(*), max(recibido_en)
 </section>
 
 <section>
-<h2>24 · Actualizar la aplicación</h2>
+<h2>27 · Actualizar la aplicación</h2>
 
 <div class="aviso">
   <span class="etq">La regla que no se puede olvidar</span>
   <strong>Cada vez que cambie <code>index.html</code>, <code>sw.js</code> o
   <code>manifest.json</code>, hay que subir la versión de <code>CACHE</code> en
-  <code>sw.js</code></strong> (<code>brigada-v8</code> → <code>brigada-v9</code>). Si no,
+  <code>sw.js</code></strong> (<code>brigada-v16</code> → <code>brigada-v17</code>). Si no,
   los teléfonos ya instalados siguen con la versión anterior indefinidamente, y no hay
   forma de forzarlos a distancia.
 </div>
 
-<pre># 1. subir CACHE en sw.js
-# 2. desplegar
-rsync -av index.html sw.js manifest.json servidor:/var/www/brigadaestructural/
-# 3. verificar que es lo que se sirve
-curl -s https://ejemplo.org/sw.js | grep CACHE</pre>
+<pre># 1. si cambió v2f.py o municipios.py, regenerar lo inyectado en la app
+python3 build_catalogo.py
+# 2. subir CACHE en sw.js
+# 3. desplegar
+rsync -av index.html sw.js manifest.json servidor:/var/www/brigadaestructural/app/
+# 4. verificar que es lo que se sirve
+curl -s https://ejemplo.org/app/sw.js | grep CACHE</pre>
+
+<p>Antes de desplegar conviene <code>python3 build_catalogo.py --revisar</code>: falla
+si <code>index.html</code> quedó con un catálogo viejo, que es el error que después se
+manifiesta como un código que el servidor no reconoce.</p>
 
 <p>El service worker nuevo borra las cachés anteriores al activarse, así que los
 teléfonos se curan solos la próxima vez que abran la app con señal. El backend se
@@ -1152,7 +1354,7 @@ y trae los <code>ADD COLUMN IF NOT EXISTS</code> de las columnas nuevas.</p>
 </section>
 
 <section>
-<h2>25 · Respaldo y recuperación</h2>
+<h2>28 · Respaldo y recuperación</h2>
 
 <p>Corre solo, todos los días a las 03:15 UTC, con <code>brigadas-respaldo.timer</code>.
 Vuelca la base y las fotos, comprueba que el archivo descomprime, lo cifra con AES-256 y
@@ -1199,7 +1401,7 @@ tar xzf fotos-2026-08-11.tar.gz -C /var/lib/brigadas</pre>
 
 
 <section>
-<h2>26 · La API de consulta</h2>
+<h2>29 · La API de consulta</h2>
 
 <p>Sirve para que los reportes lleguen a los sistemas que la entidad ya usa —un tablero
 de gestión del riesgo, un geoportal municipal— sin exportar planillas a mano. Es de
@@ -1265,38 +1467,55 @@ está consultando mucho más de lo que debería.</p>
   </div>
 
 <section class="seguido">
-<h2 style="break-before:page">Anexo A · Tarjeta de referencia del semáforo</h2>
+<h2 style="break-before:page">Anexo A · Tarjeta de referencia de la habitabilidad</h2>
 <p><em>Esta página está pensada para imprimirse aparte y llevarse en campo.</em></p>
 
 <table>
-  <tr><th style="width:20%">Color</th><th style="width:26%">Significado</th><th>Regla</th></tr>
+  <tr><th style="width:24%">Nivel</th><th style="width:26%">Qué ordena</th><th>Se llega ahí por</th></tr>
   <tr>
-    <td><span class="chip c-r">ROJO</span></td>
-    <td><strong>Inseguro</strong><br>No ingresar</td>
-    <td>Cualquier condición de cierre marcada · o daño <strong>severo</strong> en
-      portantes, entrepisos o terreno</td>
+    <td><span class="chip c-r">4 · PELIGRO DE COLAPSO</span></td>
+    <td><strong>Evacuar y acordonar el entorno</strong></td>
+    <td>Colapso total o parcial · inclinación o desplome visible · columna con núcleo
+      triturado, acero expuesto o pandeado</td>
   </tr>
   <tr>
-    <td><span class="chip c-a">AMARILLO</span></td>
-    <td><strong>Uso restringido</strong></td>
+    <td><span class="chip c-o">3 · NO HABITABLE</span></td>
+    <td><strong>Evacuar</strong><br>No ingresar</td>
+    <td>Daño <strong>severo</strong> en portantes o entrepisos · grietas pasantes ·
+      riesgo externo · elementos sobre el acceso · daño severo en el terreno</td>
+  </tr>
+  <tr>
+    <td><span class="chip c-a">2 · USO RESTRINGIDO</span></td>
+    <td><strong>Ocupación limitada</strong></td>
     <td>Daño <strong>moderado</strong> en portantes, entrepisos o terreno · o daño
       severo solo en muros divisorios y fachada</td>
   </tr>
   <tr>
-    <td><span class="chip c-v">VERDE</span></td>
-    <td><strong>Habitable</strong></td>
+    <td><span class="chip c-v">1 · HABITABLE</span></td>
+    <td><strong>Puede ocuparse</strong></td>
     <td>Daño leve o nulo, sin condiciones de cierre</td>
   </tr>
 </table>
 
-<h3>Las seis condiciones que fuerzan rojo</h3>
+<h3>Las seis condiciones que obligan cierre</h3>
 <table class="tabla-chica">
+  <tr><th style="width:50%">Llevan a peligro de colapso</th><th>Llevan a no habitable</th></tr>
   <tr><td>Colapso total o parcial de algún nivel</td>
       <td>Grietas pasantes o anchas en muros portantes</td></tr>
   <tr><td>Inclinación o desplome visible de la edificación</td>
       <td>Riesgo externo: vecino inestable, talud, deslizamiento</td></tr>
   <tr><td>Columna con núcleo triturado, acero expuesto o pandeado</td>
       <td>Elementos pesados sueltos sobre el acceso o la vía</td></tr>
+</table>
+
+<h3>Las cinco parciales</h3>
+<table class="tabla-chica">
+  <tr><td style="width:10%"><strong>A</strong></td><td>Estado general</td>
+      <td style="width:10%"><strong>D</strong></td><td>Daños estructurales</td></tr>
+  <tr><td><strong>B</strong></td><td>Geotécnicos</td>
+      <td><strong>E</strong></td><td>Entorno · <em>tope 3</em></td></tr>
+  <tr><td><strong>C</strong></td><td>No estructurales · <em>tope 3</em></td>
+      <td colspan="2">La global es <strong>la peor de las cinco</strong></td></tr>
 </table>
 
 <div class="aviso">
@@ -1309,7 +1528,7 @@ está consultando mucho más de lo que debería.</p>
   <span class="etq">Recordatorios</span>
   Triaje <strong>preliminar</strong>: la habilitación la deciden UNGRD, Defensa Civil,
   bomberos y alcaldías. · Solo firma quien tenga <strong>matrícula vigente</strong>. ·
-  Cambiar el semáforo calculado <strong>exige escribir el motivo</strong>. · La dirección
+  Cambiar la clasificación calculada <strong>exige escribir el motivo</strong>. · La dirección
   es <strong>dato personal</strong>: no se publica ni se comparte.
 </div>
 </section>
@@ -1327,7 +1546,7 @@ está consultando mucho más de lo que debería.</p>
     existía ese id), <code>brigada</code> y <code>matricula_verificada</code>.</td></tr>
   <tr><td><strong>401</strong></td><td>Token ausente, inválido o revocado.</td></tr>
   <tr><td><strong>422</strong></td><td>Falta matrícula, clasificación fuera de rango, o
-    se modificó el semáforo sin justificación.</td></tr>
+    se modificó la clasificación sin justificación.</td></tr>
   <tr><td><strong>503</strong></td><td>No se pudo grabar. <strong>El cliente debe conservar
     el pendiente y reintentar.</strong></td></tr>
 </table>
@@ -1336,7 +1555,9 @@ está consultando mucho más de lo que debería.</p>
 
 <h3>Otras rutas</h3>
 <table class="tabla-chica">
-  <tr><td><code>GET /api/v1/…</code></td><td>API de consulta, solo lectura. Vea la sección 26.</td></tr>
+  <tr><td><code>GET /api/v1/…</code></td><td>API de consulta, solo lectura. Vea la sección 29.</td></tr>
+  <tr><td><code>GET /api/v1/v2f</code></td><td>Cada evaluación aplanada a las casillas
+    del V2F, con sus códigos. Sin el bloque reservado.</td></tr>
   <tr><td><code>GET /api/salud</code></td><td>Estado del receptor, la base, el respaldo y el disco.</td></tr>
   <tr><td><code>GET /api/fuente</code></td><td>Redirige al código fuente (AGPL §13).</td></tr>
 </table>
@@ -1356,7 +1577,8 @@ está consultando mucho más de lo que debería.</p>
   "motivo_auto": "...", "justificacion": "", "observaciones": "...",
   "fotos": ["data:image/jpeg;base64,..."]
 }</pre>
-<p>Clasificación: <code>1</code> verde, <code>2</code> amarillo, <code>3</code> rojo.
+<p>Clasificación: <code>1</code> habitable, <code>2</code> uso restringido,
+<code>3</code> no habitable, <code>4</code> peligro de colapso.
 Niveles de daño: <code>0</code> N/A, <code>1</code> leve, <code>2</code> moderado,
 <code>3</code> severo.</p>
 </section>
@@ -1378,7 +1600,7 @@ Niveles de daño: <code>0</code> N/A, <code>1</code> leve, <code>2</code> modera
     municipio y barrio, con <code>HAVING count(*) &gt;= 5</code>. Es lo único que sale
     hacia las autoridades.</td></tr>
   <tr><td><code>pendientes_de_verificacion</code></td><td><strong>Vista.</strong> Firmas
-    fuera del registro, ordenadas con los rojos primero.</td></tr>
+    fuera del registro, ordenadas con los desalojos primero.</td></tr>
 </table>
 
 <p>El archivo <code>esquema.sql</code> es la fuente de verdad y es idempotente.</p>
@@ -1389,10 +1611,24 @@ Niveles de daño: <code>0</code> N/A, <code>1</code> leve, <code>2</code> modera
 
 <table class="tabla-chica" style="break-inside:auto">
   <tr><td style="width:32%"><strong>ATC-20</strong></td><td>Metodología estadounidense de
-    evaluación rápida post-sismo. El semáforo verde/amarillo/rojo viene de ahí; acá está
+    evaluación rápida post-sismo. El semáforo de colores viene de ahí; acá está
     adaptado a la NSR-10.</td></tr>
   <tr><td><strong>NSR-10</strong></td><td>Reglamento Colombiano de Construcción Sismo
     Resistente.</td></tr>
+  <tr><td><strong>V2F</strong></td><td>Formulario para inspección de edificaciones
+    después de un sismo, del IDIGER, sobre el formulario de la AIS de 2002. Es el
+    estándar del que salen los cuatro niveles de habitabilidad y las cinco
+    parciales.</td></tr>
+  <tr><td><strong>IDIGER</strong></td><td>Instituto Distrital de Gestión de Riesgos y
+    Cambio Climático de Bogotá.</td></tr>
+  <tr><td><strong>AIS</strong></td><td>Asociación Colombiana de Ingeniería Sísmica.</td></tr>
+  <tr><td><strong>DIVIPOLA</strong></td><td>División político-administrativa del DANE:
+    los códigos oficiales de departamentos y municipios. La app trae los 1 122
+    municipios para que el nombre no se escriba de dos maneras.</td></tr>
+  <tr><td><strong>Parciales A–E</strong></td><td>Las cinco clasificaciones por bloque
+    del V2F. La global es la más crítica de las cinco.</td></tr>
+  <tr><td><strong>Vigente</strong></td><td>Evaluación que no ha sido reemplazada por
+    otra del mismo predio. Solo las vigentes cuentan en el consolidado.</td></tr>
   <tr><td><strong>COPNIA</strong></td><td>Consejo Profesional Nacional de Ingeniería.
     Expide la matrícula profesional.</td></tr>
   <tr><td><strong>UNGRD</strong></td><td>Unidad Nacional para la Gestión del Riesgo de
@@ -1411,9 +1647,9 @@ Niveles de daño: <code>0</code> N/A, <code>1</code> leve, <code>2</code> modera
 </table>
 
 <div class="pie-doc">
-  <div class="barra"><div class="v"></div><div class="a"></div><div class="r"></div></div>
+  <div class="barra"><div class="v"></div><div class="a"></div><div class="o"></div><div class="r"></div></div>
   <strong>Brigada · Evaluación estructural en campo</strong><br>
-  Manual v1.0 · Agosto de 2026<br><br>
+  Manual v2.0 · Agosto de 2026<br><br>
   Desarrollada con Amor por Andrés Benito Revollo Vélez · Rollout Comercio e Servicios Limitada<br>
   Software libre bajo GNU AGPL v3 · github.com/abenito32/brigadaestructural<br>
   Este manual se distribuye bajo la misma licencia que el programa.
