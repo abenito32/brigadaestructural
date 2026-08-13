@@ -31,8 +31,10 @@ def bloque() -> str:
               "/* Generado por build_catalogo.py desde v2f.py. NO editar a mano:",
               "   el próximo generador lo sobrescribe. Cambie v2f.py y vuelva a correrlo. */"]
     for nombre, valor in cat.items():
-        lineas.append("var V2F_%s=%s;" % (nombre, json.dumps(valor, ensure_ascii=False,
-                                                             sort_keys=True)))
+        # Sin sort_keys: los grupos del formulario (concreto, mampostería, acero…)
+        # van en el orden en que están impresos en el papel, no en alfabético.
+        # Quien lleva años usando el V2F busca la casilla donde siempre estuvo.
+        lineas.append("var V2F_%s=%s;" % (nombre, json.dumps(valor, ensure_ascii=False)))
     # Alias cortos: el resto del archivo ya los usa con estos nombres.
     lineas += [
         'var TIT=["Sin evaluar",V2F_HABITABILIDAD["1"],V2F_HABITABILIDAD["2"],'

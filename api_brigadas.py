@@ -158,6 +158,16 @@ class Evaluacion(BaseModel):
     # Sin el campo se asume 3: un telefono ya instalado no puede actualizarse
     # hasta tener señal, y tener señal es justo cuando intenta enviar.
     escala: int = 3
+    # Formulario largo. `modo` dice con cual se lleno; `v2f` trae un bloque por
+    # seccion del formulario y `reservado` los datos personales de terceros.
+    modo: str = "triaje"
+    tipo_inspeccion: int | None = None
+    cod_catastral: str = ""
+    localidad: str = ""
+    v2f: dict[str, Any] | None = None
+    reservado: dict[str, Any] | None = None
+    nivel_mayor_dano: int | None = None
+    area_afectada_pct: int | None = None
     clasificacion: int
     clasificacion_auto: int | None = None
     parciales: dict[str, int] | None = None
@@ -213,6 +223,11 @@ INSERT INTO evaluacion_brigada (
   clasificacion, clasificacion_auto, motivo_auto, justificacion,
   observaciones, fotos, brigada_token, matricula_verificada,
   escala, parciales, parcial_manda,
+  modo, tipo_inspeccion, cod_catastral, catastral_origen, localidad,
+  nivel_mayor_dano, area_afectada_pct, bloques_faltantes, reservado,
+  v2f_estructura, v2f_estado, v2f_geotecnicos, v2f_no_estructurales,
+  v2f_estructurales, v2f_entorno, v2f_preexistentes, v2f_recomendaciones,
+  v2f_ocupacion, v2f_comision,
   revision_estado, revision_vence
 ) VALUES (
   %(id)s, %(id_local)s, %(ts)s, %(matricula)s, %(inspector)s, %(brigada)s,
@@ -229,6 +244,11 @@ INSERT INTO evaluacion_brigada (
   EXISTS (SELECT 1 FROM inspector
           WHERE matricula = %(matricula)s AND vigente),
   %(escala)s, %(parciales)s, %(parcial_manda)s,
+  %(modo)s, %(tipo_inspeccion)s, %(cod_catastral)s, %(catastral_origen)s, %(localidad)s,
+  %(nivel_mayor_dano)s, %(area_afectada_pct)s, %(bloques_faltantes)s, %(reservado)s,
+  %(v2f_estructura)s, %(v2f_estado)s, %(v2f_geotecnicos)s, %(v2f_no_estructurales)s,
+  %(v2f_estructurales)s, %(v2f_entorno)s, %(v2f_preexistentes)s, %(v2f_recomendaciones)s,
+  %(v2f_ocupacion)s, %(v2f_comision)s,
   -- Entran en cola los dos niveles que ordenan desalojo. Un verde no necesita
   -- que dos personas confirmen que la casa sigue en pie.
   CASE WHEN %(clasificacion)s >= 3 THEN 'pendiente' END,
@@ -307,7 +327,15 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
     # telefono. La regla vive en dos sitios por fuerza —una corre sin señal en el
     # navegador y otra en Python— y esta es la forma de que una diferencia entre
     # las dos se vea en el panel en vez de quedar escondida en un telefono.
-    calculo = v2f.clasificar_triaje(ev.danos, ev.banderas)
+    bloques = ev.v2f or {}
+    raros = v2f.codigos_desconocidos(bloques)
+    if raros:
+        # No se rechaza. Un codigo que este catalogo no conoce significa que el
+        # telefono y el servidor tienen versiones distintas del formulario, y ese
+        # es justo el caso en el que rechazar deja una jornada entera atrapada.
+        # Se graba tal cual, se avisa acá, y el panel lo muestra sin traducir.
+        print(f"[v2f] códigos desconocidos en {ev.id}: {raros}", flush=True)
+    calculo = v2f.clasificar(ev.danos, ev.banderas, bloques)
     auto = calculo["v"] if escala == 4 else min(calculo["v"], 3)
     parciales = calculo["parciales"]
     manda = calculo["manda"]
@@ -342,6 +370,26 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
         "danos": Jsonb(ev.danos),
         "banderas": Jsonb(ev.banderas),
         "escala": escala,
+        "modo": "completo" if ev.modo == "completo" else "triaje",
+        "tipo_inspeccion": ev.tipo_inspeccion,
+        "cod_catastral": (ev.cod_catastral or "").strip() or None,
+        # Si vino del teléfono, la puso quien estaba parado frente al predio.
+        "catastral_origen": "campo" if (ev.cod_catastral or "").strip() else None,
+        "localidad": (ev.localidad or "").strip() or None,
+        "nivel_mayor_dano": entero(ev.nivel_mayor_dano),
+        "area_afectada_pct": entero(ev.area_afectada_pct),
+        "bloques_faltantes": calculo.get("faltan") or None,
+        "reservado": Jsonb(ev.reservado) if ev.reservado else None,
+        "v2f_estructura": Jsonb(bloques["estructura"]) if bloques.get("estructura") else None,
+        "v2f_estado": Jsonb(bloques["estado"]) if bloques.get("estado") else None,
+        "v2f_geotecnicos": Jsonb(bloques["geotecnicos"]) if bloques.get("geotecnicos") else None,
+        "v2f_no_estructurales": Jsonb(bloques["no_estructurales"]) if bloques.get("no_estructurales") else None,
+        "v2f_estructurales": Jsonb(bloques["estructurales"]) if bloques.get("estructurales") else None,
+        "v2f_entorno": Jsonb(bloques["entorno"]) if bloques.get("entorno") else None,
+        "v2f_preexistentes": Jsonb(bloques["preexistentes"]) if bloques.get("preexistentes") else None,
+        "v2f_recomendaciones": Jsonb(bloques["recomendaciones"]) if bloques.get("recomendaciones") else None,
+        "v2f_ocupacion": Jsonb(bloques["ocupacion"]) if bloques.get("ocupacion") else None,
+        "v2f_comision": Jsonb(bloques["comision"]) if bloques.get("comision") else None,
         "clasificacion": ev.clasificacion,
         "clasificacion_auto": auto,
         "parciales": Jsonb(parciales),

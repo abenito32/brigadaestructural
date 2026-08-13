@@ -227,6 +227,9 @@ label.acepto>span{display:inline;font-weight:400;font-size:14px;margin:0;color:v
 .btn-p{background:var(--azul);color:#fff;border-color:var(--azul)}
 .btn-p:hover{background:var(--azul-osc)}
 .btn-r{color:var(--rojo);border-color:#FECACA;background:var(--rojo-tinte);font-size:13px;padding:7px 12px}
+/* Faltaba: los botones del modal y del formulario catastral la usaban desde que
+   se añadió la ficha, y sin ella salían del tamaño de un botón principal. */
+.btn-s{font-size:13px;padding:8px 13px;min-height:0}
 .btn-r:hover{background:#FEE2E2}
 .fila{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end}
 .nota{font-size:13px;color:var(--tinta2);line-height:1.55;margin:10px 0 0}
@@ -337,6 +340,8 @@ MODAL_HTML = """
   font-family:ui-monospace,Menlo,monospace;word-break:break-all}
 .escala-mini{display:flex;gap:4px;flex-wrap:wrap}
 .escala-mini span{padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600}
+.reserva-aviso{font-size:12px;color:var(--tinta2);background:var(--papel);
+  border-left:3px solid var(--azul);border-radius:4px;padding:8px 11px;margin:0 0 10px}
 </style>
 
 <script>
@@ -347,6 +352,7 @@ MODAL_HTML = """
   var NIV = ["N/A","Leve","Moderado","Severo"];          // escala de daño, 0 a 3
   var HAB = __HAB__;                                     // habitabilidad, 1 a 4
   var PARC = __PARC__;
+  var CAT = __CAT__;                                     // catálogo del V2F
   var COLOR_NIV = ["#EEF2F6","#DCFCE7","#FEF3C7","#FEE2E2"];
   var TINTA_NIV = ["#475569","#14532D","#422006","#7F1D1D"];
   var CATEG = {portantes:"Elementos portantes", horizontal:"Vigas y entrepisos",
@@ -398,6 +404,51 @@ MODAL_HTML = """
       html += "<h4>Clasificación modificada por el inspector</h4>" + filas([
         ["Calculada", HAB[e.clasificacion_auto]], ["Firmada", HAB[e.clasificacion]],
         ["Motivo", esc(e.justificacion)]]);
+    if (e.modo === "completo" || e.v2f_estado || e.v2f_estructurales) {
+      html += "<h4>Formulario V2F</h4>" + filas([
+        ["Tipo de inspección", CAT.TIPO_INSPECCION[e.tipo_inspeccion]],
+        ["Sistema estructural", cod(e.v2f_estructura, "sistema", CAT.SISTEMA_ESTRUCTURAL)],
+        ["Tipo de entrepiso", cod(e.v2f_estructura, "entrepiso", CAT.TIPO_ENTREPISO)],
+        ["Período de construcción", cod(e.v2f_estructura, "periodo", CAT.PERIODO_CONSTRUCCION)],
+        ["Uso (V2F)", cod(e.v2f_estructura, "uso", CAT.USO)],
+        ["Uso de la planta baja", cod(e.v2f_estructura, "uso_planta_baja", CAT.USO)],
+        ["Código catastral", esc(e.cod_catastral) +
+          (e.catastral_origen === "panel" ? " <em>(completado desde el panel)</em>" : "")],
+        ["Nivel de mayor daño", e.nivel_mayor_dano],
+        ["Área afectada", e.area_afectada_pct != null ? e.area_afectada_pct + " %" : ""],
+      ]);
+      html += bloquePreguntas("A · Estado general", e.v2f_estado, CAT.ESTADO_GENERAL);
+      html += bloquePreguntas("B · Problemas geotécnicos", e.v2f_geotecnicos, CAT.GEOTECNICOS);
+      html += bloqueEscala("C · Daños no estructurales", e.v2f_no_estructurales);
+      html += bloqueGrilla("D · Daños estructurales", e.v2f_estructurales);
+      html += bloquePreguntas("E · Problemas del entorno", e.v2f_entorno, CAT.ENTORNO);
+      html += bloqueLibre("Condiciones pre-existentes", e.v2f_preexistentes, CAT.PREEXISTENTES);
+      html += bloqueMarcadas("Recomendaciones y medidas", e.v2f_recomendaciones);
+      html += bloqueLlaves("Ocupación", e.v2f_ocupacion, {
+        habitada:"¿Habitada?", ocupantes:"Ocupantes",
+        unidades:"Unidades existentes", unidades_no_hab:"Unidades no habitables"});
+      html += bloqueLlaves("Comisión", e.v2f_comision, {
+        codigo_lider:"Código del líder", evaluadores:"Nº de evaluadores", otro:"Otro inspector"});
+    }
+    if (e.bloques_faltantes && e.bloques_faltantes.length)
+      html += '<h4>Bloques sin datos</h4><p class="reserva-aviso">' +
+        e.bloques_faltantes.map(function(k){ return esc(k + " · " + PARC[k]); }).join("<br>") +
+        "<br><em>Un bloque en blanco no significa «sin daño»: significa que nadie lo miró. " +
+        "El V2F sale marcado como inspección parcial.</em></p>";
+    if (e.reservado && Object.keys(e.reservado).length) {
+      var rr = e.reservado;
+      html += '<h4>Reservado · datos personales de terceros</h4>' +
+        '<p class="reserva-aviso">Ley 1581 de 2012. No aparece en el listado, ni en el ' +
+        'CSV, ni en la API de consulta. Sale del panel solo dentro del V2F que se ' +
+        'entrega a la autoridad.</p>' + filas([
+        ["¿Hubo muertos o heridos?", {1:"No",2:"Sí",3:"No se sabe"}[rr.hubo_victimas]],
+        ["Personas fallecidas", rr.fallecidos != null ? String(rr.fallecidos) : ""],
+        ["Heridos", rr.heridos != null ? String(rr.heridos) : ""],
+        ["Afectados", rr.afectados != null ? String(rr.afectados) : ""],
+        ["Persona de contacto", esc(rr.contacto_nombre)],
+        ["Teléfono", esc(rr.contacto_telefono)], ["Correo", esc(rr.contacto_correo)],
+      ]);
+    }
     if (e.parciales) {
       var pk = ["A","B","C","D","E"], pp = "";
       for (var j = 0; j < pk.length; j++)
@@ -413,6 +464,71 @@ MODAL_HTML = """
     if (fotosHtml) html += "<h4>Registro fotográfico</h4><div class='fotos-ficha'>"
       + fotosHtml + "</div>";
     return html;
+  }
+
+  function cod(blq, k, catalogo){
+    var v = blq && blq[k];
+    return v == null ? "" : esc((catalogo && catalogo[v]) || ("código " + v + " (desconocido)"));
+  }
+  function bloquePreguntas(titulo, datos, defs){
+    if (!datos) return "";
+    var f = defs.map(function(q){
+      return [q.rotulo, datos[q.k] == null ? "" : esc(q.opciones[datos[q.k]] ||
+              ("código " + datos[q.k]))];
+    });
+    return "<h4>" + esc(titulo) + "</h4>" + filas(f);
+  }
+  function bloqueEscala(titulo, datos){
+    if (!datos) return "";
+    var f = Object.keys(datos).sort(function(a,b){return a-b}).map(function(k){
+      return [(CAT.NO_ESTRUCTURALES[k] || ("ítem " + k)),
+              esc(CAT.GRADO_DANO[datos[k]] || datos[k])];
+    });
+    return "<h4>" + esc(titulo) + "</h4>" + filas(f);
+  }
+  function bloqueGrilla(titulo, datos){
+    if (!datos) return "";
+    var h = "<h4>" + esc(titulo) + '</h4><table><tr><td></td>';
+    var grados = Object.keys(CAT.GRADO_DANO).sort(function(a,b){return a-b});
+    grados.forEach(function(g){ h += "<td><strong>" + esc(CAT.GRADO_DANO[g]) + "</strong></td>"; });
+    h += "</tr>";
+    Object.keys(datos).sort(function(a,b){return a-b}).forEach(function(it){
+      h += "<tr><td>" + esc(CAT.ESTRUCTURALES[it] || it) + "</td>";
+      grados.forEach(function(g){ h += "<td>" + (datos[it][g] || 0) + " %</td>"; });
+      h += "</tr>";
+    });
+    return h + "</table>";
+  }
+  function bloqueLibre(titulo, datos, defs){
+    if (!datos) return "";
+    var f = defs.filter(function(q){ return datos[q.k] != null; })
+                .map(function(q){ return [q.rotulo, esc(q.opciones[datos[q.k]] || datos[q.k])]; });
+    return f.length ? "<h4>" + esc(titulo) + "</h4>" + filas(f) : "";
+  }
+  function bloqueMarcadas(titulo, datos){
+    if (!datos) return "";
+    var partes = [];
+    [["visita", CAT.VISITA_ESPECIALIZADA, "Visita especializada"],
+     ["intervencion", CAT.INTERVENCION, "Intervención de"],
+     ["medidas", CAT.MEDIDAS_SEGURIDAD, "Medidas de seguridad"]].forEach(function(t){
+      var d = datos[t[0]];
+      if (!d) return;
+      var l = Object.keys(d).filter(function(k){ return d[k]; })
+                .map(function(k){ return esc(t[1][k] || k); });
+      if (l.length) partes.push([t[2], l.join("<br>")]);
+    });
+    if (datos.lugares) partes.push(["Lugares", esc(datos.lugares)]);
+    return partes.length ? "<h4>" + esc(titulo) + "</h4>" + filas(partes) : "";
+  }
+  function bloqueLlaves(titulo, datos, rotulos){
+    if (!datos) return "";
+    var f = Object.keys(rotulos).filter(function(k){ return datos[k] != null && datos[k] !== ""; })
+      .map(function(k){
+        var v = datos[k];
+        if (k === "habitada") v = {1:"Sí",2:"No"}[v] || v;
+        return [rotulos[k], esc(v)];
+      });
+    return f.length ? "<h4>" + esc(titulo) + "</h4>" + filas(f) : "";
   }
 
   function marca(e, i){
@@ -511,7 +627,8 @@ MODAL_HTML = """
     # pantallas y no tiene sentido que las tres pasen el mismo diccionario.
     "__HAB__", json.dumps({str(k): v["nombre"] for k, v in v2f.HABITABILIDAD.items()},
                           ensure_ascii=False)
-).replace("__PARC__", json.dumps(v2f.PARCIALES, ensure_ascii=False))
+).replace("__PARC__", json.dumps(v2f.PARCIALES, ensure_ascii=False)
+).replace("__CAT__", json.dumps(v2f.para_la_app(), ensure_ascii=False))
 
 
 # ---------------------------------------------------------------------- entrar
@@ -607,6 +724,8 @@ INICIO = """
   <div class="cifra c1"><b class="num">{{ t.habitables }}</b><span>Habitables</span></div>
   <div class="cifra {{ 'alerta' if t.sin_verificar }}"><b class="num">{{ t.sin_verificar }}</b>
     <span>Firmas fuera del registro</span></div>
+  <a class="cifra" href="/admin/catastral" style="text-decoration:none;color:inherit">
+    <b class="num">{{ t.sin_catastral }}</b><span>Sin código catastral →</span></a>
 </div>
 {% if rol == 'admin' and not d.ok %}
 <div class="aviso"><strong>Disco:</strong> quedan {{ d.libre_gb }} GB libres
@@ -673,12 +792,13 @@ consolidar. <a href="/admin/reportes?verificada=no">Verlas</a>.</div>
 def inicio(req: Request):
     ses = exigir(req)
     w, wa = filtro_alcance(req)
-    (total, colapso, nohab, restr, hab, sinv, rpend, rvenc), = consulta(f"""
+    (total, colapso, nohab, restr, hab, sinv, sincat, rpend, rvenc), = consulta(f"""
         SELECT count(*), count(*) FILTER (WHERE clasificacion=4),
                count(*) FILTER (WHERE clasificacion=3),
                count(*) FILTER (WHERE clasificacion=2),
                count(*) FILTER (WHERE clasificacion=1),
                count(*) FILTER (WHERE NOT matricula_verificada),
+               count(*) FILTER (WHERE cod_catastral IS NULL),
                count(*) FILTER (WHERE revision_estado = 'pendiente'),
                count(*) FILTER (WHERE revision_estado = 'pendiente'
                                   AND revision_vence < now())
@@ -697,7 +817,8 @@ def inicio(req: Request):
     consolidado = [f[:7] for f in sectores(req)]
     t = {"total": total, "peligro_colapso": colapso, "no_habitables": nohab,
          "uso_restringido": restr, "habitables": hab,
-         "sin_verificar": sinv, "rojos_pendientes": rpend, "rojos_vencidos": rvenc}
+         "sin_verificar": sinv, "sin_catastral": sincat,
+         "rojos_pendientes": rpend, "rojos_vencidos": rvenc}
     import api_brigadas
     # El estado del servidor es cosa de quien lo administra, no de una brigada.
     salud = ({"r": api_brigadas.estado_respaldo(), "d": api_brigadas.estado_disco()}
@@ -1774,7 +1895,16 @@ def _evaluacion(req: Request, ident: str):
                coalesce(jsonb_array_length(fotos), 0), ST_Y(geom), ST_X(geom),
                precision_m, revision_estado, revision_matricula, revision_en,
                revision_clasificacion, revision_motivo, clasificacion_efectiva,
-               escala, parciales, parcial_manda
+               escala, parciales, parcial_manda,
+               modo, tipo_inspeccion, cod_catastral, catastral_origen, localidad,
+               nivel_mayor_dano, area_afectada_pct, bloques_faltantes,
+               v2f_estructura, v2f_estado, v2f_geotecnicos, v2f_no_estructurales,
+               v2f_estructurales, v2f_entorno, v2f_preexistentes,
+               v2f_recomendaciones, v2f_ocupacion, v2f_comision,
+               -- Datos personales de un tercero. Esta es la ÚNICA consulta del
+               -- panel que los selecciona: en el listado, el CSV y la API no
+               -- existen. Ver el bloque «Compartimento reservado» en esquema.sql.
+               reservado
           FROM evaluacion_brigada WHERE id = %s AND {w}""", (ident, *wa))
     if not filas:
         return None
@@ -1785,7 +1915,14 @@ def _evaluacion(req: Request, ident: str):
               "motivo_auto", "justificacion", "observaciones", "fotos", "lat",
               "lon", "precision_m", "revision_estado", "revision_matricula",
               "revision_en", "revision_clasificacion", "revision_motivo",
-              "clasificacion_efectiva", "escala", "parciales", "parcial_manda"]
+              "clasificacion_efectiva", "escala", "parciales", "parcial_manda",
+              "modo", "tipo_inspeccion", "cod_catastral", "catastral_origen",
+              "localidad", "nivel_mayor_dano", "area_afectada_pct",
+              "bloques_faltantes",
+              "v2f_estructura", "v2f_estado", "v2f_geotecnicos",
+              "v2f_no_estructurales", "v2f_estructurales", "v2f_entorno",
+              "v2f_preexistentes", "v2f_recomendaciones", "v2f_ocupacion",
+              "v2f_comision", "reservado"]
     return dict(zip(campos, filas[0], strict=True))
 
 
@@ -2026,3 +2163,95 @@ def evolucion(req: Request):
                   render(TABLERO_HTML, t=t, serie=serie, cobertura=cobertura,
                          por_brigada=por_brigada),
                   "evolucion", ses=ses)
+
+
+# ------------------------------------------------------- catastral pendiente
+# El código catastral casi nunca se sabe de memoria frente al predio, así que en
+# campo es opcional y se completa acá: escritorio, conexión y pantalla grande.
+# Queda registrado que lo puso el panel y no quien estaba parado en la puerta —
+# no es lo mismo leerlo de un recibo que deducirlo cruzando una dirección.
+CATASTRAL_HTML = """
+<h1>Predios sin código catastral</h1>
+<p class="sub">Sin el código, la exportación no se puede cruzar contra el catastro
+distrital. Los desalojos van primero.</p>
+
+{% if aviso %}<div class="ok">{{ aviso }}</div>{% endif %}
+{% if error %}<div class="aviso">{{ error }}</div>{% endif %}
+
+{% if not filas %}
+<div class="tarjeta"><p class="vacio" style="margin:0">Todas las evaluaciones tienen
+  código catastral.</p></div>
+{% else %}
+<div class="tarjeta">
+  <div class="desplaza"><table>
+    <thead><tr><th>Evaluación</th><th>Dónde</th><th>Clasificación</th>
+      <th>Código catastral</th></tr></thead>
+    <tbody>
+    {% for f in filas %}<tr>
+      <td><a href="#" onclick="abrirFicha('{{ f.id }}');return false">{{ f.id_local or f.id }}</a>
+        <br><span class="nota" style="margin:0">{{ f.recibido.strftime("%Y-%m-%d %H:%M") }}</span></td>
+      <td>{{ f.direccion or "—" }}
+        {% if f.barrio %}<br><span class="nota" style="margin:0">{{ f.municipio }} · {{ f.barrio }}</span>{% endif %}
+        {% if f.lat %}<br><a class="nota" target="_blank" rel="noopener"
+           href="https://www.openstreetmap.org/?mlat={{ f.lat }}&mlon={{ f.lon }}#map=19/{{ f.lat }}/{{ f.lon }}"
+           >ver la coordenada</a>{% endif %}</td>
+      <td><span class="pastilla p{{ f.clas }}">{{ f.nombre_clas }}</span></td>
+      <td>
+        <form method="post" action="/admin/catastral" style="display:flex;gap:6px;align-items:end">
+          <input type="hidden" name="id" value="{{ f.id }}">
+          <label style="margin:0"><span style="font-size:11px">Localidad</span>
+            <input name="localidad" value="{{ f.localidad or '' }}" style="min-width:110px"></label>
+          <label style="margin:0"><span style="font-size:11px">Código</span>
+            <input name="cod" required inputmode="numeric" style="min-width:170px"></label>
+          <button class="btn btn-s">Guardar</button>
+        </form></td>
+    </tr>{% endfor %}
+    </tbody></table></div>
+</div>
+{% endif %}
+""" + MODAL_HTML
+
+
+def _sin_catastral(req: Request):
+    w, wa = filtro_alcance(req)
+    return [{"id": f[0], "id_local": f[1], "recibido": f[3], "direccion": f[5],
+             "municipio": f[6], "barrio": f[7], "clas": f[8],
+             "nombre_clas": NOMBRE_CLAS.get(f[8], "?"), "lat": f[9], "lon": f[10],
+             "localidad": None}
+            for f in consulta(f"""SELECT id, id_local, ts, recibido_en, brigada_token,
+                                         direccion, municipio, barrio,
+                                         clasificacion_efectiva, lat, lon
+                                    FROM pendientes_de_catastral
+                                   WHERE {w} LIMIT 100""", tuple(wa))]
+
+
+@router.get("/admin/catastral", response_class=HTMLResponse)
+def catastral(req: Request):
+    ses = exigir(req)
+    return pagina("Catastral", render(CATASTRAL_HTML, filas=_sin_catastral(req),
+                                      aviso=None, error=None), "catastral", ses=ses)
+
+
+@router.post("/admin/catastral", response_class=HTMLResponse)
+def catastral_guardar(req: Request, id: str = Form(...), cod: str = Form(...),
+                      localidad: str = Form("")):
+    ses = exigir(req)
+    aviso = error = None
+    # El alcance va en el WHERE: sin esto, un coordinador podría escribir sobre la
+    # evaluación de otra brigada mandando su id a mano.
+    w, wa = filtro_alcance(req)
+    cod = cod.strip()
+    if not cod:
+        error = "El código catastral no puede ir vacío."
+    else:
+        hecho = consulta(f"""UPDATE evaluacion_brigada
+                                SET cod_catastral = %s, catastral_origen = 'panel',
+                                    localidad = coalesce(nullif(%s,''), localidad)
+                              WHERE id = %s AND {w} AND cod_catastral IS NULL
+                          RETURNING id_local""", (cod, localidad.strip(), id, *wa))
+        aviso = (f"Código catastral guardado en {hecho[0][0] or id}." if hecho else
+                 None)
+        if not hecho:
+            error = "Esa evaluación no existe, no es de su brigada, o ya tenía código."
+    return pagina("Catastral", render(CATASTRAL_HTML, filas=_sin_catastral(req),
+                                      aviso=aviso, error=error), "catastral", ses=ses)

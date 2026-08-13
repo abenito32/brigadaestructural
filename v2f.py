@@ -302,13 +302,203 @@ def clasificar_triaje(danos: dict, banderas: dict) -> dict:
 
 
 def _global(p: dict, por: dict, *, sin_datos: bool = False) -> dict:
-    """La global es la más crítica de las cinco, y dice cuál mandó."""
-    p = {k: _tope(k, v) for k, v in p.items()}
-    if sin_datos:
+    """La global es la más crítica de las que SE PUDIERON calcular.
+
+    Un bloque sin datos vale None y no entra en el máximo. No vale 1: decir
+    «habitable» de lo que nadie miró es la mentira que este sistema no puede
+    permitirse. Los bloques faltantes viajan aparte para que el formulario salga
+    marcado como inspección parcial y el panel diga cuáles son.
+    """
+    p = {k: (None if v is None else _tope(k, v)) for k, v in p.items()}
+    faltan = [k for k in "ABCDE" if p.get(k) is None]
+    if sin_datos or all(p.get(k) is None for k in "ABCDE"):
         return {"v": 0, "por": "Complete el nivel de daño", "parciales": p,
-                "manda": None}
-    manda = max(p, key=lambda k: (p[k], -"ABCDE".index(k)))
-    return {"v": p[manda], "por": por[manda], "parciales": p, "manda": manda}
+                "manda": None, "faltan": faltan, "motivos": por}
+    hay = [k for k in "ABCDE" if p.get(k) is not None]
+    manda = max(hay, key=lambda k: (p[k], -"ABCDE".index(k)))
+    return {"v": p[manda], "por": por[manda], "parciales": p, "manda": manda,
+            "faltan": faltan, "motivos": por}
+
+
+# ------------------------------------------------- la regla del formulario largo
+#
+# Umbrales NUESTROS otra vez: el V2F imprime las casillas pero no publica la
+# regla, porque en el papel decide una persona. Están acá, juntos y por escrito,
+# para poder discutirlos con un ingeniero en vez de deducirlos del código.
+#
+# La escala de daño del V2F tiene cinco grados y la nuestra de triaje tiene
+# cuatro. Se alinean así: ninguno=ninguno, leve=leve, moderado=moderado, y
+# nuestro «severo» equivale al «fuerte» del V2F. El «severo» del V2F queda por
+# encima de lo que la escala corta sabe expresar, y por eso puede cerrar una
+# edificación donde el triaje solo la restringía.
+UMBRAL_D = 30      # % de elementos en un grado que hace saltar el nivel
+
+
+def _max_con_motivo(candidatos):
+    """De [(valor, motivo)], el peor. None si no hay ninguno."""
+    reales = [c for c in candidatos if c[0] is not None]
+    if not reales:
+        return None, None
+    return max(reales, key=lambda c: c[0])
+
+
+def clasificar_completo(bloques: dict) -> dict:
+    """Las cinco parciales a partir de los bloques del formulario largo.
+
+    `bloques` trae lo que llenó el inspector; lo que no está, no se inventa.
+    """
+    p, por = {}, {}
+    g = lambda blq, k: (bloques.get(blq) or {}).get(k)      # noqa: E731
+
+    # A · estado general -----------------------------------------------------
+    colapso, desv, cim = g("estado", "colapso"), g("estado", "desviacion"), g("estado", "cimentacion")
+    if colapso or desv or cim:
+        cand = []
+        if colapso == 3: cand.append((4, "Colapso total"))
+        elif colapso == 2: cand.append((4, "Colapso parcial"))
+        if desv == 2: cand.append((4, "Desviación o inclinación de la edificación"))
+        elif desv == 3: cand.append((2, "No se pudo determinar si hay desviación"))
+        if cim == 2: cand.append((3, "Falla o asentamiento de la cimentación"))
+        elif cim == 3: cand.append((2, "No se pudo determinar el estado de la cimentación"))
+        v, m = _max_con_motivo(cand)
+        p["A"], por["A"] = (v or 1), (m or "Sin colapso, desviación ni falla de cimentación")
+    else:
+        p["A"], por["A"] = None, None
+
+    # B · geotécnicos --------------------------------------------------------
+    talud, asent, grietas = g("geotecnicos", "talud"), g("geotecnicos", "asentamiento"), g("geotecnicos", "grietas")
+    if talud or asent or grietas:
+        cand = []
+        if talud == 3: cand.append((4, "Falla general en talud o movimiento en masa"))
+        elif talud == 2: cand.append((3, "Falla puntual en talud"))
+        if asent == 3: cand.append((4, "Asentamiento, subsidencia o licuación generalizada"))
+        elif asent == 2: cand.append((3, "Asentamiento, subsidencia o licuación puntual"))
+        if grietas == 3: cand.append((3, "Grietas generalizadas en el terreno circundante"))
+        elif grietas == 2: cand.append((2, "Grietas incipientes en el terreno circundante"))
+        v, m = _max_con_motivo(cand)
+        p["B"], por["B"] = (v or 1), (m or "Sin problema geotécnico observado")
+    else:
+        p["B"], por["B"] = None, None
+
+    # C · no estructurales (ítems 7 a 17, escala 1 a 5) -----------------------
+    ne = {int(k): v for k, v in (bloques.get("no_estructurales") or {}).items()
+          if v}
+    if ne:
+        peor = max(ne.values())
+        cual = NO_ESTRUCTURALES.get(max(ne, key=lambda k: ne[k]), "")
+        if peor >= 5:
+            p["C"], por["C"] = 3, f"Daño severo · {cual.lower()}"
+        elif peor == 4:
+            p["C"], por["C"] = 2, f"Daño fuerte · {cual.lower()}"
+        else:
+            p["C"], por["C"] = 1, "Sin daño no estructural que restrinja el uso"
+    else:
+        p["C"], por["C"] = None, None
+
+    # D · estructurales (porcentajes por elemento en el piso de mayor daño) ---
+    grid = bloques.get("estructurales") or {}
+    filas = {int(k): v for k, v in grid.items() if isinstance(v, dict) and any(v.values())}
+    if filas:
+        cand = []
+        for elem, pct in filas.items():
+            sev = float(pct.get("5") or pct.get(5) or 0)
+            fue = float(pct.get("4") or pct.get(4) or 0)
+            mod = float(pct.get("3") or pct.get(3) or 0)
+            nom = ESTRUCTURALES.get(elem, "elemento").lower()
+            if sev >= UMBRAL_D: cand.append((4, f"{sev:.0f}% de {nom} con daño severo"))
+            elif sev > 0: cand.append((3, f"{sev:.0f}% de {nom} con daño severo"))
+            elif fue >= UMBRAL_D: cand.append((3, f"{fue:.0f}% de {nom} con daño fuerte"))
+            elif fue > 0: cand.append((2, f"{fue:.0f}% de {nom} con daño fuerte"))
+            elif mod >= UMBRAL_D: cand.append((2, f"{mod:.0f}% de {nom} con daño moderado"))
+        v, m = _max_con_motivo(cand)
+        p["D"], por["D"] = (v or 1), (m or "Sin daño estructural relevante")
+    else:
+        p["D"], por["D"] = None, None
+
+    # E · entorno ------------------------------------------------------------
+    vecina, evento = g("entorno", "vecina"), g("entorno", "evento")
+    if vecina or evento:
+        cand = []
+        if vecina == 2: cand.append((3, "Edificación o infraestructura vecina crítica"))
+        elif vecina == 3: cand.append((2, "No se pudo determinar el riesgo de la vecina"))
+        if evento == 2: cand.append((3, "Evento adverso inminente"))
+        v, m = _max_con_motivo(cand)
+        p["E"], por["E"] = (v or 1), (m or "Entorno sin amenaza observada")
+    else:
+        p["E"], por["E"] = None, None
+
+    return _global(p, por)
+
+
+def clasificar(danos: dict, banderas: dict, bloques: dict | None = None) -> dict:
+    """Punto único de entrada: usa los bloques largos si los hay, si no el triaje.
+
+    Cuando hay las dos cosas —el inspector llenó el formulario completo sobre una
+    evaluación que empezó como triaje— mandan los bloques largos, pero un bloque
+    que quedó vacío se rellena con lo que sí dijo el triaje. Así completar el
+    formulario nunca hace desaparecer una observación ya hecha.
+    """
+    corto = clasificar_triaje(danos, banderas)
+    if not bloques:
+        return corto
+    largo = clasificar_completo(bloques)
+    # Si el formulario corto está vacío no aporta nada: sus cinco parciales en 1
+    # significan «no se marcó daño», no «se miró y no había». Rellenar con eso un
+    # bloque que el formulario largo dejó sin datos convertiría el silencio en un
+    # «habitable» — precisamente lo que no se puede firmar.
+    hay_triaje = corto["v"] != 0
+    p, por = {}, {}
+    for k in "ABCDE":
+        if largo["parciales"].get(k) is not None:
+            p[k], por[k] = largo["parciales"][k], largo["motivos"][k]
+        elif hay_triaje:
+            p[k], por[k] = corto["parciales"].get(k), corto["motivos"].get(k)
+        else:
+            p[k], por[k] = None, None
+    return _global(p, por)
+
+
+# Qué catálogo valida cada clave de cada bloque. Lo que no está acá no se valida
+# porque es texto libre o un número (metros de frente, número de ocupantes).
+CATALOGOS = {
+    ("estructura", "sistema"): SISTEMA_ESTRUCTURAL,
+    ("estructura", "entrepiso"): TIPO_ENTREPISO,
+    ("estructura", "periodo"): PERIODO_CONSTRUCCION,
+    ("estructura", "uso"): USO,
+    ("estructura", "uso_planta_baja"): USO,
+    ("estado", "colapso"): COLAPSO,
+    ("estado", "desviacion"): SI_NO_ND,
+    ("estado", "cimentacion"): SI_NO_ND,
+    ("geotecnicos", "talud"): GEOTECNICOS[4]["opciones"],
+    ("geotecnicos", "asentamiento"): GEOTECNICOS[5]["opciones"],
+    ("geotecnicos", "grietas"): GEOTECNICOS[6]["opciones"],
+    ("entorno", "vecina"): ENTORNO[22]["opciones"],
+    ("entorno", "evento"): ENTORNO[23]["opciones"],
+}
+
+
+def codigos_desconocidos(bloques: dict) -> list[str]:
+    """Códigos que este catálogo no reconoce.
+
+    NO sirve para rechazar. Un código desconocido significa que el teléfono y el
+    servidor tienen versiones distintas del formulario, y ese es exactamente el
+    caso en el que rechazar deja una jornada de campo encerrada en un bolsillo.
+    Sirve para avisar en el log y para que el panel lo muestre sin traducir.
+    """
+    raros = []
+    for (blq, clave), catalogo in CATALOGOS.items():
+        v = (bloques.get(blq) or {}).get(clave)
+        if v not in (None, "") and int(v) not in catalogo:
+            raros.append(f"{blq}.{clave}={v}")
+    for clave, valor in (bloques.get("no_estructurales") or {}).items():
+        if valor and int(valor) not in GRADO_DANO:
+            raros.append(f"no_estructurales.{clave}={valor}")
+        if int(clave) not in NO_ESTRUCTURALES:
+            raros.append(f"no_estructurales: ítem {clave} no existe")
+    for clave in (bloques.get("estructurales") or {}):
+        if int(clave) not in ESTRUCTURALES:
+            raros.append(f"estructurales: ítem {clave} no existe")
+    return raros
 
 
 def nombre(valor: int) -> str:
@@ -320,7 +510,19 @@ def nombre(valor: int) -> str:
 # Lo que necesita el teléfono para pintar el formulario y clasificar igual que el
 # servidor. Se inyecta en index.html con `build_catalogo.py`; no se descarga en
 # tiempo de ejecución, porque la app tiene que arrancar sin señal.
+def _preguntas(defs: dict, claves: dict) -> list:
+    """Normaliza un bloque a [{k, n, rotulo, opciones}] para que el teléfono solo
+    tenga que pintar, sin conocer la forma interna de cada catálogo."""
+    return [{"k": claves[n], "n": n, "rotulo": d["rotulo"],
+             "opciones": {str(c): t for c, t in d["opciones"].items()}}
+            for n, d in defs.items()]
+
+
 def para_la_app() -> dict:
+    """Lo que necesita el teléfono para pintar el formulario y clasificar igual
+    que el servidor. Se inyecta en index.html con `build_catalogo.py`; no se
+    descarga en tiempo de ejecución, porque la app tiene que arrancar sin señal."""
+    txt = lambda d: {str(k): v for k, v in d.items()}      # noqa: E731
     return {
         "HABITABILIDAD": {k: v["nombre"] for k, v in HABITABILIDAD.items()},
         "SUBTITULO": {k: v["sub"] for k, v in HABITABILIDAD.items()},
@@ -328,6 +530,7 @@ def para_la_app() -> dict:
         "COLOR_TINTA": COLOR_TINTA,
         "TECHO_PARCIAL": TECHO_PARCIAL,
         "PARCIALES": PARCIALES,
+        "UMBRAL_D": UMBRAL_D,
         "SISTEMA_ESTRUCTURAL": SISTEMA_ESTRUCTURAL,
         "SISTEMA_GRUPO": SISTEMA_GRUPO,
         "TIPO_ENTREPISO": TIPO_ENTREPISO,
@@ -335,4 +538,17 @@ def para_la_app() -> dict:
         "PERIODO_CONSTRUCCION": PERIODO_CONSTRUCCION,
         "USO": USO,
         "TIPO_INSPECCION": TIPO_INSPECCION,
+        "GRADO_DANO": txt(GRADO_DANO),
+        "NO_ESTRUCTURALES": txt(NO_ESTRUCTURALES),
+        "ESTRUCTURALES": txt(ESTRUCTURALES),
+        "ESTADO_GENERAL": _preguntas(ESTADO_GENERAL,
+                                     {1: "colapso", 2: "desviacion", 3: "cimentacion"}),
+        "GEOTECNICOS": _preguntas(GEOTECNICOS,
+                                  {4: "talud", 5: "asentamiento", 6: "grietas"}),
+        "ENTORNO": _preguntas(ENTORNO, {22: "vecina", 23: "evento"}),
+        "PREEXISTENTES": [{"k": k, "rotulo": r, "opciones": txt(o)}
+                          for k, (r, o) in PREEXISTENTES.items()],
+        "VISITA_ESPECIALIZADA": txt(VISITA_ESPECIALIZADA),
+        "INTERVENCION": txt(INTERVENCION),
+        "MEDIDAS_SEGURIDAD": txt(MEDIDAS_SEGURIDAD),
     }

@@ -79,6 +79,90 @@ ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS parcial_manda text
   CHECK (parcial_manda IN ('A','B','C','D','E'));
 
 -- ---------------------------------------------------------------------------
+-- Formulario V2F completo
+-- ---------------------------------------------------------------------------
+--
+-- El modo `triaje` llena el nucleo en cuatro minutos y produce una habitabilidad
+-- valida con un V2F parcial. El modo `completo` habilita los bloques restantes y
+-- produce un V2F entregable. Es el mismo modelo: `modo` dice cual se uso.
+--
+-- Los bloques van como jsonb y no como cien columnas a proposito. Las claves son
+-- los numeros de casilla del formulario, que es la unica numeracion que importa
+-- acá; lo que se consulta de verdad (la clasificacion, el sector, la fecha) ya
+-- tiene columna propia desde antes.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS modo text NOT NULL DEFAULT 'triaje'
+  CHECK (modo IN ('triaje','completo'));
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS tipo_inspeccion smallint
+  CHECK (tipo_inspeccion BETWEEN 1 AND 3);   -- completa / parcial / exterior
+
+-- Identificacion catastral. Opcional en campo —casi nadie la sabe de memoria— y
+-- completable despues desde el panel, que es trabajo de escritorio con conexion.
+-- `catastral_origen` dice quien la puso: no es lo mismo leerla de un recibo en la
+-- puerta que deducirla cruzando una direccion.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS cod_catastral text;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS catastral_origen text
+  CHECK (catastral_origen IN ('campo','panel'));
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS localidad text;
+CREATE INDEX IF NOT EXISTS evaluacion_brigada_catastral_idx
+  ON evaluacion_brigada (cod_catastral) WHERE cod_catastral IS NOT NULL;
+
+-- Un jsonb por bloque del formulario. Los que quedan NULL son los que nadie
+-- lleno, y salen listados en `bloques_faltantes`: un bloque vacio NO vale
+-- "sin daño".
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_estructura jsonb;
+  -- sistema estructural, entrepiso, periodo, usos, pisos, sotanos, frente, fondo
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_estado jsonb;
+  -- bloque A: colapso, desviacion, cimentacion
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_geotecnicos jsonb;
+  -- bloque B: talud, asentamiento, grietas
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_no_estructurales jsonb;
+  -- bloque C: items 7 a 17, escala 1 a 5
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_estructurales jsonb;
+  -- bloque D: items 18 a 21, % por grado que suma 100 en el piso de mayor daño
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_entorno jsonb;
+  -- bloque E: vecina critica, evento inminente
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_preexistentes jsonb;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_recomendaciones jsonb;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_ocupacion jsonb;
+  -- unidades existentes / no habitables, si esta habitada, nº de ocupantes
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_comision jsonb;
+  -- codigo del lider, nº de evaluadores, otro inspector
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS nivel_mayor_dano smallint;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS area_afectada_pct smallint
+  CHECK (area_afectada_pct BETWEEN 0 AND 100);
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS bloques_faltantes text[];
+
+-- ---------------------------------------------------------------------------
+-- Compartimento reservado
+-- ---------------------------------------------------------------------------
+--
+-- Persona de contacto (nombre, telefono, correo) y efecto en los ocupantes
+-- (fallecidos, heridos, afectados). Son datos personales de un TERCERO, no del
+-- inspector: Ley 1581 de 2012.
+--
+-- Va en UNA columna aparte y no repartido entre las demas, para que no depender
+-- de que alguien se acuerde de excluir seis claves cada vez que escribe una
+-- consulta. Quien no seleccione esta columna no puede filtrarlos por accidente.
+--
+--   listado, CSV, API de consulta, consolidado  ->  NUNCA
+--   ficha individual, dentro del alcance de su brigada, y V2F exportado -> SI
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS reservado jsonb;
+
+COMMENT ON COLUMN evaluacion_brigada.reservado IS
+  'Datos personales de terceros (Ley 1581/2012). No exponer fuera de la ficha '
+  'individual ni del V2F exportado. Ver el bloque "Compartimento reservado" en esquema.sql.';
+
+-- Cola de trabajo del panel: lo que llego sin codigo catastral. Sin el, la
+-- exportacion no se puede cruzar contra el catastro distrital.
+DROP VIEW IF EXISTS pendientes_de_catastral;
+CREATE VIEW pendientes_de_catastral AS
+SELECT id, id_local, ts, recibido_en, brigada_token, direccion, municipio, barrio,
+       clasificacion_efectiva, ST_Y(geom) AS lat, ST_X(geom) AS lon
+  FROM evaluacion_brigada
+ WHERE cod_catastral IS NULL
+ ORDER BY clasificacion_efectiva DESC, recibido_en DESC;
+
+-- ---------------------------------------------------------------------------
 -- Registro de brigadas e inspectores
 -- ---------------------------------------------------------------------------
 
