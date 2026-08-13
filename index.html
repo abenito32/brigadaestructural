@@ -186,10 +186,25 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   border-radius:50%;background:#fff}
 
 /* ---------- formulario V2F completo ---------- */
-.v2f-sec{border-top:1px solid var(--linea);padding-top:14px;margin-top:14px}
-.v2f-sec:first-child{border-top:0;padding-top:0;margin-top:0}
-.v2f-tit{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
-  color:var(--azul-osc);margin:0 0 10px}
+.v2f-sec{border:1px solid var(--linea);border-radius:var(--r);margin-top:10px;
+  background:var(--carta)}
+.v2f-tit{display:flex;align-items:center;gap:10px;padding:15px 14px;cursor:pointer;
+  list-style:none;min-height:56px}
+.v2f-tit::-webkit-details-marker{display:none}
+/* Flecha dibujada con CSS: no depende de una fuente de iconos ni de un emoji,
+   que en un teléfono viejo puede no existir. */
+.v2f-tit::after{content:"";width:9px;height:9px;margin-left:auto;flex:none;
+  border-right:2.5px solid var(--tinta2);border-bottom:2.5px solid var(--tinta2);
+  transform:rotate(45deg) translate(-2px,-2px);transition:transform .18s ease-out}
+.v2f-sec[open] .v2f-tit::after{transform:rotate(225deg) translate(-2px,-2px)}
+@media (prefers-reduced-motion:reduce){.v2f-tit::after{transition:none}}
+.v2f-tit h3{margin:0;font-size:14px;font-weight:800;letter-spacing:.02em;
+  color:var(--azul-osc);line-height:1.3}
+.v2f-cuenta{font-size:12px;font-weight:600;color:var(--tenue);white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.v2f-cuenta.completa{color:var(--verde)}
+.v2f-cuerpo{padding:0 14px 14px}
+.v2f-sec[open] .v2f-tit{border-bottom:1px solid var(--linea);margin-bottom:12px}
 .v2f-grupo{font-size:12px;font-weight:700;color:var(--tinta2);margin:10px 0 5px}
 .v2f-ops{flex-wrap:wrap}
 .v2f-ops button{flex:0 1 auto;min-width:0;padding-left:12px;padding-right:12px;font-size:14px}
@@ -202,8 +217,8 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 .v2f-suma.mal{color:var(--rojo)}
 /* El compartimento reservado se ve distinto a propósito: quien lo llena tiene
    que notar que ahí adentro hay datos de una persona, no del edificio. */
-.v2f-reservado{border:1px solid var(--borde);border-left:4px solid var(--azul);
-  border-radius:var(--r);padding:14px;background:var(--papel)}
+.v2f-reservado{border-left:4px solid var(--azul);background:var(--papel)}
+.v2f-reservado .v2f-tit h3{color:var(--azul-osc)}
 
 .parciales{display:flex;gap:6px;padding:11px 16px;background:var(--carta);
   border-top:1px solid var(--linea);flex-wrap:wrap}
@@ -380,6 +395,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
       <span><strong>Llenar el formulario V2F completo</strong>
         <em>Unos veinte minutos. Sin esto la evaluación vale igual y clasifica igual,
         pero el V2F sale marcado como parcial.</em></span></label>
+    <p class="nota" id="v2fTotal" aria-live="polite"></p>
     <div id="v2fBloques" class="oculto"></div>
   </section>
 
@@ -769,6 +785,7 @@ function pintarPlaca(){
   var chip=document.getElementById("chip");
   chip.className="chip v-"+v; chip.textContent=TIT[v];
   document.getElementById("wrapJust").style.display=(sel==="auto")?"none":"block";
+  contarTodo();
   apuntarBorrador();
   return v;
 }
@@ -800,10 +817,58 @@ function el(tag, cls, txt){
   var d=document.createElement(tag); if(cls) d.className=cls;
   if(txt!==undefined) d.textContent=txt; return d;
 }
+/* Las doce secciones se pliegan. Desplegadas son quince metros de scroll en los
+   que nadie sabe dónde está ni cuánto falta; plegadas, la propia lista es el
+   índice y cada una dice lo que lleva respondido.
+   Se usa <details>, que ya trae el teclado, el foco y el anuncio de
+   abierto/cerrado — reimplementarlo con divs habría costado más y accesible
+   menos. */
 function seccion(padre, titulo, ayuda){
-  var s=el("div","v2f-sec"), h=el("h3","v2f-tit",titulo); s.appendChild(h);
-  if(ayuda){ var a=el("p","nota",ayuda); a.style.marginTop="0"; s.appendChild(a); }
-  padre.appendChild(s); return s;
+  var d=document.createElement("details"); d.className="v2f-sec";
+  var sm=document.createElement("summary"); sm.className="v2f-tit";
+  var h=el("h3",null,titulo); sm.appendChild(h);
+  var cuenta=el("span","v2f-cuenta",""); sm.appendChild(cuenta);
+  d.appendChild(sm);
+  var cuerpo=el("div","v2f-cuerpo");
+  if(ayuda){ var a=el("p","nota",ayuda); a.style.marginTop="0"; cuerpo.appendChild(a); }
+  d.appendChild(cuerpo);
+  padre.appendChild(d);
+  return cuerpo;
+}
+
+/* Cuántas preguntas de una sección están contestadas. El total se cuenta sobre
+   los controles que hay de verdad, no sobre una lista escrita a mano que se
+   desincronizaría al primer cambio del catálogo. */
+function contarSeccion(det){
+  var resp=0, total=0;
+  det.querySelectorAll("[data-k]").forEach(function(c){
+    total++;
+    var v = valorDe(c.dataset.blq, c.dataset.k);
+    if(v !== undefined && v !== null && v !== "") resp++;
+  });
+  det.querySelectorAll(".v2f-fila").forEach(function(f){
+    total++;
+    var lleno=false;
+    f.querySelectorAll("input").forEach(function(i){ if(i.value !== "") lleno=true; });
+    if(lleno) resp++;
+  });
+  det.querySelectorAll("[data-marca]").forEach(function(g){
+    total++;
+    if(g.querySelector("input:checked")) resp++;
+  });
+  return {resp:resp, total:total};
+}
+
+function contarTodo(){
+  var suma=0, tot=0;
+  document.querySelectorAll("#v2fBloques .v2f-sec").forEach(function(d){
+    var c = contarSeccion(d), e = d.querySelector(".v2f-cuenta");
+    e.textContent = c.resp ? c.resp + " de " + c.total : "";
+    e.className = "v2f-cuenta" + (c.resp && c.resp === c.total ? " completa" : "");
+    suma += c.resp; tot += c.total;
+  });
+  var t = document.getElementById("v2fTotal");
+  if(t) t.textContent = suma ? suma + " de " + tot + " respondidas" : "";
 }
 /* Botones de opción: mismo gesto que la escala de daño, que ya está probado en
    campo con guantes. No se usa <select> porque abre una rueda del sistema y
@@ -840,6 +905,7 @@ function campo(padre, rotulo, destino, clave, tipo){
     var v=i.value.trim();
     if(v==="") delete destino[clave];
     else destino[clave]= (tipo==="number") ? parseInt(v,10) : v;
+    contarTodo();
   };
   l.appendChild(sp); l.appendChild(i); padre.appendChild(l); return i;
 }
@@ -871,7 +937,10 @@ function casillas(padre, rotulo, catalogo, destino){
     i.type="checkbox"; i.dataset.cod=cod;
     i.dataset.grupo = (destino===v2fEst.recomendaciones.visita) ? "visita"
       : (destino===v2fEst.recomendaciones.intervencion) ? "intervencion" : "medidas";
-    i.onchange=function(){ if(i.checked) destino[cod]=true; else delete destino[cod]; };
+    i.onchange=function(){
+      if(i.checked) destino[cod]=true; else delete destino[cod];
+      contarTodo(); apuntarBorrador();
+    };
     var sp=el("span",null,catalogo[cod]);
     l.appendChild(i); l.appendChild(sp); w.appendChild(l);
   });
@@ -949,6 +1018,7 @@ function repintarV2F(){
     var d = v2fEst.recomendaciones[i.dataset.grupo] || {};
     i.checked = !!d[i.dataset.cod];
   });
+  contarTodo();
 }
 
 function construirV2F(){
@@ -1023,7 +1093,7 @@ function construirV2F(){
     "Datos personales de un tercero (Ley 1581 de 2012). No aparecen en el listado, " +
     "ni en el CSV, ni en la API: solo en la ficha de su brigada y en el V2F que se " +
     "entrega a la autoridad.");
-  s.className="v2f-sec v2f-reservado";
+  s.parentElement.classList.add("v2f-reservado");
   opciones(s,"¿Hubo muertos o heridos?",{"1":"No","2":"Sí","3":"No se sabe"},
            reservado,"hubo_victimas");
   campo(s,"Personas fallecidas",reservado,"fallecidos","number");
@@ -1037,6 +1107,10 @@ function construirV2F(){
   campo(s,"Código del líder de la comisión",v2fEst.comision,"codigo_lider");
   campo(s,"Número de evaluadores",v2fEst.comision,"evaluadores","number");
   campo(s,"Otro inspector",v2fEst.comision,"otro");
+
+  var primera = c.querySelector(".v2f-sec");
+  if(primera) primera.open = true;      /* para que se vea que se despliegan */
+  contarTodo();
 }
 
 document.getElementById("modoV2F").onchange=function(){
@@ -1456,6 +1530,10 @@ function restaurarBorrador(b){
     document.getElementById("modoV2F").onchange();
     for(k in b.v2f) v2fEst[k] = b.v2f[k];
     repintarV2F();
+    /* Se abren las secciones que traen respuestas: quien retoma tiene que ver
+       lo que ya llenó, no una lista de doce títulos cerrados. */
+    document.querySelectorAll("#v2fBloques .v2f-sec").forEach(function(d){
+      if(contarSeccion(d).resp) d.open = true; });
   }
   for(k in (b.reservado||{})) reservado[k] = b.reservado[k];
   if(b.est.lat != null)
