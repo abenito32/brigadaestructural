@@ -14,11 +14,24 @@
    vea <https://www.gnu.org/licenses/>.
  */
 
-const CACHE = "brigada-v11";   // subir en CADA cambio de los archivos cacheados
-const ARCHIVOS = ["./", "./index.html", "./manifest.json"];
+const CACHE = "brigada-v15";   // subir en CADA cambio de los archivos cacheados
+// Leaflet va en la lista para que el mapa exista aunque el teléfono ya no tenga
+// señal cuando se abre. Las TESELAS no se cachean: son de otro origen, son
+// miles y llenarían el disco del teléfono. Sin señal el mapa avisa y la
+// evaluación se guarda igual con lo que dio el GPS.
+const ARMAZON = ["./", "./index.html", "./manifest.json"];
+const EXTRAS = ["./vendor/leaflet.css", "./vendor/leaflet.js"];
 
+// El armazón con addAll: si falta uno de esos tres, la app no existe y la
+// instalación DEBE fallar. Los extras uno por uno y tragándose el error: si
+// Leaflet no se puede guardar, se pierde el mapa —una comodidad— pero no el
+// modo sin conexión, que es la razón de ser de esto. Con un solo addAll de los
+// cinco, un 404 en Leaflet dejaría al teléfono sin funcionar en campo.
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE)
+    .then(c => c.addAll(ARMAZON)
+      .then(() => Promise.all(EXTRAS.map(u => c.add(u).catch(() => null)))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", e => {

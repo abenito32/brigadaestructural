@@ -253,6 +253,8 @@ CAMPOS_V2F = [
     ("matricula_verificada", "matricula_verificada"),
     ("direccion", "direccion"), ("municipio", "municipio"), ("barrio", "barrio"),
     ("localidad", "localidad"), ("cod_catastral", "cod_catastral"),
+    ("departamento", "departamento"), ("cod_dane", "cod_dane"),
+    ("origen_punto", "origen_punto"),
     ("tipo_inspeccion", "tipo_inspeccion"), ("modo", "modo"), ("escala", "escala"),
     ("pisos", "pisos"), ("ocupantes", "ocupantes"),
     ("danos", "danos"), ("banderas", "banderas"),

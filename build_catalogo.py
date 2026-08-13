@@ -17,12 +17,15 @@ import json
 import pathlib
 import sys
 
+import municipios
 import v2f
 
 RAIZ = pathlib.Path(__file__).resolve().parent
 DESTINO = RAIZ / "index.html"
 INICIO = "/* V2F:catalogo:inicio */"
 FIN = "/* V2F:catalogo:fin */"
+INICIO_MUN = "/* MUNICIPIOS:inicio */"
+FIN_MUN = "/* MUNICIPIOS:fin */"
 
 
 def bloque() -> str:
@@ -45,13 +48,34 @@ def bloque() -> str:
     return "\n".join(lineas)
 
 
+def bloque_municipios() -> str:
+    """La DIVIPOLA va DENTRO de index.html, no en un archivo aparte.
+
+    El municipio es un campo del núcleo: si el archivo de datos no llegara a
+    cachearse, el inspector se quedaría escribiéndolo a mano y el consolidado se
+    llenaría de «Bogota», «BOGOTÁ» y «Bogotá D.C.» como sectores distintos.
+    Leaflet sí va aparte, porque el mapa es una mejora que puede faltar.
+    """
+    return "\n".join([
+        INICIO_MUN,
+        "/* Generado por build_catalogo.py desde municipios.py (DIVIPOLA, DANE). */",
+        "var MUN_DEPTOS=%s;" % json.dumps(municipios.DEPARTAMENTOS, ensure_ascii=False),
+        "var MUNICIPIOS=%s;" % json.dumps(municipios.MUNICIPIOS, ensure_ascii=False),
+        FIN_MUN])
+
+
+def _sustituir(html: str, ini: str, fin: str, contenido: str) -> str:
+    if ini not in html or fin not in html:
+        sys.exit(f"Faltan los marcadores {ini} … {fin} en {DESTINO.name}")
+    antes, resto = html.split(ini, 1)
+    _, despues = resto.split(fin, 1)
+    return antes + contenido + despues
+
+
 def main() -> None:
     html = DESTINO.read_text()
-    if INICIO not in html or FIN not in html:
-        sys.exit(f"Faltan los marcadores {INICIO} … {FIN} en {DESTINO.name}")
-    antes, resto = html.split(INICIO, 1)
-    _, despues = resto.split(FIN, 1)
-    nuevo = antes + bloque() + despues
+    nuevo = _sustituir(html, INICIO, FIN, bloque())
+    nuevo = _sustituir(nuevo, INICIO_MUN, FIN_MUN, bloque_municipios())
 
     if "--revisar" in sys.argv:
         if nuevo != html:
@@ -64,7 +88,8 @@ def main() -> None:
         print("sin cambios")
         return
     DESTINO.write_text(nuevo)
-    print(f"{DESTINO.name}: catálogo actualizado ({len(bloque())} bytes)")
+    print(f"{DESTINO.name}: catálogo {len(bloque())} B · municipios "
+          f"{len(bloque_municipios()) // 1024} KB · total {len(nuevo) // 1024} KB")
 
 
 if __name__ == "__main__":

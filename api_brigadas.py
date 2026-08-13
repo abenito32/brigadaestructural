@@ -164,6 +164,9 @@ class Evaluacion(BaseModel):
     tipo_inspeccion: int | None = None
     cod_catastral: str = ""
     localidad: str = ""
+    departamento: str = ""
+    cod_dane: str = ""
+    origen_punto: str | None = None
     v2f: dict[str, Any] | None = None
     reservado: dict[str, Any] | None = None
     nivel_mayor_dano: int | None = None
@@ -224,6 +227,7 @@ INSERT INTO evaluacion_brigada (
   observaciones, fotos, brigada_token, matricula_verificada,
   escala, parciales, parcial_manda,
   modo, tipo_inspeccion, cod_catastral, catastral_origen, localidad,
+  departamento, cod_dane, origen_punto,
   nivel_mayor_dano, area_afectada_pct, bloques_faltantes, reservado,
   v2f_estructura, v2f_estado, v2f_geotecnicos, v2f_no_estructurales,
   v2f_estructurales, v2f_entorno, v2f_preexistentes, v2f_recomendaciones,
@@ -245,6 +249,7 @@ INSERT INTO evaluacion_brigada (
           WHERE matricula = %(matricula)s AND vigente),
   %(escala)s, %(parciales)s, %(parcial_manda)s,
   %(modo)s, %(tipo_inspeccion)s, %(cod_catastral)s, %(catastral_origen)s, %(localidad)s,
+  %(departamento)s, %(cod_dane)s, %(origen_punto)s,
   %(nivel_mayor_dano)s, %(area_afectada_pct)s, %(bloques_faltantes)s, %(reservado)s,
   %(v2f_estructura)s, %(v2f_estado)s, %(v2f_geotecnicos)s, %(v2f_no_estructurales)s,
   %(v2f_estructurales)s, %(v2f_entorno)s, %(v2f_preexistentes)s, %(v2f_recomendaciones)s,
@@ -376,6 +381,9 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
         # Si vino del teléfono, la puso quien estaba parado frente al predio.
         "catastral_origen": "campo" if (ev.cod_catastral or "").strip() else None,
         "localidad": (ev.localidad or "").strip() or None,
+        "departamento": (ev.departamento or "").strip() or None,
+        "cod_dane": (ev.cod_dane or "").strip() or None,
+        "origen_punto": ev.origen_punto if ev.origen_punto in ("gps", "mapa") else None,
         "nivel_mayor_dano": entero(ev.nivel_mayor_dano),
         "area_afectada_pct": entero(ev.area_afectada_pct),
         "bloques_faltantes": calculo.get("faltan") or None,

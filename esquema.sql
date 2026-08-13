@@ -132,6 +132,23 @@ ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS area_afectada_pct smalli
   CHECK (area_afectada_pct BETWEEN 0 AND 100);
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS bloques_faltantes text[];
 
+-- Municipio segun la DIVIPOLA del DANE. El nombre escrito a mano produce
+-- "Bogota", "BOGOTÁ" y "Bogotá, D.C." como tres sectores distintos, y el umbral
+-- de anonimato del consolidado los cuenta por separado: tres grupos de cuatro
+-- registros no llegan al minimo, uno de doce si. El codigo es ademas la llave
+-- con la que cualquier entidad cruza contra sus propios datos.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS departamento text;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS cod_dane text;
+CREATE INDEX IF NOT EXISTS evaluacion_brigada_dane_idx
+  ON evaluacion_brigada (cod_dane) WHERE cod_dane IS NOT NULL;
+
+-- De donde salio la coordenada. Un punto señalado a mano sobre el mapa no tiene
+-- "precision en metros": esa cifra describe una medicion del GPS, y ponersela a
+-- algo que alguien apunto con el dedo seria inventar una exactitud que nadie
+-- midio. El agrupamiento por cercania del predio se apoya en esta distincion.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS origen_punto text
+  CHECK (origen_punto IN ('gps','mapa','panel'));
+
 -- ---------------------------------------------------------------------------
 -- Historia del predio
 -- ---------------------------------------------------------------------------

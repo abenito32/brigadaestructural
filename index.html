@@ -162,6 +162,26 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 
 /* Las cinco parciales del V2F. Se muestran siempre: el número global sale de
    una de ellas, y quien firma tiene derecho a ver de cuál. */
+/* ---------- mapa para ajustar el punto ---------- */
+#dlgMapa{border:0;border-radius:var(--r-l);padding:0;width:96vw;max-width:640px}
+#dlgMapa::backdrop{background:rgba(15,23,42,.6)}
+.mapa-cab,.mapa-pie{display:flex;gap:10px;align-items:center;padding:12px 14px;
+  flex-wrap:wrap;background:var(--carta)}
+.mapa-cab{border-bottom:1px solid var(--linea)}
+.mapa-pie{border-top:1px solid var(--linea)}
+#mapaLienzo{height:min(62vh,460px);width:100%}
+/* Los botones de la app ocupan todo el ancho a propósito —se tocan con guantes—
+   pero dentro de la barra del mapa tienen que convivir dos en una línea. */
+.mapa-cab .btn,.mapa-pie .btn{width:auto}
+.btn-s{font-size:14px;padding:9px 14px;min-height:44px}
+/* El marcador de Leaflet es una imagen externa que no vendorizamos: se dibuja
+   con CSS. Además así puede ser más grande que el de serie, que con el pulgar y
+   guantes se falla. */
+.pin{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+  background:var(--rojo);border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45)}
+.pin::after{content:"";position:absolute;left:9px;top:9px;width:8px;height:8px;
+  border-radius:50%;background:#fff}
+
 /* ---------- formulario V2F completo ---------- */
 .v2f-sec{border-top:1px solid var(--linea);padding-top:14px;margin-top:14px}
 .v2f-sec:first-child{border-top:0;padding-top:0;margin-top:0}
@@ -289,14 +309,20 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 
   <section class="bloque">
     <p class="rotulo"><b>01</b> Ubicación</p>
-    <button class="btn" type="button" id="btnGps">Capturar coordenadas</button>
+    <div class="fila2">
+      <button class="btn" type="button" id="btnGps">Capturar coordenadas</button>
+      <button class="btn" type="button" id="btnMapa">Ajustar en el mapa</button>
+    </div>
     <p class="nota" id="gpsTxt">Sin coordenadas. Se puede guardar igual y georreferenciar después.</p>
     <label class="campo" style="margin-top:12px"><span>Dirección o punto de referencia</span>
       <input id="dir" autocomplete="off" placeholder="Cra 5 # 12-40 / frente a la escuela"></label>
     <div class="fila2">
-      <label class="campo"><span>Municipio</span><input id="mun" autocomplete="off"></label>
+      <label class="campo"><span>Municipio</span>
+        <input id="mun" autocomplete="off" list="lmun" placeholder="Escriba y elija">
+        <datalist id="lmun"></datalist></label>
       <label class="campo"><span>Barrio o vereda</span><input id="bar" autocomplete="off"></label>
     </div>
+    <p class="nota" id="munTxt"></p>
   </section>
 
   <section class="bloque">
@@ -381,6 +407,22 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 
   <div style="height:8px"></div>
 </main>
+
+<link rel="stylesheet" href="vendor/leaflet.css">
+<!-- El mapa necesita señal: las teselas vienen de la red. Sin ella la app sigue
+     funcionando igual y el punto del GPS se guarda como siempre. -->
+<dialog id="dlgMapa">
+  <div class="mapa-cab">
+    <strong>Ajustar el punto</strong>
+    <span class="nota" style="margin:0">Arrastre el marcador hasta la edificación.</span>
+    <button class="btn btn-s" type="button" id="mapaCerrar" style="margin-left:auto">Cancelar</button>
+  </div>
+  <div id="mapaLienzo"></div>
+  <div class="mapa-pie">
+    <span class="nota" id="mapaTxt" style="margin:0"></span>
+    <button class="btn btn-p" type="button" id="mapaUsar" style="margin-left:auto">Usar este punto</button>
+  </div>
+</dialog>
 
 <!-- ============ COLA ============ -->
 <main class="wrap oculto" id="p-cola" role="tabpanel" aria-labelledby="t-cola">
@@ -501,7 +543,8 @@ var BANDERAS=[
  {k:"acceso",t:"Elementos pesados sueltos sobre el acceso o la vía"}
 ];
 
-var est={danos:{},banderas:{},fotos:[],lat:null,lon:null,acc:null};
+var est={danos:{},banderas:{},fotos:[],lat:null,lon:null,acc:null,
+          origen_punto:null,mun:null};
 DANOS.forEach(function(x){est.danos[x.k]=0});
 BANDERAS.forEach(function(x){est.banderas[x.k]=false});
 
@@ -676,6 +719,11 @@ var V2F_MEDIDAS_SEGURIDAD={"1": "Restringir paso de peatones", "2": "Restringir 
 var TIT=["Sin evaluar",V2F_HABITABILIDAD["1"],V2F_HABITABILIDAD["2"],V2F_HABITABILIDAD["3"],V2F_HABITABILIDAD["4"]];
 var SUB=["Complete el nivel de daño",V2F_SUBTITULO["1"],V2F_SUBTITULO["2"],V2F_SUBTITULO["3"],V2F_SUBTITULO["4"]];
 /* V2F:catalogo:fin */
+/* MUNICIPIOS:inicio */
+/* Generado por build_catalogo.py desde municipios.py (DIVIPOLA, DANE). */
+var MUN_DEPTOS={"05": "Antioquia", "08": "Atlántico", "11": "Bogotá, D.c.", "13": "Bolívar", "15": "Boyacá", "17": "Caldas", "18": "Caquetá", "19": "Cauca", "20": "Cesar", "23": "Córdoba", "25": "Cundinamarca", "27": "Chocó", "41": "Huila", "44": "La Guajira", "47": "Magdalena", "50": "Meta", "52": "Nariño", "54": "Norte de Santander", "63": "Quindío", "66": "Risaralda", "68": "Santander", "70": "Sucre", "73": "Tolima", "76": "Valle del Cauca", "81": "Arauca", "85": "Casanare", "86": "Putumayo", "88": "Archipiélago de San Andrés, Providencia y Santa Catalina", "91": "Amazonas", "94": "Guainía", "95": "Guaviare", "97": "Vaupés", "99": "Vichada"};
+var MUNICIPIOS=["05002|Abejorral|5.7893|-75.4287", "05004|Abriaquí|6.6323|-76.0643", "50006|Acacías|3.9904|-73.766", "27006|Acandí|8.5122|-77.28", "41006|Acevedo|1.8052|-75.8887", "13006|Achí|8.5701|-74.5577", "41013|Agrado|2.2599|-75.772", "25001|Agua de Dios|4.3753|-74.6692", "20011|Aguachica|8.3068|-73.614", "68013|Aguada|6.1624|-73.5231", "17013|Aguadas|5.6102|-75.4549", "85010|Aguazul|5.1726|-72.5468", "20013|Agustín Codazzi|10.0405|-73.2384", "41016|Aipe|3.224|-75.239", "18029|Albania|1.3285|-75.8784", "44035|Albania|11.1516|-72.6123", "68020|Albania|5.7592|-73.9134", "25019|Albán|4.878|-74.4383", "52019|Albán|1.475|-77.0807", "76020|Alcalá|4.675|-75.7798", "52022|Aldana|0.8824|-77.7006", "05021|Alejandría|6.3761|-75.1413", "47030|Algarrobo|10.1881|-74.0611", "41020|Algeciras|2.5217|-75.3154", "19022|Almaguer|1.9134|-76.8561", "15022|Almeida|4.9709|-73.3789", "73024|Alpujarra|3.3915|-74.9329", "41026|Altamira|2.0638|-75.7885", "27025|Alto Baudó|5.5162|-76.9744", "13030|Altos del Rosario|8.7919|-74.1649", "73026|Alvarado|4.5674|-74.9534", "05030|Amagá|6.0387|-75.7022", "05031|Amalfi|6.9097|-75.0775", "73030|Ambalema|4.7827|-74.7644", "25035|Anapoima|4.5627|-74.5287", "52036|Ancuya|1.2633|-77.5145", "76036|Andalucía|4.1717|-76.1679", "05034|Andes|5.6572|-75.8788", "05036|Angelópolis|6.1097|-75.7114", "05038|Angostura|6.8852|-75.3351", "25040|Anolaima|4.7617|-74.4638", "05040|Anorí|7.0747|-75.1484", "17042|Anserma|5.2365|-75.7843", "76041|Ansermanuevo|4.795|-75.992", "73043|Anzoátegui|4.6318|-75.0938", "05044|Anzá|6.3026|-75.8544", "05045|Apartadó|7.883|-76.6253", "25599|Apulo|4.5203|-74.5939", "66045|Apía|5.1065|-75.9424", "15047|Aquitania|5.5186|-72.884", "47053|Aracataca|10.5898|-74.1867", "17050|Aranzazu|5.2712|-75.4913", "68051|Aratoca|6.6944|-73.0179", "81001|Arauca|7.0727|-70.7474", "81065|Arauquita|7.027|-71.4267", "25053|Arbeláez|4.2725|-74.4149", "52051|Arboleda|1.5034|-77.1355", "54051|Arboledas|7.643|-72.799", "05051|Arboletes|8.8493|-76.4267", "15051|Arcabuco|5.7557|-73.4375", "13042|Arenal|8.4589|-73.9411", "05055|Argelia|5.7315|-75.1411", "19050|Argelia|2.2574|-77.249", "76054|Argelia|4.7269|-76.1199", "47058|Ariguaní|9.847|-74.2365", "13052|Arjona|10.2567|-75.3443", "05059|Armenia|6.1557|-75.7866", "63001|Armenia|4.536|-75.6808", "73055|Armero|5.0307|-74.8844", "13062|Arroyohondo|10.2501|-75.0192", "20032|Astrea|9.4981|-73.9758", "73067|Ataco|3.5906|-75.3825", "27050|Atrato|5.5314|-76.6357", "23068|Ayapel|8.3138|-75.146", "27073|Bagadó|5.4097|-76.4161", "27075|Bahía Solano|6.2228|-77.4014", "27077|Bajo Baudó|4.9546|-77.3657", "19075|Balboa|2.041|-77.2158", "66075|Balboa|4.9491|-75.9587", "08078|Baranoa|10.7944|-74.9161", "41078|Baraya|3.1522|-75.0548", "52079|Barbacoas|1.6717|-78.1376", "05079|Barbosa|6.4392|-75.3316", "68077|Barbosa|5.9325|-73.616", "68079|Barichara|6.6341|-73.223", "50110|Barranca de Upía|4.5662|-72.9611", "68081|Barrancabermeja|7.0649|-73.8492", "44078|Barrancas|10.9587|-72.7936", "13074|Barranco de Loba|8.9478|-74.1044", "94343|Barrancominas|3.4942|-69.8141", "08001|Barranquilla|10.978|-74.8155", "20045|Becerril|9.7044|-73.2787", "17088|Belalcázar|4.9938|-75.8119", "05088|Bello|6.3336|-75.5552", "05086|Belmira|6.6063|-75.6678", "25086|Beltrán|4.8028|-74.7417", "15087|Belén|5.9892|-72.9116", "52083|Belén|1.5957|-77.0156", "66088|Belén de Umbría|5.2008|-75.8683", "18094|Belén de los Andaquíes|1.4158|-75.8724", "15090|Berbeo|5.2275|-73.1272", "05091|Betania|5.7462|-75.9768", "05093|Betulia|6.1152|-75.9845", "68092|Betulia|6.8995|-73.2837", "15092|Betéitiva|5.91|-72.809", "25095|Bituima|4.8722|-74.5396", "15097|Boavita|6.3307|-72.5849", "54099|Bochalema|7.6122|-72.647", "11001|Bogotá, D.c.|4.6493|-74.107", "25099|Bojacá|4.7372|-74.3446", "27099|Bojayá|6.5597|-76.8868", "19100|Bolívar|1.8375|-76.9662", "68101|Bolívar|5.989|-73.7713", "76100|Bolívar|4.3378|-76.1836", "20060|Bosconia|9.9751|-73.8888", "15104|Boyacá|5.4546|-73.3619", "05107|Briceño|7.1128|-75.5504", "15106|Briceño|5.6909|-73.9233", "68001|Bucaramanga|7.1165|-73.1326", "54109|Bucarasica|8.0413|-72.8682", "76109|Buenaventura|3.8757|-77.0107", "15109|Buenavista|5.5126|-73.9422", "23079|Buenavista|8.2212|-75.4809", "63111|Buenavista|4.36|-75.7396", "70110|Buenavista|9.3198|-74.9728", "19110|Buenos Aires|3.0154|-76.6422", "52110|Buesaco|1.3815|-77.1565", "76113|Bugalagrande|4.2084|-76.1568", "05113|Buriticá|6.7208|-75.907", "15114|Busbanzá|5.8314|-72.8842", "25120|Cabrera|3.9852|-74.4845", "68121|Cabrera|6.5921|-73.2465", "50124|Cabuyaro|4.2867|-72.7918", "94886|Cacahual|3.5262|-67.4133", "25123|Cachipay|4.731|-74.4357", "05125|Caicedo|6.4056|-75.9829", "76122|Caicedonia|4.3348|-75.8306", "70124|Caimito|8.7893|-75.1171", "73124|Cajamarca|4.4388|-75.432", "19130|Cajibío|2.6234|-76.5707", "25126|Cajicá|4.92|-74.023", "13140|Calamar|10.2504|-74.9161", "95015|Calamar|1.961|-72.6552", "63130|Calarcá|4.521|-75.6461", "05129|Caldas|6.0911|-75.6337", "15131|Caldas|5.5546|-73.8656", "19137|Caldono|2.7981|-76.4843", "68132|California|7.348|-72.9465", "76126|Calima|3.9337|-76.4841", "19142|Caloto|3.0345|-76.4089", "05134|Campamento|6.9798|-75.2981", "08137|Campo de la Cruz|10.3783|-74.8808", "41132|Campoalegre|2.6868|-75.3257", "15135|Campohermoso|5.0317|-73.1042", "23090|Canalete|8.7869|-76.2415", "08141|Candelaria|10.4619|-74.8797", "76130|Candelaria|3.4084|-76.3465", "13160|Cantagallo|7.3787|-73.9146", "25148|Caparrapí|5.3476|-74.491", "68147|Capitanejo|6.5274|-72.6954", "05142|Caracolí|6.4098|-74.7574", "05145|Caramanta|5.5485|-75.6439", "68152|Carcasí|6.629|-72.6271", "05147|Carepa|7.7551|-76.6527", "73148|Carmen de Apicalá|4.1523|-74.7176", "25154|Carmen de Carupa|5.3491|-73.9014", "27150|Carmen del Darién|7.1583|-76.9708", "05150|Carolina|6.726|-75.2832", "13001|Cartagena de Indias|10.3851|-75.4963", "18150|Cartagena del Chairá|1.3324|-74.8479", "76147|Cartago|4.7422|-75.9244", "97161|Carurú|1.0161|-71.3022", "73152|Casabianca|5.0785|-75.121", "50150|Castilla la Nueva|3.83|-73.6873", "05154|Caucasia|7.9773|-75.198", "05138|Cañasgordas|6.7539|-76.0282", "68160|Cepitá|6.7535|-72.9735", "23162|Cereté|8.8885|-75.7961", "15162|Cerinza|5.9559|-72.9479", "68162|Cerrito|6.8404|-72.6949", "47161|Cerro de San Antonio|10.3255|-74.8685", "52240|Chachagüí|1.3605|-77.2819", "25168|Chaguaní|4.9489|-74.5935", "70230|Chalán|9.5454|-75.3127", "73168|Chaparral|3.7229|-75.4808", "68167|Charalá|6.2843|-73.1469", "68169|Charta|7.2808|-72.9688", "05172|Chigorodó|7.6661|-76.6815", "68176|Chima|6.3443|-73.3737", "20175|Chimichagua|9.2587|-73.8133", "23168|Chimá|9.1497|-75.6269", "15172|Chinavita|5.1675|-73.3685", "17174|Chinchiná|4.9852|-75.6075", "54172|Chinácota|7.6031|-72.6012", "23182|Chinú|9.1055|-75.3996", "25178|Chipaque|4.4427|-74.0449", "68179|Chipatá|6.0625|-73.6371", "15176|Chiquinquirá|5.6138|-73.8187", "20178|Chiriguaná|9.3611|-73.5999", "15180|Chiscas|6.5531|-72.501", "15183|Chita|6.1871|-72.4719", "54174|Chitagá|7.1382|-72.6655", "15185|Chitaraque|6.0274|-73.4471", "15187|Chivatá|5.5589|-73.2825", "47170|Chivolo|10.0266|-74.6222", "15236|Chivor|4.8882|-73.3684", "25181|Choachí|4.527|-73.9229", "25183|Chocontá|5.1452|-73.6835", "85015|Chámeza|5.2145|-72.8702", "25175|Chía|4.8665|-74.05", "15232|Chíquiza|5.6398|-73.4495", "13188|Cicuco|9.2743|-74.646", "68190|Cimitarra|6.3209|-73.953", "63190|Circasia|4.6178|-75.6365", "05190|Cisneros|6.5378|-75.087", "05101|Ciudad Bolívar|5.8503|-76.0215", "47189|Ciénaga|11.0067|-74.2413", "23189|Ciénaga de Oro|8.8758|-75.6208", "15189|Ciénega|5.4087|-73.296", "13222|Clemencia|10.5675|-75.3285", "05197|Cocorná|6.0583|-75.1855", "73200|Coello|4.2873|-74.8985", "25200|Cogua|5.0618|-73.9785", "41206|Colombia|3.3767|-74.8028", "70204|Colosó|9.4942|-75.3533", "52203|Colón|1.6439|-77.0198", "86219|Colón|1.1901|-76.9726", "05206|Concepción|6.3943|-75.2576", "68207|Concepción|6.7689|-72.6946", "05209|Concordia|6.0457|-75.9084", "47205|Concordia|10.2573|-74.833", "27205|Condoto|5.091|-76.6507", "68209|Confines|6.3573|-73.2406", "52207|Consacá|1.2079|-77.4661", "52210|Contadero|0.9105|-77.5494", "68211|Contratación|6.2906|-73.4744", "54206|Convención|8.4704|-73.3372", "05212|Copacabana|6.3486|-75.5094", "15212|Coper|5.4751|-74.0456", "19212|Corinto|3.1739|-76.2619", "68217|Coromoro|6.295|-73.0408", "70215|Corozal|9.3187|-75.293", "15215|Corrales|5.8281|-72.8448", "25214|Cota|4.8126|-74.1026", "23300|Cotorra|9.0372|-75.7992", "15218|Covarachía|6.5002|-72.739", "70221|Coveñas|9.4028|-75.6802", "73217|Coyaima|3.798|-75.1939", "81220|Cravo Norte|6.3039|-70.2043", "52224|Cuaspud Carlosama|0.863|-77.7289", "50223|Cubarral|3.7937|-73.838", "15223|Cubará|6.9973|-72.1079", "15224|Cucaita|5.5445|-73.4543", "25224|Cucunubá|5.2498|-73.7661", "54223|Cucutilla|7.5396|-72.7728", "50226|Cumaral|4.27|-73.4871", "99773|Cumaribo|4.4464|-69.7955", "52227|Cumbal|0.9064|-77.7925", "52233|Cumbitara|1.6472|-77.5786", "73226|Cunday|4.0593|-74.6922", "18205|Curillo|1.0335|-75.9192", "68229|Curití|6.6051|-73.0694", "20228|Curumaní|9.2017|-73.5408", "15226|Cuítiva|5.5804|-72.9659", "05120|Cáceres|7.5784|-75.3521", "54128|Cáchira|7.7412|-73.049", "54125|Cácota|7.2687|-72.6421", "25151|Cáqueza|4.4041|-73.9465", "27160|Cértegui|5.3714|-76.6076", "15204|Cómbita|5.6345|-73.324", "13212|Córdoba|9.5869|-74.8274", "52215|Córdoba|0.8546|-77.5179", "63212|Córdoba|4.3925|-75.6879", "05234|Dabeiba|6.9981|-76.2616", "76233|Dagua|3.6573|-76.6889", "44090|Dibulla|11.2715|-73.3076", "44098|Distracción|10.8984|-72.8874", "73236|Dolores|3.5391|-74.8968", "05237|Donmatías|6.4856|-75.3926", "66170|Dosquebradas|4.8331|-75.6754", "15238|Duitama|5.823|-73.0306", "54239|Durania|7.7148|-72.6585", "05240|Ebéjico|6.3256|-75.7664", "05250|El Bagre|7.5975|-74.7991", "47245|El Banco|9.0085|-73.9744", "76246|El Cairo|4.7609|-76.2216", "50245|El Calvario|4.3527|-73.7133", "27135|El Cantón del San Pablo|5.3353|-76.7268", "54245|El Carmen|8.5106|-73.4467", "27245|El Carmen de Atrato|5.8998|-76.1421", "13244|El Carmen de Bolívar|9.7187|-75.1212", "68235|El Carmen de Chucurí|6.7|-73.5107", "05148|El Carmen de Viboral|6.0829|-75.3339", "50251|El Castillo|3.5639|-73.7942", "76248|El Cerrito|3.6842|-76.312", "52250|El Charco|2.4797|-78.1102", "15244|El Cocuy|6.4077|-72.4445", "25245|El Colegio|4.578|-74.4423", "20238|El Copey|10.1499|-73.9627", "18247|El Doncello|1.68|-75.2836", "50270|El Dorado|3.74|-73.8353", "76250|El Dovio|4.5105|-76.2371", "91263|El Encanto|-1.7481|-73.2071", "15248|El Espino|6.483|-72.497", "68245|El Guacamayo|6.2451|-73.4969", "13248|El Guamo|10.031|-74.9761", "27250|El Litoral del San Juan|4.2596|-77.3637", "44110|El Molino|10.6535|-72.9267", "20250|El Paso|9.6685|-73.742", "18256|El Paujíl|1.5702|-75.3261", "52254|El Peñol|1.4536|-77.4385", "13268|El Peñón|8.9883|-73.9493", "25258|El Peñón|5.2487|-74.2902", "68250|El Peñón|6.0554|-73.8155", "47258|El Piñón|10.4028|-74.8231", "68255|El Playón|7.4707|-73.2029", "95025|El Retorno|2.3302|-72.6273", "47268|El Retén|10.6105|-74.2684", "70233|El Roble|9.1006|-75.1984", "25260|El Rosal|4.8506|-74.2631", "52256|El Rosario|1.7453|-77.3342", "05697|El Santuario|6.1369|-75.2655", "52258|El Tablón de Gómez|1.4273|-77.0971", "19256|El Tambo|2.4514|-76.8109", "52260|El Tambo|1.4079|-77.3908", "54250|El Tarra|8.5743|-73.0961", "54261|El Zulia|7.9386|-72.6047", "76243|El Águila|4.9061|-76.0428", "41244|Elías|2.0129|-75.9383", "68264|Encino|6.1374|-73.0987", "68266|Enciso|6.668|-72.6996", "05264|Entrerríos|6.5663|-75.5177", "05266|Envigado|6.1667|-75.5822", "73268|Espinal|4.1513|-74.8854", "25269|Facatativá|4.8134|-74.3501", "73270|Falan|5.1231|-74.953", "17272|Filadelfia|5.2971|-75.5625", "63272|Filandia|4.6743|-75.6584", "15272|Firavitoba|5.6689|-72.9934", "73275|Flandes|4.2764|-74.8188", "18001|Florencia|1.6182|-75.6098", "19290|Florencia|1.6825|-77.0725", "15276|Floresta|5.8595|-72.9181", "76275|Florida|3.3241|-76.2342", "68276|Floridablanca|7.0723|-73.0991", "68271|Florián|5.8047|-73.9714", "44279|Fonseca|10.8867|-72.8463", "81300|Fortul|6.7967|-71.7688", "25281|Fosca|4.3391|-73.939", "52520|Francisco Pizarro|2.0406|-78.6584", "05282|Fredonia|5.928|-75.6751", "73283|Fresno|5.1536|-75.0357", "05284|Frontino|6.7761|-76.1308", "50287|Fuente de Oro|3.4629|-73.6181", "47288|Fundación|10.5141|-74.1915", "52287|Funes|1.0012|-77.4489", "25286|Funza|4.7104|-74.2015", "25290|Fusagasugá|4.3367|-74.3754", "25279|Fómeque|4.4855|-73.8925", "25288|Fúquene|5.404|-73.7959", "25293|Gachalá|4.6936|-73.5202", "25295|Gachancipá|4.9909|-73.8735", "15293|Gachantivá|5.7519|-73.5491", "25297|Gachetá|4.8164|-73.6364", "08296|Galapa|10.919|-74.8704", "70235|Galeras|9.1604|-75.0496", "68296|Galán|6.6384|-73.2878", "25299|Gama|4.7633|-73.611", "20295|Gamarra|8.3248|-73.7376", "15299|Garagoa|5.0832|-73.3644", "41298|Garzón|2.1965|-75.6271", "41306|Gigante|2.384|-75.5477", "76306|Ginebra|3.7242|-76.2681", "05306|Giraldo|6.6808|-75.9522", "25307|Girardot|4.3131|-74.7982", "05308|Girardota|6.3795|-75.4442", "68307|Girón|7.0704|-73.1668", "20310|González|8.3896|-73.38", "54313|Gramalote|7.9169|-72.7872", "05313|Granada|6.1429|-75.1844", "25312|Granada|4.5198|-74.3508", "50313|Granada|3.5471|-73.7058", "68318|Guaca|6.8766|-72.8563", "15317|Guacamayas|6.4597|-72.5008", "76318|Guacarí|3.7618|-76.3309", "19300|Guachené|3.1342|-76.3922", "25317|Guachetá|5.3834|-73.687", "52317|Guachucal|0.9597|-77.7316", "76111|Guadalajara de Buga|3.9007|-76.299", "05315|Guadalupe|6.8151|-75.2399", "41319|Guadalupe|2.0243|-75.7572", "68320|Guadalupe|6.2458|-73.4193", "25320|Guaduas|5.0721|-74.6034", "52320|Guaitarilla|1.1296|-77.5498", "52323|Gualmatán|0.9197|-77.5687", "47318|Guamal|9.1444|-74.2237", "50318|Guamal|3.8797|-73.7688", "73319|Guamo|4.031|-74.9681", "19318|Guapi|2.5713|-77.888", "68322|Guapotá|6.3086|-73.3207", "70265|Guaranda|8.4686|-74.5377", "05318|Guarne|6.2779|-75.4416", "25322|Guasca|4.8667|-73.8771", "05321|Guatapé|6.2325|-75.16", "25324|Guataquí|4.5175|-74.7901", "25326|Guatavita|4.9352|-73.8329", "15322|Guateque|5.0073|-73.4712", "68324|Guavatá|5.9543|-73.7009", "25328|Guayabal de Síquima|4.878|-74.4674", "25335|Guayabetal|4.2153|-73.8151", "15325|Guayatá|4.9671|-73.4897", "25339|Gutiérrez|4.2547|-74.003", "66318|Guática|5.3154|-75.799", "68298|Gámbita|5.946|-73.3442", "15296|Gámeza|5.8023|-72.8055", "63302|Génova|4.2066|-75.7904", "05310|Gómez Plata|6.6833|-75.22", "68327|Güepsa|6.025|-73.5751", "15332|Güicán de la Sierra|6.4629|-72.4118", "54344|Hacarí|8.3215|-73.146", "13300|Hatillo de Loba|8.956|-74.0779", "68344|Hato|6.544|-73.3084", "85125|Hato Corozal|6.1541|-71.7642", "44378|Hatonuevo|11.0689|-72.759", "05347|Heliconia|6.2068|-75.7343", "54347|Herrán|7.5065|-72.4835", "73347|Herveo|5.0802|-75.1772", "05353|Hispania|5.7995|-75.9066", "41349|Hobo|2.5808|-75.4477", "73349|Honda|5.2118|-74.757", "73001|Ibagué|4.4322|-75.1942", "73352|Icononzo|4.1765|-74.532", "52352|Iles|0.9695|-77.5212", "52354|Imués|1.0551|-77.4963", "19355|Inzá|2.5492|-76.0635", "94001|Inírida|3.8668|-67.9186", "52356|Ipiales|0.8277|-77.6464", "41359|Isnos|1.9295|-76.2176", "27361|Istmina|5.1539|-76.6852", "05360|Itagüí|6.1751|-75.6121", "05361|Ituango|7.1716|-75.7647", "15362|Iza|5.6116|-72.9796", "19364|Jambaló|2.7778|-76.3239", "76364|Jamundí|3.2588|-76.5385", "05364|Jardín|5.5975|-75.819", "15367|Jenesano|5.3858|-73.3637", "05368|Jericó|5.7897|-75.7855", "15368|Jericó|6.1457|-72.5711", "25368|Jerusalén|4.5623|-74.6955", "68368|Jesús María|5.8765|-73.7834", "68370|Jordán|6.7327|-73.0961", "08372|Juan de Acosta|10.8325|-75.041", "25372|Junín|4.7906|-73.663", "27372|Juradó|7.1036|-77.7628", "23350|La Apartada|8.0501|-75.336", "41378|La Argentina|2.1985|-75.9798", "68377|La Belleza|5.8593|-73.9655", "25377|La Calera|4.7211|-73.9682", "15380|La Capilla|5.0957|-73.4443", "05376|La Ceja|6.0281|-75.4294", "66383|La Celia|5.0028|-76.0032", "91405|La Chorrera|-1.4426|-72.7919", "52378|La Cruz|1.6013|-76.9705", "76377|La Cumbre|3.6493|-76.568", "17380|La Dorada|5.4608|-74.6688", "54385|La Esperanza|7.6398|-73.3281", "05380|La Estrella|6.1452|-75.6377", "52381|La Florida|1.2975|-77.4029", "20383|La Gloria|8.6193|-73.8032", "94885|La Guadalupe|1.6325|-66.9637", "20400|La Jagua de Ibirico|9.5638|-73.3341", "44420|La Jagua del Pilar|10.5119|-73.0726", "52385|La Llanada|1.4729|-77.5809", "50350|La Macarena|2.1771|-73.7866", "17388|La Merced|5.3965|-75.5465", "25386|La Mesa|4.631|-74.4616", "18410|La Montañita|1.4792|-75.4364", "25394|La Palma|5.3588|-74.391", "20621|La Paz|10.3876|-73.1714", "68397|La Paz|6.1785|-73.5896", "91407|La Pedrera|-1.3203|-69.5855", "25398|La Peña|5.1989|-74.3941", "05390|La Pintada|5.7438|-75.6078", "41396|La Plata|2.3893|-75.8913", "54398|La Playa|8.2112|-73.24", "99524|La Primavera|5.4863|-70.4105", "85136|La Salina|6.1278|-72.335", "19392|La Sierra|2.1794|-76.7633", "63401|La Tebaida|4.4538|-75.7869", "52390|La Tola|2.399|-78.1897", "05400|La Unión|5.9738|-75.3609", "52399|La Unión|1.6002|-77.1313", "70400|La Unión|8.854|-75.2761", "76400|La Unión|4.5339|-76.0997", "15403|La Uvita|6.3162|-72.56", "19397|La Vega|2.0018|-76.7788", "25402|La Vega|4.9978|-74.3369", "15401|La Victoria|5.5238|-74.2344", "76403|La Victoria|4.5236|-76.0365", "91430|La Victoria|0.0549|-71.2232", "66400|La Virginia|4.8966|-75.8804", "54377|Labateca|7.2984|-72.496", "15377|Labranzagrande|5.5627|-72.5778", "68385|Landázuri|6.2188|-73.8114", "68406|Lebrija|7.1134|-73.2195", "52405|Leiva|1.9345|-77.3061", "50400|Lejanías|3.5251|-74.0235", "25407|Lenguazaque|5.3061|-73.7115", "91001|Leticia|-4.1989|-69.9417", "05411|Liborina|6.6773|-75.8128", "52411|Linares|1.3508|-77.524", "27413|Lloró|5.4979|-76.5451", "23417|Lorica|9.2408|-75.8161", "52418|Los Andes|1.4946|-77.5213", "23419|Los Córdobas|8.8921|-76.3552", "70418|Los Palmitos|9.3803|-75.2687", "54405|Los Patios|7.8332|-72.5056", "68418|Los Santos|6.7552|-73.1027", "54418|Lourdes|7.9456|-72.8324", "08421|Luruaco|10.6105|-75.142", "73408|Lérida|4.862|-74.9107", "73411|Líbano|4.9204|-75.062", "19418|López de Micay|2.8468|-77.2478", "15425|Macanal|4.9725|-73.3196", "68425|Macaravita|6.5066|-72.5931", "05425|Maceo|6.5521|-74.7872", "25426|Machetá|5.0801|-73.6082", "25430|Madrid|4.7328|-74.2659", "13430|Magangué|9.2638|-74.7667", "52427|Magüí|1.7656|-78.1829", "13433|Mahates|10.2333|-75.1916", "44430|Maicao|11.3785|-72.2427", "70429|Majagual|8.5412|-74.6281", "08433|Malambo|10.8571|-74.7769", "52435|Mallama|1.141|-77.8645", "08436|Manatí|10.4491|-74.9569", "44560|Manaure|11.7738|-72.4387", "20443|Manaure Balcón del Cesar|10.3908|-73.0295", "17001|Manizales|5.0577|-75.491", "25436|Manta|5.009|-73.5404", "17433|Manzanares|5.2557|-75.1528", "85139|Maní|4.8168|-72.2814", "50325|Mapiripán|2.8966|-72.1355", "13440|Margarita|9.1578|-74.2851", "05440|Marinilla|6.174|-75.3393", "15442|Maripí|5.5501|-74.0041", "17442|Marmato|5.4742|-75.6", "17444|Marquetalia|5.2975|-75.0531", "66440|Marsella|4.9358|-75.7388", "17446|Marulanda|5.2843|-75.2597", "13442|María la Baja|9.9824|-75.3005", "68444|Matanza|7.3232|-73.0156", "05001|Medellín|6.2466|-75.5818", "25438|Medina|4.5063|-73.3484", "27425|Medio Atrato|5.9949|-76.783", "27430|Medio Baudó|5.1925|-76.9509", "27450|Medio San Juan|5.0983|-76.6944", "73449|Melgar|4.2037|-74.6413", "19450|Mercaderes|1.7892|-77.1643", "50330|Mesetas|3.3827|-74.0443", "18460|Milán|1.2902|-75.5069", "15455|Miraflores|5.1965|-73.1456", "95200|Miraflores|1.3375|-71.9504", "19455|Miranda|3.2547|-76.2287", "91460|Mirití - Paraná|-0.8888|-70.9889", "66456|Mistrató|5.297|-75.8829", "97001|Mitú|1.2532|-70.2326", "86001|Mocoa|1.1512|-76.6542", "68464|Mogotes|6.4752|-72.9698", "68468|Molagavita|6.6743|-72.8092", "23464|Momil|9.2407|-75.678", "15464|Mongua|5.7542|-72.7981", "15466|Monguí|5.7235|-72.8493", "15469|Moniquirá|5.8763|-73.5734", "05467|Montebello|5.9463|-75.5235", "13458|Montecristo|8.2972|-74.4712", "23466|Montelíbano|7.9738|-75.4168", "63470|Montenegro|4.5651|-75.7498", "85162|Monterrey|4.877|-72.8941", "23001|Montería|8.7598|-75.8731", "13473|Morales|8.2766|-73.8682", "19473|Morales|2.7547|-76.6291", "18479|Morelia|1.4866|-75.7241", "94888|Morichal|2.2651|-69.9194", "70473|Morroa|9.3314|-75.3059", "25473|Mosquera|4.7065|-74.2212", "52473|Mosquera|2.5071|-78.453", "15476|Motavita|5.5777|-73.3678", "23500|Moñitos|9.2452|-76.1291", "73461|Murillo|4.8743|-75.171", "05475|Murindó|6.9777|-76.8175", "05480|Mutatá|7.2429|-76.4359", "54480|Mutiscua|7.3005|-72.7472", "15480|Muzo|5.5328|-74.1027", "68432|Málaga|6.7031|-72.7321", "05483|Nariño|5.6108|-75.1763", "25483|Nariño|4.3998|-74.8247", "52480|Nariño|1.289|-77.358", "73483|Natagaima|3.6243|-75.0932", "05495|Nechí|8.0941|-74.7765", "05490|Necoclí|8.4345|-76.7873", "17486|Neira|5.1669|-75.52", "41001|Neiva|2.9354|-75.2773", "25486|Nemocón|5.0687|-73.8779", "25488|Nilo|4.3058|-74.62", "25489|Nimaima|5.126|-74.386", "15491|Nobsa|5.768|-72.937", "25491|Nocaima|5.0695|-74.3791", "17495|Norcasia|5.5748|-74.8895", "13490|Norosí|8.5263|-74.038", "47460|Nueva Granada|9.8019|-74.3918", "27493|Nuevo Belén de Bajirá|7.3719|-76.7173", "15494|Nuevo Colón|5.3553|-73.4568", "85225|Nunchía|5.6365|-72.1953", "27495|Nuquí|5.7098|-77.2655", "41483|Nátaga|2.5451|-75.8088", "27491|Nóvita|4.9561|-76.6095", "76497|Obando|4.5757|-75.9747", "68498|Ocamonte|6.34|-73.1226", "54498|Ocaña|8.2486|-73.3561", "68500|Oiba|6.2652|-73.2998", "15500|Oicatá|5.5952|-73.3084", "05501|Olaya|6.6265|-75.8118", "52490|Olaya Herrera|2.3475|-78.3258", "68502|Onzaga|6.3441|-72.8168", "41503|Oporapa|2.0251|-75.9952", "86320|Orito|0.6636|-76.8733", "85230|Orocué|4.7903|-71.3385", "73504|Ortega|3.9349|-75.2226", "52506|Ospina|1.0584|-77.5661", "15507|Otanche|5.6575|-74.181", "70508|Ovejas|9.5272|-75.229", "15511|Pachavita|5.1401|-73.397", "25513|Pacho|5.1369|-74.1561", "97511|Pacoa|0.0207|-71.0043", "19513|Padilla|3.221|-76.3133", "41518|Paicol|2.4497|-75.7732", "20517|Pailitas|8.9594|-73.6258", "25518|Paime|5.3705|-74.1522", "15516|Paipa|5.7799|-73.1178", "15518|Pajarito|5.2938|-72.7032", "41524|Palermo|2.8896|-75.4353", "17524|Palestina|5.0179|-75.6246", "41530|Palestina|1.7237|-76.1333", "68522|Palmar|6.5378|-73.2911", "08520|Palmar de Varela|10.7386|-74.7548", "68524|Palmas del Socorro|6.4061|-73.2878", "76520|Palmira|3.5315|-76.2988", "70523|Palmito|9.3332|-75.5413", "73520|Palocabildo|5.1209|-75.0222", "54518|Pamplona|7.3728|-72.6477", "54520|Pamplonita|7.4367|-72.6391", "94887|Pana Pana|1.8657|-69.0099", "25524|Pandi|4.1904|-74.4866", "15522|Panqueba|6.4434|-72.4594", "97777|Papunahua|1.9081|-70.7609", "25530|Paratebueno|4.3748|-73.2128", "25535|Pasca|4.309|-74.3023", "52001|Pasto|1.2124|-77.2788", "19532|Patía|2.1159|-76.9811", "15531|Pauna|5.6563|-73.9784", "15533|Paya|5.6257|-72.4238", "85250|Paz de Ariporo|5.8798|-71.8903", "15537|Paz de Río|5.9876|-72.7491", "47541|Pedraza|10.1883|-74.9154", "20550|Pelaya|8.6895|-73.6667", "17541|Pensilvania|5.3833|-75.1603", "05543|Peque|7.021|-75.9104", "66001|Pereira|4.805|-75.7197", "15542|Pesca|5.5588|-73.0509", "05541|Peñol|6.2193|-75.2427", "19533|Piamonte|1.1175|-76.3276", "68547|Piedecuesta|6.9972|-73.0548", "73547|Piedras|4.544|-74.8781", "19548|Piendamó - Tunía|2.6423|-76.5286", "63548|Pijao|4.335|-75.7033", "47545|Pijiño del Carmen|9.3319|-74.459", "68549|Pinchote|6.5316|-73.1742", "13549|Pinillos|8.9149|-74.4623", "08549|Piojó|10.7492|-75.1076", "15550|Pisba|5.7214|-72.486", "41548|Pital|2.2666|-75.8045", "41551|Pitalito|1.8526|-76.0494", "47551|Pivijay|10.4607|-74.6133", "73555|Planadas|3.1979|-75.6442", "23555|Planeta Rica|8.4082|-75.5832", "47555|Plato|9.7967|-74.7845", "52540|Policarpa|1.6272|-77.4587", "08558|Polonuevo|10.7774|-74.853", "08560|Ponedera|10.6418|-74.7539", "19001|Popayán|2.4596|-76.5994", "85263|Pore|5.7277|-71.9929", "52560|Potosí|0.8066|-77.573", "76563|Pradera|3.4198|-76.2418", "73563|Prado|3.7509|-74.9274", "52565|Providencia|1.2378|-77.5968", "88564|Providencia|13.3732|-81.3684", "20570|Pueblo Bello|10.4173|-73.5862", "23570|Pueblo Nuevo|8.5041|-75.508", "66572|Pueblo Rico|5.222|-76.0308", "05576|Pueblorrico|5.7916|-75.8399", "47570|Puebloviejo|10.9948|-74.2825", "68572|Puente Nacional|5.8784|-73.6776", "52573|Puerres|0.8851|-77.5042", "91530|Puerto Alegría|-1.0057|-74.0145", "91536|Puerto Arica|-2.147|-71.7522", "86568|Puerto Asís|0.5056|-76.4969", "05579|Puerto Berrío|6.487|-74.41", "15572|Puerto Boyacá|5.9766|-74.5878", "86569|Puerto Caicedo|0.6878|-76.6061", "99001|Puerto Carreño|6.1866|-67.4871", "08573|Puerto Colombia|11.0153|-74.8886", "94884|Puerto Colombia|2.7264|-67.5668", "50450|Puerto Concordia|2.624|-72.7602", "23574|Puerto Escondido|9.0054|-76.2604", "50568|Puerto Gaitán|4.3149|-72.0876", "86571|Puerto Guzmán|0.9629|-76.4077", "86573|Puerto Leguízamo|-0.1923|-74.7818", "23580|Puerto Libertador|7.8889|-75.6718", "50577|Puerto Lleras|3.2721|-73.3739", "50573|Puerto López|4.0935|-72.9573", "05585|Puerto Nare|6.186|-74.583", "91540|Puerto Nariño|-3.7799|-70.3649", "68573|Puerto Parra|6.6508|-74.0561", "18592|Puerto Rico|1.9091|-75.1576", "50590|Puerto Rico|2.9396|-73.2063", "81591|Puerto Rondón|6.2815|-71.1034", "25572|Puerto Salgar|5.4654|-74.6537", "54553|Puerto Santander|8.36|-72.4114", "91669|Puerto Santander|-0.6212|-72.3842", "19573|Puerto Tejada|3.2333|-76.4177", "05591|Puerto Triunfo|5.8713|-74.6412", "68575|Puerto Wilches|7.3441|-73.8999", "25580|Pulí|4.682|-74.7144", "52585|Pupiales|0.8704|-77.636", "19585|Puracé|2.3415|-76.4967", "73585|Purificación|3.8572|-74.9356", "23586|Purísima de la Concepción|9.2393|-75.725", "17513|Pácora|5.5272|-75.4596", "15514|Páez|5.0973|-73.0527", "19517|Páez|2.6457|-75.9707", "68533|Páramo|6.4168|-73.1702", "25592|Quebradanegra|5.1181|-74.4801", "25594|Quetame|4.3299|-73.8632", "27001|Quibdó|5.6822|-76.6381", "63594|Quimbaya|4.6244|-75.7651", "66594|Quinchía|5.3405|-75.7304", "25596|Quipile|4.7448|-74.5337", "15580|Quípama|5.5206|-74.18", "54599|Ragonvalia|7.5779|-72.4767", "15599|Ramiriquí|5.4003|-73.3348", "85279|Recetor|5.2292|-72.761", "13580|Regidor|8.6663|-73.8216", "05604|Remedios|7.0294|-74.6981", "47605|Remolino|10.702|-74.7162", "08606|Repelón|10.4934|-75.1255", "50606|Restrepo|4.2596|-73.5654", "76606|Restrepo|3.8214|-76.5233", "05607|Retiro|6.0625|-75.5013", "25612|Ricaurte|4.2821|-74.7729", "52612|Ricaurte|1.2125|-77.9952", "73616|Rioblanco|3.5299|-75.6441", "76616|Riofrío|4.1569|-76.2883", "44001|Riohacha|11.5286|-72.9118", "05615|Rionegro|6.1471|-75.3773", "68615|Rionegro|7.265|-73.1502", "17614|Riosucio|5.4237|-75.7021", "27615|Riosucio|7.4367|-77.1132", "17616|Risaralda|5.1645|-75.7672", "41615|Rivera|2.7776|-75.2588", "52621|Roberto Payán|1.6975|-78.2457", "76622|Roldanillo|4.4136|-76.1523", "73622|Roncesvalles|4.0116|-75.606", "15621|Rondón|5.3574|-73.2085", "19622|Rosas|2.2609|-76.7403", "73624|Rovira|4.239|-75.2406", "15600|Ráquira|5.5391|-73.6325", "27580|Río Iró|5.1863|-76.4729", "27600|Río Quito|5.4837|-76.7407", "13600|Río Viejo|8.5879|-73.8405", "20614|Río de Oro|8.2923|-73.3864", "68655|Sabana de Torres|7.3919|-73.4991", "08634|Sabanagrande|10.7925|-74.7595", "05628|Sabanalarga|6.85|-75.8166", "08638|Sabanalarga|10.6321|-74.9213", "85300|Sabanalarga|4.8548|-73.0387", "47660|Sabanas de San Ángel|10.0325|-74.2139", "05631|Sabaneta|6.1499|-75.6155", "15632|Saboyá|5.6978|-73.7645", "23660|Sahagún|8.943|-75.4458", "41660|Saladoblanco|1.9934|-76.0447", "17653|Salamina|5.403|-75.4872", "47675|Salamina|10.4912|-74.7942", "54660|Salazar|7.7737|-72.8131", "73671|Saldaña|3.9298|-75.0169", "63690|Salento|4.6372|-75.5708", "05642|Salgar|5.9642|-75.9768", "15646|Samacá|5.4922|-73.4856", "52678|Samaniego|1.3354|-77.5943", "17662|Samaná|5.4131|-74.9923", "70670|Sampués|9.1832|-75.3802", "41668|San Agustín|1.8811|-76.2704", "20710|San Alberto|7.7611|-73.3939", "68669|San Andrés|6.8115|-72.8489", "88001|San Andrés|12.5781|-81.7072", "05647|San Andrés de Cuerquía|6.9167|-75.6746", "23670|San Andrés de Sotavento|9.1454|-75.5088", "52835|San Andrés de Tumaco|1.8074|-78.7641", "23672|San Antero|9.3764|-75.7611", "73675|San Antonio|3.9141|-75.4801", "25645|San Antonio del Tequendama|4.6161|-74.3514", "68673|San Benito|6.1267|-73.5091", "70678|San Benito Abad|8.9301|-75.0311", "25649|San Bernardo|4.1794|-74.423", "52685|San Bernardo|1.5138|-77.0475", "23675|San Bernardo del Viento|9.3525|-75.9551", "54670|San Calixto|8.4021|-73.2086", "05649|San Carlos|6.1877|-74.9881", "23678|San Carlos|8.7993|-75.6988", "50680|San Carlos de Guaroa|3.7106|-73.2423", "25653|San Cayetano|5.3329|-74.0248", "54673|San Cayetano|7.8757|-72.6255", "13620|San Cristóbal|10.3928|-75.0651", "20750|San Diego|10.333|-73.1812", "15660|San Eduardo|5.224|-73.0777", "13647|San Estanislao|10.3986|-75.1531", "94883|San Felipe|1.9125|-67.0678", "13650|San Fernando|9.2142|-74.3238", "05652|San Francisco|5.9635|-75.1016", "25658|San Francisco|4.9729|-74.2897", "86755|San Francisco|1.1742|-76.8793", "68679|San Gil|6.552|-73.1348", "13654|San Jacinto|9.8303|-75.121", "13655|San Jacinto del Cauca|8.2516|-74.7212", "05656|San Jerónimo|6.4481|-75.727", "68682|San Joaquín|6.4275|-72.8676", "17665|San José|5.0823|-75.7921", "54001|San José de Cúcuta|7.9057|-72.5082", "68684|San José de Miranda|6.659|-72.7336", "15664|San José de Pare|6.0189|-73.5454", "70823|San José de Toluviejo|9.4518|-75.4408", "23682|San José de Uré|7.7873|-75.5335", "05658|San José de la Montaña|6.8501|-75.6834", "18610|San José del Fragua|1.3303|-75.9738", "95001|San José del Guaviare|2.5659|-72.6393", "27660|San José del Palmar|4.897|-76.2342", "13657|San Juan Nepomuceno|9.9538|-75.0818", "50683|San Juan de Arama|3.3737|-73.8758", "70702|San Juan de Betulia|9.2731|-75.2436", "25662|San Juan de Rioseco|4.8476|-74.6219", "05659|San Juan de Urabá|8.759|-76.5286", "44650|San Juan del Cesar|10.7695|-73.0006", "50686|San Juanito|4.4582|-73.6767", "52687|San Lorenzo|1.5034|-77.2154", "05660|San Luis|6.043|-74.9936", "73678|San Luis|4.1337|-75.0958", "15667|San Luis de Gaceno|4.8198|-73.1681", "85325|San Luis de Palenque|5.4224|-71.7322", "70742|San Luis de Sincé|9.2443|-75.146", "70708|San Marcos|8.6618|-75.1338", "20770|San Martín|7.9999|-73.5109", "50689|San Martín|3.7019|-73.6958", "13667|San Martín de Loba|8.9375|-74.0391", "15673|San Mateo|6.4017|-72.5553", "68686|San Miguel|6.5753|-72.6441", "86757|San Miguel|0.3435|-76.9122", "15676|San Miguel de Sema|5.5181|-73.722", "70713|San Onofre|9.737|-75.5224", "13670|San Pablo|7.4767|-73.9246", "52693|San Pablo|1.6694|-77.014", "15681|San Pablo de Borbur|5.6507|-74.07", "70717|San Pedro|9.3963|-75.0636", "76670|San Pedro|3.9951|-76.2287", "52694|San Pedro de Cartago|1.5516|-77.1194", "05665|San Pedro de Urabá|8.2769|-76.3806", "05664|San Pedro de los Milagros|6.4601|-75.5567", "23686|San Pelayo|8.9584|-75.8356", "05667|San Rafael|6.2938|-75.0285", "05670|San Roque|6.4859|-75.0191", "19693|San Sebastián|1.8385|-76.7695", "47692|San Sebastián de Buenavista|9.2417|-74.3515", "73443|San Sebastián de Mariquita|5.1997|-74.8893", "05674|San Vicente Ferrer|6.2822|-75.3326", "68689|San Vicente de Chucurí|6.8804|-73.411", "18753|San Vicente del Caguán|2.1194|-74.7679", "47703|San Zenón|9.2451|-74.499", "52683|Sandoná|1.2834|-77.4731", "47707|Santa Ana|9.3243|-74.5668", "05679|Santa Bárbara|5.8755|-75.5674", "52696|Santa Bárbara|2.4497|-77.9799", "68705|Santa Bárbara|6.991|-72.9074", "47720|Santa Bárbara de Pinto|9.4323|-74.7047", "13673|Santa Catalina|10.6053|-75.2879", "13468|Santa Cruz de Mompox|9.2442|-74.4282", "05042|Santa Fé de Antioquia|6.5565|-75.8266", "68720|Santa Helena del Opón|6.3396|-73.6167", "73686|Santa Isabel|4.7136|-75.0979", "08675|Santa Lucía|10.3243|-74.9592", "47001|Santa Marta|11.2047|-74.1998", "15690|Santa María|4.8572|-73.2635", "41676|Santa María|2.9396|-75.5862", "13683|Santa Rosa|10.4444|-75.3698", "19701|Santa Rosa|1.7009|-76.5733", "66682|Santa Rosa de Cabal|4.8763|-75.6233", "05686|Santa Rosa de Osos|6.6434|-75.4607", "15693|Santa Rosa de Viterbo|5.8745|-72.9825", "13688|Santa Rosa del Sur|7.9639|-74.0522", "99624|Santa Rosalía|5.1364|-70.8595", "15696|Santa Sofía|5.7133|-73.6027", "52699|Santacruz|1.2226|-77.677", "15686|Santana|6.0569|-73.4816", "19698|Santander de Quilichao|3.015|-76.4851", "54680|Santiago|7.8659|-72.7162", "86760|Santiago|1.1471|-77.0026", "76001|Santiago de Cali|3.4137|-76.5213", "70820|Santiago de Tolú|9.5254|-75.5811", "05690|Santo Domingo|6.473|-75.1649", "08685|Santo Tomás|10.7587|-74.7579", "66687|Santuario|5.0749|-75.9646", "52720|Sapuyes|1.0375|-77.6203", "81736|Saravena|6.9539|-71.8728", "54720|Sardinata|8.0821|-72.8006", "25718|Sasaima|4.9622|-74.4326", "15720|Sativanorte|6.1311|-72.7085", "15723|Sativasur|6.0932|-72.7124", "05736|Segovia|7.0796|-74.7016", "25736|Sesquilé|5.0448|-73.7961", "76736|Sevilla|4.2707|-75.9316", "15740|Siachoque|5.5118|-73.2447", "25740|Sibaté|4.4926|-74.2579", "86749|Sibundoy|1.2003|-76.9178", "54743|Silos|7.2047|-72.7571", "25743|Silvania|4.382|-74.4055", "19743|Silvia|2.6119|-76.3798", "68745|Simacota|6.4435|-73.3374", "25745|Simijaca|5.5052|-73.8507", "13744|Simití|7.9539|-73.9473", "70001|Sincelejo|9.3023|-75.3954", "27745|Sipí|4.6526|-76.6435", "47745|Sitionuevo|10.7753|-74.72", "25754|Soacha|4.5793|-74.2155", "15753|Soatá|6.3319|-72.6841", "15757|Socha|5.9967|-72.692", "68755|Socorro|6.4639|-73.2612", "15755|Socotá|6.0412|-72.6367", "15759|Sogamoso|5.724|-72.9244", "18756|Solano|0.6991|-75.2537", "08758|Soledad|10.9099|-74.7861", "18785|Solita|0.8765|-75.6199", "15761|Somondoco|4.9857|-73.4334", "05756|Sonsón|5.7149|-75.3096", "05761|Sopetrán|6.5007|-75.7474", "13760|Soplaviento|10.3884|-75.1364", "25758|Sopó|4.9154|-73.9433", "15762|Sora|5.5668|-73.4502", "15764|Soracá|5.5009|-73.3328", "15763|Sotaquirá|5.765|-73.2466", "19760|Sotará - Paispamba|2.2532|-76.6134", "68770|Suaita|6.1013|-73.4416", "08770|Suan|10.3354|-74.8817", "41770|Suaza|1.9761|-75.7952", "25769|Subachoque|4.9291|-74.1728", "19785|Sucre|2.0382|-76.9263", "68773|Sucre|5.9187|-73.791", "70771|Sucre|8.8117|-74.7232", "25772|Suesca|5.1035|-73.7982", "25777|Supatá|5.0616|-74.2354", "17777|Supía|5.4468|-75.6497", "68780|Suratá|7.3666|-72.9842", "25779|Susa|5.4553|-73.8139", "15774|Susacón|6.2303|-72.6903", "15776|Sutamarchán|5.6198|-73.6205", "25781|Sutatausa|5.2475|-73.8532", "15778|Sutatenza|5.023|-73.4523", "19780|Suárez|2.9598|-76.6936", "73770|Suárez|4.0489|-74.8319", "85315|Sácama|6.0967|-72.2502", "15638|Sáchica|5.5843|-73.5425", "25785|Tabio|4.9168|-74.0965", "27787|Tadó|5.2649|-76.5586", "13780|Talaigua Nuevo|9.304|-74.5675", "20787|Tamalameque|8.8617|-73.8122", "81794|Tame|6.4533|-71.7544", "52786|Taminango|1.5704|-77.2808", "52788|Tangua|1.0948|-77.3937", "97666|Taraira|-0.565|-69.6355", "91798|Tarapacá|-2.8901|-69.7417", "05790|Tarazá|7.5801|-75.4014", "41791|Tarqui|2.1113|-75.824", "05792|Tarso|5.8645|-75.823", "15790|Tasco|5.9098|-72.781", "85410|Tauramena|5.019|-72.7466", "25793|Tausa|5.1963|-73.8878", "41799|Tello|3.0675|-75.1388", "25797|Tena|4.6553|-74.3892", "47798|Tenerife|9.8983|-74.8598", "25799|Tenjo|4.872|-74.1437", "15798|Tenza|5.0768|-73.4212", "54800|Teorama|8.4381|-73.2871", "41801|Teruel|2.741|-75.567", "41797|Tesalia|2.4864|-75.7303", "25805|Tibacuy|4.3486|-74.4527", "15804|Tibaná|5.3173|-73.3965", "15806|Tibasosa|5.7472|-72.9994", "25807|Tibirita|5.0523|-73.5045", "54810|Tibú|8.6399|-72.7345", "23807|Tierralta|8.1706|-76.0598", "41807|Timaná|1.9745|-75.9322", "19809|Timbiquí|2.7773|-77.6675", "19807|Timbío|2.3497|-76.6845", "15808|Tinjacá|5.5797|-73.6468", "15810|Tipacoque|6.4192|-72.6917", "13810|Tiquisio|8.5587|-74.2629", "05809|Titiribí|6.0624|-75.7919", "15814|Toca|5.5665|-73.1848", "25815|Tocaima|4.4593|-74.6363", "25817|Tocancipá|4.9646|-73.9121", "15816|Togüí|5.9374|-73.5137", "05819|Toledo|7.0103|-75.6923", "54820|Toledo|7.3077|-72.4819", "68820|Tona|7.2014|-72.967", "25823|Topaipí|5.3362|-74.3006", "19821|Toribío|2.953|-76.2703", "76823|Toro|4.6081|-76.0769", "15822|Tota|5.5605|-72.9859", "19824|Totoró|2.5103|-76.4036", "85430|Trinidad|5.4122|-71.6628", "76828|Trujillo|4.212|-76.3188", "08832|Tubará|10.8736|-74.9787", "23815|Tuchín|9.1866|-75.554", "76834|Tuluá|4.0854|-76.1977", "15001|Tunja|5.5399|-73.3555", "15832|Tununguá|5.7306|-73.9332", "13836|Turbaco|10.3483|-75.4272", "13838|Turbaná|10.2746|-75.4427", "05837|Turbo|8.0899|-76.7289", "15835|Turmequé|5.3233|-73.4918", "15837|Tuta|5.6891|-73.2303", "15839|Tutazá|6.0326|-72.856", "85400|Támara|5.8295|-72.1616", "05789|Támesis|5.6646|-75.7144", "15820|Tópaga|5.7682|-72.8322", "52838|Túquerres|1.085|-77.6167", "25839|Ubalá|4.7476|-73.5315", "25841|Ubaque|4.4838|-73.9335", "76845|Ulloa|4.7036|-75.7378", "25845|Une|4.4024|-74.0252", "27800|Unguía|8.0441|-77.0925", "27810|Unión Panamericana|5.2811|-76.6301", "05842|Uramita|6.8984|-76.1733", "50370|Uribe|3.2396|-74.3515", "44847|Uribia|11.7119|-72.2659", "05847|Urrao|6.3173|-76.134", "44855|Urumita|10.5602|-73.0125", "08849|Usiacurí|10.743|-74.977", "05854|Valdivia|7.1652|-75.4393", "23855|Valencia|8.255|-76.1508", "68855|Valle de San José|6.448|-73.1435", "73854|Valle de San Juan|4.1975|-75.1157", "86865|Valle del Guamuez|0.4235|-76.9068", "20001|Valledupar|10.4605|-73.2594", "05856|Valparaíso|5.6146|-75.6245", "18860|Valparaíso|1.1946|-75.7067", "05858|Vegachí|6.7735|-74.7987", "73861|Venadillo|4.7179|-74.9293", "05861|Venecia|5.9647|-75.7355", "25506|Venecia|4.0891|-74.4783", "15861|Ventaquemada|5.3687|-73.5224", "25862|Vergara|5.1173|-74.3462", "76863|Versalles|4.575|-76.1992", "68867|Vetas|7.3098|-72.871", "25867|Vianí|4.8752|-74.5613", "17867|Victoria|5.3174|-74.9112", "05873|Vigía del Fuerte|6.5882|-76.896", "76869|Vijes|3.6987|-76.4418", "54871|Villa Caro|7.9142|-72.9736", "19845|Villa Rica|3.1776|-76.458", "15407|Villa de Leyva|5.6325|-73.5249", "25843|Villa de San Diego de Ubaté|5.3075|-73.8144", "54874|Villa del Rosario|7.8477|-72.4698", "86885|Villagarzón|1.0288|-76.6172", "25871|Villagómez|5.273|-74.1951", "73870|Villahermosa|5.0305|-75.1177", "17873|Villamaría|5.0389|-75.5025", "13873|Villanueva|10.4441|-75.2756", "44874|Villanueva|10.6088|-72.9776", "68872|Villanueva|6.6701|-73.1743", "85440|Villanueva|4.6104|-72.9278", "25873|Villapinzón|5.2164|-73.5957", "73873|Villarrica|3.9369|-74.6003", "50001|Villavicencio|4.1264|-73.6226", "41872|Villavieja|3.2188|-75.2172", "25875|Villeta|5.0128|-74.4697", "25878|Viotá|4.4394|-74.5231", "15879|Viracachá|5.4368|-73.2969", "50711|Vistahermosa|3.1256|-73.751", "17877|Viterbo|5.0627|-75.8706", "68861|Vélez|6.0093|-73.6724", "25885|Yacopí|5.4593|-74.3381", "52885|Yacuanquer|1.1159|-77.4002", "41885|Yaguará|2.6647|-75.518", "05885|Yalí|6.6766|-74.8401", "05887|Yarumal|6.9638|-75.4188", "97889|Yavaraté|0.6091|-69.2033", "05890|Yolombó|6.5945|-75.0134", "05893|Yondó|7.004|-73.9124", "85001|Yopal|5.3271|-72.3961", "76890|Yotoco|3.8612|-76.3827", "76892|Yumbo|3.5401|-76.4999", "13894|Zambrano|9.7463|-74.8179", "68895|Zapatoca|6.8144|-73.268", "47960|Zapayán|10.1683|-74.7169", "05895|Zaragoza|7.4886|-74.8671", "76895|Zarzal|4.3927|-76.0708", "15897|Zetaquira|5.2834|-73.171", "25898|Zipacón|4.7599|-74.3796", "25899|Zipaquirá|5.0255|-73.9944", "47980|Zona Bananera|10.763|-74.1401", "54003|Ábrego|8.0816|-73.2217", "41357|Íquira|2.6494|-75.6345", "15842|Úmbita|5.2212|-73.4569", "25851|Útica|5.1905|-74.4832"];
+/* MUNICIPIOS:fin */
 
 function pintarPlaca(){
   var c=clasificar(), sel=document.getElementById("final").value;
@@ -978,6 +1026,65 @@ document.getElementById("final").onchange=pintarPlaca;
   };
 });
 
+/* ---------------- municipio ----------------
+   La DIVIPOLA del DANE, dentro de la app. Dos motivos: escribir menos con el
+   teléfono en una mano, y que el nombre quede siempre con la misma grafía —sin
+   eso el consolidado termina con "Bogota", "BOGOTÁ" y "Bogotá, D.C." como tres
+   sectores distintos, y el umbral de anonimato los cuenta por separado.
+   Se guarda el código DANE, no solo el nombre: hay homónimos en departamentos
+   distintos y es la llave con la que cualquier entidad cruza sus datos. */
+function sinTildes(t){
+  return t.toLowerCase()
+          .replace(/[áàä]/g,"a").replace(/[éèë]/g,"e").replace(/[íìï]/g,"i")
+          .replace(/[óòö]/g,"o").replace(/[úùü]/g,"u").replace(/ñ/g,"n");
+}
+var MUN_IDX = null;
+function idxMun(){
+  if(MUN_IDX) return MUN_IDX;
+  MUN_IDX = MUNICIPIOS.map(function(l){
+    var p = l.split("|");
+    return {cod:p[0], nom:p[1], dep:MUN_DEPTOS[p[0].slice(0,2)],
+            lat:parseFloat(p[2]), lon:parseFloat(p[3]), busca:sinTildes(p[1])};
+  });
+  return MUN_IDX;
+}
+/* La lista se arma al escribir y con un tope: mil opciones en el DOM es lo que
+   vuelve lento un teléfono viejo, que es justo el que va a campo. */
+function sugerirMun(){
+  var t = sinTildes(this.value.trim());
+  var dl = document.getElementById("lmun");
+  if(t.length < 2){ dl.innerHTML=""; return; }
+  var lista = idxMun().filter(function(m){ return m.busca.indexOf(t) === 0; });
+  if(lista.length < 8)
+    lista = lista.concat(idxMun().filter(function(m){
+      return m.busca.indexOf(t) > 0 && lista.indexOf(m) < 0; }));
+  var h = "";
+  lista.slice(0,25).forEach(function(m){
+    h += '<option value="'+m.nom+'">'+m.nom+" · "+m.dep+"</option>";
+  });
+  dl.innerHTML = h;
+}
+function fijarMun(){
+  var t = sinTildes(this.value.trim()), n = document.getElementById("munTxt");
+  est.mun = null;
+  if(!t){ n.textContent=""; return; }
+  var ex = idxMun().filter(function(m){ return m.busca === t; });
+  if(ex.length === 1){
+    est.mun = ex[0];
+    this.value = ex[0].nom;
+    n.textContent = ex[0].dep + " · código DANE " + ex[0].cod;
+  } else if(ex.length > 1){
+    /* Homónimos: no se elige por él. */
+    n.textContent = "Hay " + ex.length + " municipios con ese nombre (" +
+      ex.map(function(m){ return m.dep; }).join(", ") + "). Elíjalo de la lista.";
+  } else {
+    n.textContent = "No está en la lista del DANE. Se guarda tal cual lo escribió.";
+  }
+}
+document.getElementById("mun").addEventListener("input", sugerirMun);
+document.getElementById("mun").addEventListener("change", fijarMun);
+document.getElementById("mun").addEventListener("blur", fijarMun);
+
 /* ---------------- GPS ---------------- */
 document.getElementById("btnGps").onclick=function(){
   var t=document.getElementById("gpsTxt");
@@ -985,11 +1092,108 @@ document.getElementById("btnGps").onclick=function(){
   t.textContent="Buscando señal...";
   navigator.geolocation.getCurrentPosition(function(p){
     est.lat=+p.coords.latitude.toFixed(6); est.lon=+p.coords.longitude.toFixed(6);
-    est.acc=Math.round(p.coords.accuracy);
+    est.acc=Math.round(p.coords.accuracy); est.origen_punto="gps";
     t.textContent=est.lat+", "+est.lon+" · precisión "+est.acc+" m";
   },function(){
     t.textContent="No se obtuvo ubicación. Revise permisos o escriba la dirección.";
   },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+};
+
+/* ---------------- mapa para ajustar el punto ----------------
+   El GPS da ±18 m en un buen día. En una manzana densa eso es el edificio de al
+   lado, y de la coordenada dependen el mapa del panel y el agrupamiento por
+   cercanía que decide si dos evaluaciones son del mismo predio. Poder arrastrar
+   el marcador hasta la fachada es lo que hace fiable todo eso.
+
+   Necesita señal: las teselas vienen de la red. Sin señal el botón lo dice y no
+   pasa nada más — la evaluación se guarda igual con lo que haya dado el GPS. */
+var mapaObj = null, marcaObj = null, leafletPedido = false;
+
+function cargarLeaflet(luego){
+  if(window.L) return luego();
+  if(leafletPedido) return;
+  leafletPedido = true;
+  var sc = document.createElement("script");
+  sc.src = "vendor/leaflet.js";
+  sc.onload = function(){ leafletPedido = false; luego(); };
+  sc.onerror = function(){
+    leafletPedido = false;
+    document.getElementById("mapaTxt").textContent =
+      "No se pudo cargar el mapa. La evaluación se guarda igual.";
+  };
+  document.head.appendChild(sc);
+}
+
+function puntoInicial(){
+  if(est.lat != null) return {lat:est.lat, lon:est.lon, z:18, de:"gps"};
+  if(est.mun) return {lat:est.mun.lat, lon:est.mun.lon, z:14, de:"municipio"};
+  return {lat:4.6, lon:-74.08, z:6, de:"pais"};   /* Colombia, para no caer al mar */
+}
+
+document.getElementById("btnMapa").onclick = function(){
+  var dlg = document.getElementById("dlgMapa"), txt = document.getElementById("mapaTxt");
+  if(navigator.onLine === false){
+    /* Sin diálogo: el inspector está de pie frente a un edificio y no necesita
+       cerrar una ventana, necesita leer y seguir. */
+    document.getElementById("gpsTxt").innerHTML =
+      (est.lat != null ? est.lat + ", " + est.lon + " · precisión " + est.acc + " m<br>" : "") +
+      "<strong>El mapa necesita conexión</strong> — las imágenes vienen de la red. " +
+      "Capture con el GPS y siga; el punto se puede ajustar después desde el panel.";
+    return;
+  }
+  dlg.showModal();
+  txt.textContent = "Cargando el mapa...";
+  cargarLeaflet(function(){
+    var p = puntoInicial();
+    if(!mapaObj){
+      mapaObj = L.map("mapaLienzo");
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(mapaObj);
+      marcaObj = L.marker([p.lat, p.lon], {draggable:true, autoPan:true,
+        icon: L.divIcon({className:"", html:'<div class="pin"></div>',
+                         iconSize:[30,30], iconAnchor:[15,30]})}).addTo(mapaObj);
+      marcaObj.on("dragend", refrescarPunto);
+      /* Tocar el mapa también mueve el marcador: arrastrar un pin de 25 px con
+         el pulgar y guantes no siempre sale. */
+      mapaObj.on("click", function(e){ marcaObj.setLatLng(e.latlng); refrescarPunto(); });
+    }
+    mapaObj.setView([p.lat, p.lon], p.z);
+    marcaObj.setLatLng([p.lat, p.lon]);
+    setTimeout(function(){ mapaObj.invalidateSize(); refrescarPunto(); }, 60);
+  });
+};
+
+function refrescarPunto(){
+  var ll = marcaObj.getLatLng(), t = document.getElementById("mapaTxt");
+  var p = puntoInicial(), extra = "";
+  if(p.de === "gps"){
+    var d = distancia(p.lat, p.lon, ll.lat, ll.lng);
+    if(d > 1) extra = " · a " + Math.round(d) + " m del punto del GPS";
+  }
+  t.textContent = ll.lat.toFixed(6) + ", " + ll.lng.toFixed(6) + extra;
+}
+
+/* Haversine, para decir cuánto se movió el punto respecto al GPS. */
+function distancia(la1, lo1, la2, lo2){
+  var R = 6371000, r = Math.PI/180;
+  var a = Math.sin((la2-la1)*r/2), b = Math.sin((lo2-lo1)*r/2);
+  return 2*R*Math.asin(Math.sqrt(a*a + Math.cos(la1*r)*Math.cos(la2*r)*b*b));
+}
+
+document.getElementById("mapaCerrar").onclick = function(){
+  document.getElementById("dlgMapa").close();
+};
+document.getElementById("mapaUsar").onclick = function(){
+  if(!marcaObj) return;
+  var ll = marcaObj.getLatLng();
+  est.lat = +ll.lat.toFixed(6); est.lon = +ll.lng.toFixed(6);
+  /* El punto lo puso una persona mirando el edificio: la precisión del GPS ya
+     no lo describe, y decir "±8 m" de algo que se señaló a mano sería inventar
+     una exactitud que nadie midió. */
+  est.acc = null; est.origen_punto = "mapa";
+  document.getElementById("gpsTxt").textContent =
+    est.lat + ", " + est.lon + " · señalado en el mapa";
+  document.getElementById("dlgMapa").close();
 };
 
 /* ---------------- fotos ---------------- */
@@ -1046,6 +1250,8 @@ document.getElementById("btnGuardar").onclick=function(){
       id:correlativo(rs.length), ts:new Date().toISOString(), estado:"pendiente",
       inspector:{nombre:cfgGet("nom",""),matricula:mat,brigada:cfgGet("bri","")},
       lat:est.lat, lon:est.lon, precision_m:est.acc,
+      origen_punto:est.origen_punto||null,
+      departamento:est.mun?est.mun.dep:"", cod_dane:est.mun?est.mun.cod:"",
       direccion:document.getElementById("dir").value.trim(),
       municipio:document.getElementById("mun").value.trim(),
       barrio:document.getElementById("bar").value.trim(),
@@ -1081,7 +1287,8 @@ function limpiar(){
   document.getElementById("final").value="auto";
   DANOS.forEach(function(x){est.danos[x.k]=0});
   BANDERAS.forEach(function(x){est.banderas[x.k]=false});
-  est.fotos=[]; est.lat=est.lon=est.acc=null;
+  est.fotos=[]; est.lat=est.lon=est.acc=null; est.origen_punto=null; est.mun=null;
+  document.getElementById("munTxt").textContent="";
   document.querySelectorAll(".escala").forEach(function(g){
     Array.prototype.forEach.call(g.children,function(o,j){o.setAttribute("aria-pressed", j===0?"true":"false")});
   });

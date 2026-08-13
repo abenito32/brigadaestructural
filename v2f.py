@@ -584,8 +584,8 @@ _INTERV_COL = {1: "interv_alcaldia", 2: "interv_policia", 3: "interv_transito",
 
 def columnas_v2f(con_reservado: bool = False) -> list[str]:
     """El encabezado, en el orden del formulario. Es el contrato del archivo."""
-    c = ["form_numero", "localidad", "cod_catastral", "tipo_inspeccion",
-         "direccion", "municipio", "barrio",
+    c = ["form_numero", "departamento", "cod_dane", "localidad", "cod_catastral",
+         "tipo_inspeccion", "direccion", "municipio", "barrio",
          "uso_edificacion", "uso_planta_baja", "pisos", "sotanos", "frente_m", "fondo_m",
          "sistema_estructural", "tipo_entrepiso", "periodo_construccion",
          "p1_colapso", "p2_desviacion", "p3_cimentacion", "clas_A",
@@ -609,7 +609,7 @@ def columnas_v2f(con_reservado: bool = False) -> list[str]:
     c += ["id_servidor", "brigada", "modo", "escala", "bloques_sin_datos",
           "clasificacion_firmada", "clasificacion_efectiva", "revision_estado",
           "revision_matricula", "justificacion", "matricula_verificada",
-          "lat", "lon", "recibido_en"]
+          "lat", "lon", "origen_punto", "recibido_en"]
     return c
 
 
@@ -668,6 +668,7 @@ def fila_v2f(e: dict, con_reservado: bool = False) -> dict:
 
     f = {
         "form_numero": e.get("id_local") or e.get("id"),
+        "departamento": e.get("departamento"), "cod_dane": e.get("cod_dane"),
         "localidad": e.get("localidad"),
         "cod_catastral": e.get("cod_catastral"),
         "tipo_inspeccion": e.get("tipo_inspeccion"),
@@ -707,6 +708,7 @@ def fila_v2f(e: dict, con_reservado: bool = False) -> dict:
         "justificacion": e.get("justificacion"),
         "matricula_verificada": e.get("matricula_verificada"),
         "lat": e.get("lat"), "lon": e.get("lon"),
+        "origen_punto": e.get("origen_punto"),
         "recibido_en": (e["recibido_en"].isoformat()
                         if hasattr(e.get("recibido_en"), "isoformat") else e.get("recibido_en")),
     }
