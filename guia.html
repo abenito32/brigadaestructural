@@ -1,0 +1,306 @@
+<!doctype html>
+<!--
+  Brigada · Evaluación estructural en campo
+  Copyright (C) 2026 Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez
+  Software libre bajo GNU AGPL v3.
+
+  Guía de campo: UNA página, para leer en el teléfono con el edificio delante.
+  Va aparte de index.html y el service worker la guarda con el resto, porque una
+  guía que necesite señal para abrirse no sirve justo cuando hace falta.
+
+  Es un resumen, no el manual. Lo que no cabe acá está en el PDF; lo que sí cabe
+  es lo que alguien necesita recordar de pie y con guantes.
+-->
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0369A1">
+<title>Guía de campo · Brigada</title>
+<style>
+:root{
+  --papel:#F1F5F9; --carta:#fff; --tinta:#0F172A; --tinta2:#475569; --tenue:#5E6E82;
+  --linea:#E2E8F0; --borde:#CBD5E1;
+  --azul:#0369A1; --azul-osc:#075985; --azul-tinte:#E0F2FE;
+  --verde:#15803D; --ambar-fondo:#EAB308; --ambar-tinta:#422006;
+  --naranja:#C2410C; --rojo:#7F1D1D; --rojo-tinte:#FEF2F2;
+  --r:10px; --r-l:14px;
+  --sombra:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.08);
+}
+*{box-sizing:border-box}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--papel);color:var(--tinta);
+  font:17px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding-bottom:env(safe-area-inset-bottom)}
+
+header{background:var(--azul);color:#fff;padding:22px 18px 20px;
+  padding-top:calc(22px + env(safe-area-inset-top))}
+header h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.02em}
+header p{margin:6px 0 0;font-size:15px;opacity:.92}
+
+/* Índice: en una sola página, saltar es más rápido que rodar el dedo. */
+nav{display:flex;gap:8px;overflow-x:auto;padding:14px 18px;background:var(--carta);
+  border-bottom:1px solid var(--linea);position:sticky;top:0;z-index:5;
+  -webkit-overflow-scrolling:touch}
+nav a{flex:none;padding:11px 14px;border:1px solid var(--borde);border-radius:999px;
+  text-decoration:none;color:var(--tinta2);font-size:14px;font-weight:600;
+  background:var(--carta);min-height:44px;display:flex;align-items:center}
+nav a:active{background:var(--papel)}
+nav a:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
+
+main{padding:18px 18px 34px;max-width:640px;margin:0 auto}
+section{background:var(--carta);border:1px solid var(--linea);border-radius:var(--r-l);
+  padding:18px;margin-bottom:14px;box-shadow:var(--sombra);scroll-margin-top:78px}
+h2{margin:0 0 12px;font-size:19px;font-weight:800;letter-spacing:-.01em;
+  display:flex;align-items:center;gap:9px}
+h2 b{display:inline-flex;align-items:center;justify-content:center;flex:none;
+  width:28px;height:28px;border-radius:8px;background:var(--azul-tinte);
+  color:var(--azul-osc);font-size:14px}
+p{margin:0 0 12px}
+p:last-child,ul:last-child,ol:last-child{margin-bottom:0}
+ul,ol{margin:0 0 12px;padding-left:22px}
+li{margin-bottom:8px}
+strong{font-weight:700}
+.nota{font-size:15px;color:var(--tinta2)}
+
+/* Los pasos, numerados como en el formulario, para reconocerlos en pantalla. */
+.pasos{list-style:none;padding:0;margin:0}
+.pasos li{display:flex;gap:12px;padding:11px 0;border-top:1px solid var(--linea);
+  margin:0;align-items:baseline}
+.pasos li:first-child{border-top:0;padding-top:0}
+.pasos b{flex:none;width:30px;color:var(--azul-osc);font-size:14px;font-weight:800;
+  font-variant-numeric:tabular-nums}
+
+/* Los cuatro niveles. El color nunca va solo: siempre con su número y su palabra. */
+.nivel{display:flex;gap:12px;align-items:flex-start;padding:12px 0;
+  border-top:1px solid var(--linea)}
+.nivel:first-of-type{border-top:0;padding-top:0}
+.chapa{flex:none;width:88px;padding:9px 5px;border-radius:8px;text-align:center;
+  font-size:11.5px;font-weight:800;line-height:1.2;letter-spacing:.02em}
+.chapa b{display:block;font-size:18px;line-height:1.1}
+.n1{background:var(--verde);color:#fff}
+.n2{background:var(--ambar-fondo);color:var(--ambar-tinta)}
+.n3{background:var(--naranja);color:#fff}
+.n4{background:var(--rojo);color:#fff}
+.nivel div strong{display:block;font-size:16px}
+.nivel div span{font-size:15px;color:var(--tinta2)}
+
+.caja{border-radius:var(--r);padding:14px 15px;margin:0 0 12px;font-size:15px;
+  line-height:1.5}
+.caja b{display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;
+  margin-bottom:5px}
+.peligro{background:var(--rojo-tinte);border:1px solid #FECACA;border-left:4px solid var(--rojo)}
+.peligro b{color:var(--rojo)}
+.ojo{background:#FFFBEB;border:1px solid #FDE68A;border-left:4px solid #B45309}
+.ojo b{color:#92400E}
+.info{background:var(--azul-tinte);border:1px solid #BAE6FD;border-left:4px solid var(--azul)}
+.info b{color:var(--azul-osc)}
+
+table{width:100%;border-collapse:collapse;font-size:15px}
+td{padding:10px 0;border-top:1px solid var(--linea);vertical-align:top}
+tr:first-child td{border-top:0;padding-top:0}
+td:first-child{font-weight:700;width:42%;padding-right:12px}
+
+.volver{display:block;text-align:center;padding:15px;margin-top:6px;
+  border-radius:var(--r);background:var(--azul);color:#fff;text-decoration:none;
+  font-weight:700;min-height:52px}
+.volver:focus-visible{outline:3px solid var(--tinta);outline-offset:2px}
+footer{padding:0 18px 30px;max-width:640px;margin:0 auto;
+  font-size:13px;color:var(--tenue);text-align:center;line-height:1.6}
+
+@media print{
+  body{background:#fff;font-size:11pt}
+  nav,.volver{display:none}
+  section{break-inside:avoid;box-shadow:none;margin-bottom:8px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Guía de campo</h1>
+  <p>Lo que hay que recordar con el edificio delante. El manual completo está en PDF.</p>
+</header>
+
+<nav aria-label="Secciones">
+  <a href="#antes">Antes de salir</a>
+  <a href="#evaluar">Evaluar</a>
+  <a href="#niveles">Los 4 niveles</a>
+  <a href="#cierre">Cierre</a>
+  <a href="#senal">Sin señal</a>
+  <a href="#falla">Si algo falla</a>
+  <a href="#seguridad">Seguridad</a>
+  <a href="#ocupante">Qué decir</a>
+</nav>
+
+<main>
+
+<section>
+  <div class="caja ojo">
+    <b>Esto es triaje preliminar</b>
+    No habilita ni condena una edificación. La decisión definitiva es de UNGRD,
+    Defensa Civil, bomberos y la alcaldía. Solo firma quien tenga
+    <strong>matrícula profesional vigente</strong> (Ley 400/97, NSR-10).
+  </div>
+</section>
+
+<section id="antes">
+  <h2><b>1</b> Antes de salir</h2>
+  <ul>
+    <li><strong>Instale la app</strong> desde el navegador («Agregar a inicio»). Así
+      funciona sin señal.</li>
+    <li><strong>Ajustes:</strong> su nombre, su matrícula, el servidor y el token de la
+      brigada.</li>
+    <li><strong>Toque «Probar conexión»</strong> con señal. No envía nada: solo comprueba
+      que el servidor responde.</li>
+    <li>Batería cargada y, si puede, una batería externa. El GPS y la cámara consumen.</li>
+  </ul>
+  <div class="caja info">
+    <b>No use modo incógnito</b>
+    Ahí el teléfono no guarda nada y las evaluaciones se pierden al cerrar. Si la app
+    avisa «este navegador no guarda en disco», salga del modo privado
+    <strong>antes</strong> de evaluar.
+  </div>
+</section>
+
+<section id="evaluar">
+  <h2><b>2</b> Evaluar, paso a paso</h2>
+  <ol class="pasos">
+    <li><b>01</b><div><strong>Ubicación.</strong> Capture el GPS y, si hay señal,
+      <em>ajuste el punto en el mapa</em> arrastrándolo hasta la fachada. Escriba la
+      dirección o una referencia. Elija el municipio de la lista.</div></li>
+    <li><b>02</b><div><strong>Edificación.</strong> Sistema, uso, pisos y ocupantes
+      aproximados.</div></li>
+    <li><b>03</b><div><strong>Nivel de daño.</strong> Cuatro categorías, de N/A a
+      Severo. <strong>Esto determina la clasificación</strong>: tómese el tiempo.</div></li>
+    <li><b>04</b><div><strong>Condiciones que obligan cierre.</strong> Seis casillas.
+      Marcar cualquiera fuerza el cierre.</div></li>
+    <li><b>V2F</b><div><strong>Formulario completo</strong> (opcional). Doce secciones,
+      unos veinte minutos. Sin él la evaluación vale igual.</div></li>
+    <li><b>05</b><div><strong>Fotos.</strong> Hasta cuatro. La del daño que sustenta la
+      clasificación vale más que la fachada.</div></li>
+    <li><b>06</b><div><strong>Clasificación y firma.</strong> Revise, y guarde.</div></li>
+  </ol>
+  <div class="caja info">
+    <b>Si la cambia, escriba por qué</b>
+    Puede fijar otra clasificación distinta de la calculada, pero el motivo es
+    obligatorio. Escriba criterio técnico: dentro de seis meses es lo único que va a
+    quedar.
+  </div>
+  <p class="nota">Si la app se cierra a media evaluación, no se pierde: al volver a
+    abrirla le ofrece <strong>seguir con ella</strong>. También se guardan las fotos.</p>
+</section>
+
+<section id="niveles">
+  <h2><b>3</b> Los cuatro niveles</h2>
+  <div class="nivel"><span class="chapa n4"><b>4</b>COLAPSO</span>
+    <div><strong>Peligro de colapso</strong>
+      <span>Evacuar <em>y acordonar el entorno</em>: puede caer sobre la vía o sobre
+      las vecinas.</span></div></div>
+  <div class="nivel"><span class="chapa n3"><b>3</b>NO HABITABLE</span>
+    <div><strong>No habitable</strong><span>Evacuar. No ingresar.</span></div></div>
+  <div class="nivel"><span class="chapa n2"><b>2</b>USO RESTR.</span>
+    <div><strong>Uso restringido</strong>
+      <span>Ocupación limitada: parte de la edificación no se puede usar.</span></div></div>
+  <div class="nivel"><span class="chapa n1"><b>1</b>HABITABLE</span>
+    <div><strong>Habitable</strong>
+      <span>Puede ocuparse. <strong>No quiere decir intacto.</strong></span></div></div>
+  <p class="nota" style="margin-top:12px">Bajo la placa aparecen cinco letras: A estado
+    general, B geotécnicos, C no estructurales, D estructurales, E entorno.
+    <strong>Manda la peor de las cinco</strong>, y la que manda va marcada. Una letra en
+    gris con una raya significa que ese bloque no tiene datos — y sin datos no es «sin
+    daño»: es que nadie lo miró.</p>
+</section>
+
+<section id="cierre">
+  <h2><b>4</b> Las seis condiciones que obligan cierre</h2>
+  <p class="nota">Marcar cualquiera cierra la edificación. Las tres primeras llevan
+    directo a <strong>peligro de colapso</strong>.</p>
+  <table>
+    <tr><td>Colapso</td><td>Total o parcial de algún nivel</td></tr>
+    <tr><td>Inclinación</td><td>Desplome visible de la edificación</td></tr>
+    <tr><td>Acero</td><td>Columna con núcleo triturado, acero expuesto o pandeado</td></tr>
+    <tr><td>Grietas pasantes</td><td>Anchas, en muros portantes</td></tr>
+    <tr><td>Riesgo externo</td><td>Vecino inestable, talud, deslizamiento</td></tr>
+    <tr><td>Sobre el acceso</td><td>Elementos pesados sueltos sobre la entrada o la vía</td></tr>
+  </table>
+</section>
+
+<section id="senal">
+  <h2><b>5</b> Sin señal</h2>
+  <p>Es el modo normal de trabajo, no una avería. Todo se guarda en el teléfono y
+    espera en la pestaña <strong>Cola</strong>.</p>
+  <ul>
+    <li>Al volver la señal, toque <strong>Enviar pendientes</strong>. Salen de a tres,
+      no todas de golpe.</li>
+    <li>Si el contador no baja, el servidor no está grabando. <strong>Los datos no se
+      pierden</strong>: descargue el respaldo en JSON y avise a coordinación.</li>
+    <li><strong>Nunca desinstale la app con evaluaciones pendientes.</strong></li>
+  </ul>
+  <p class="nota">Lo único que necesita señal es el mapa, porque las imágenes vienen de
+    la red. Todo lo demás funciona igual.</p>
+</section>
+
+<section id="falla">
+  <h2><b>6</b> Si algo falla</h2>
+  <table>
+    <tr><td>Rechaza el token</td><td>Está mal copiado o fue revocado. Pida el de su
+      brigada a coordinación.</td></tr>
+    <tr><td>El GPS no da coordenadas</td><td>Bajo cubierta o entre edificios altos es
+      normal. Guarde con la dirección escrita.</td></tr>
+    <tr><td>No deja guardar</td><td>Falta la matrícula en Ajustes, o falta el motivo si
+      cambió la clasificación.</td></tr>
+    <tr><td>Quedó en una versión vieja</td><td>Ciérrela por completo y ábrala con señal.
+      Se actualiza sola.</td></tr>
+  </table>
+</section>
+
+<section id="seguridad">
+  <h2><b>7</b> Seguridad</h2>
+  <div class="caja peligro">
+    <b>Retírese y llame al 123</b>
+    Personas atrapadas · olor a gas · incendio · colapso en curso · cables caídos.
+    <strong>Su vida no está en el formulario.</strong>
+  </div>
+  <ul>
+    <li><strong>No inspeccione a solas</strong> una estructura con inclinación visible.</li>
+    <li>Evalúe primero desde afuera. Entrar es opcional; el formulario admite
+      inspección <em>exterior solamente</em>.</li>
+    <li>Casco, botas, guantes y chaleco. Réplicas: aléjese de fachadas y antepechos.</li>
+    <li>Si el edificio suena, cruje o suelta material, salga.</li>
+  </ul>
+</section>
+
+<section id="ocupante">
+  <h2><b>8</b> Qué decirle a quien vive ahí</h2>
+  <ul>
+    <li>Que es una <strong>evaluación preliminar</strong> y que la decisión final la
+      toma la autoridad.</li>
+    <li>Que <strong>habitable no significa intacto</strong>: puede haber daños que
+      reparar.</li>
+    <li>Si no es habitable: <strong>no entrar ni a sacar cosas</strong> hasta que la
+      autoridad lo indique.</li>
+    <li>Sus datos —dirección, coordenada, fotos— son <strong>datos personales</strong>
+      (Ley 1581 de 2012): se usan para la atención de la emergencia y no se publican.</li>
+  </ul>
+  <div class="caja ojo">
+    <b>No prometa</b>
+    Ni ayudas, ni plazos, ni reubicación. No es su decisión y una promesa incumplida
+    en una emergencia cuesta más de lo que parece.
+  </div>
+</section>
+
+<a class="volver" href="./">Volver a la aplicación</a>
+
+</main>
+
+<footer>
+  Brigada · Evaluación estructural en campo<br>
+  Desarrollada con Amor por Andrés Benito Revollo Vélez ·
+  Rollout Comercio e Servicios Limitada<br>
+  Software libre bajo <a href="https://github.com/abenito32/brigadaestructural"
+    rel="noopener">AGPL v3</a>
+</footer>
+
+</body>
+</html>

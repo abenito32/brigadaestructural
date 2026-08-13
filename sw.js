@@ -14,13 +14,13 @@
    vea <https://www.gnu.org/licenses/>.
  */
 
-const CACHE = "brigada-v18";   // subir en CADA cambio de los archivos cacheados
+const CACHE = "brigada-v20";   // subir en CADA cambio de los archivos cacheados
 // Leaflet va en la lista para que el mapa exista aunque el teléfono ya no tenga
 // señal cuando se abre. Las TESELAS no se cachean: son de otro origen, son
 // miles y llenarían el disco del teléfono. Sin señal el mapa avisa y la
 // evaluación se guarda igual con lo que dio el GPS.
 const ARMAZON = ["./", "./index.html", "./manifest.json"];
-const EXTRAS = ["./vendor/leaflet.css", "./vendor/leaflet.js"];
+const EXTRAS = ["./vendor/leaflet.css", "./vendor/leaflet.js", "./guia.html"];
 
 // El armazón con addAll: si falta uno de esos tres, la app no existe y la
 // instalación DEBE fallar. Los extras uno por uno y tragándose el error: si
