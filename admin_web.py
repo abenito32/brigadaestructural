@@ -739,6 +739,29 @@ INICIO = """
   <a class="cifra" href="/admin/catastral" style="text-decoration:none;color:inherit">
     <b class="num">{{ t.sin_catastral }}</b><span>Sin código catastral →</span></a>
 </div>
+{% if rol == 'coordinador' %}
+<div class="tarjeta">
+  <p class="rotulo">Quién puede firmar en {{ brigada }}</p>
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <span class="pastilla {{ 'pi' if t.exige_matricula else 'palerta' }}">
+      {{ "Solo con matrícula profesional" if t.exige_matricula else "También sin matrícula" }}</span>
+    <form method="post" action="/admin/brigadas/firma"
+      onsubmit="return confirm({{ ('Permitir que en esta brigada firme quien no tiene matrícula? Quedará registrado en cada evaluación con su documento y su profesión.') | tojson if t.exige_matricula else ('Exigir matrícula? Los teléfonos sin matrícula dejarán de poder guardar.') | tojson }})">
+      <input type="hidden" name="nombre" value="{{ brigada }}">
+      <input type="hidden" name="exige" value="{{ '0' if t.exige_matricula else '1' }}">
+      <button class="btn">Cambiar</button>
+    </form>
+    {% if t.sin_matricula %}<span class="nota" style="margin:0">
+      {{ t.sin_matricula }} evaluaciones firmadas sin matrícula</span>{% endif %}
+  </div>
+  <p class="nota">La Ley 400/97 y la NSR-10 reservan el dictamen de habitabilidad a quien
+    tiene matrícula, y ese es el criterio por defecto. Si su comisión no es toda de
+    ingenieros matriculados, acá lo cambia: entonces se exigen documento y profesión
+    —anónimo no entra nunca— y cada evaluación queda marcada. La segunda revisión de un
+    desalojo sigue siendo de alguien del registro de inspectores.</p>
+</div>
+{% endif %}
+
 {% if rol == 'admin' and not d.ok %}
 <div class="aviso"><strong>Disco:</strong> quedan {{ d.libre_gb }} GB libres
 ({{ d.usado_pct }}% usado). Si se llena, el servidor deja de recibir evaluaciones.
@@ -754,7 +777,8 @@ Mientras esto siga así, una pérdida del disco se lleva el levantamiento comple
 {% endif %}
 {% if t.rojos_pendientes %}
 <div class="{{ 'aviso' if t.rojos_vencidos else 'nota-caja' }}">
-  <strong>{{ t.rojos_pendientes }} rojos</strong> esperan segunda revisión{% if t.rojos_vencidos %},
+  <strong>{{ t.rojos_pendientes }}</strong>
+  {{ "desalojo espera" if t.rojos_pendientes == 1 else "desalojos esperan" }} segunda revisión{% if t.rojos_vencidos %},
   y {{ t.rojos_vencidos }} ya pasaron su plazo{% endif %}.
   <a href="/admin/rojos">Revisarlos</a>.</div>
 {% endif %}
@@ -827,9 +851,19 @@ def inicio(req: Request):
     # consolidado_publico no distingue brigadas, y servirla tal cual le mostraria
     # a un coordinador los sectores de las demas.
     consolidado = [f[:7] for f in sectores(req)]
+    exige = sin_mat = None
+    if ses.brigada:
+        fila = consulta("""SELECT b.exige_matricula,
+                                  (SELECT count(*) FROM evaluacion_brigada e
+                                    WHERE e.brigada_token = b.nombre
+                                      AND e.firma_tipo <> 'matricula')
+                             FROM brigada b WHERE b.nombre = %s""", (ses.brigada,))
+        if fila:
+            exige, sin_mat = fila[0]
     t = {"total": total, "peligro_colapso": colapso, "no_habitables": nohab,
          "uso_restringido": restr, "habitables": hab,
          "sin_verificar": sinv, "sin_catastral": sincat,
+         "exige_matricula": exige, "sin_matricula": sin_mat,
          "rojos_pendientes": rpend, "rojos_vencidos": rvenc}
     import api_brigadas
     # El estado del servidor es cosa de quien lo administra, no de una brigada.
@@ -839,6 +873,7 @@ def inicio(req: Request):
                                          "d": {"ok": True}})
     return pagina("Resumen", render(INICIO, t=t, por_brigada=por_brigada,
                                     consolidado=consolidado, rol=ses.rol,
+                                    brigada=ses.brigada,
                                     r=salud["r"], d=salud["d"]), "inicio", ses=ses)
 
 
@@ -1125,10 +1160,18 @@ def brigadas_firma(req: Request, nombre: str = Form(...), exige: str = Form(...)
     documento y profesión— y que la segunda revisión de un desalojo siga siendo
     de alguien del registro.
     """
-    ses = exigir_admin(req)
-    consulta("UPDATE brigada SET exige_matricula = %s WHERE nombre = %s",
-             (exige == "1", nombre))
-    return _pantalla_brigadas(ses)
+    ses = exigir(req)
+    # Para un coordinador la brigada sale de la sesión: lo que venga en el campo
+    # oculto no decide sobre qué se escribe. Y el alcance va además en el WHERE,
+    # que es lo que hace que un nombre ajeno no toque nada.
+    if ses.brigada:
+        nombre = ses.brigada
+    w, wa = filtro_alcance(req, "nombre")
+    consulta(f"UPDATE brigada SET exige_matricula = %s WHERE nombre = %s AND {w}",
+             (exige == "1", nombre, *wa))
+    if ses.rol == "admin":
+        return _pantalla_brigadas(ses)
+    return RedirectResponse("/admin", status_code=303)
 
 
 @router.post("/admin/brigadas/reemitir", response_class=HTMLResponse)
