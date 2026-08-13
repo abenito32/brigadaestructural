@@ -147,8 +147,8 @@ tr:last-child td{border-bottom:0}
     tras un sismo, y el sistema que recibe y consolida lo levantado.</p>
   <div class="semaforo-portada"><div class="v"></div><div class="a"></div><div class="o"></div><div class="r"></div></div>
   <div class="pie">
-    <strong>Versión 2.0</strong> · Agosto de 2026<br>
-    Formulario V2F del IDIGER · ATC-20 adaptado a NSR-10 · Colombia<br><br>
+    <strong>Versión 2.1</strong> · Agosto de 2026<br>
+    Formulario V2F y Guía Técnica IDIGER–AIS 2018 · Colombia<br><br>
     Desarrollada con Amor por <strong>Andrés Benito Revollo Vélez</strong><br>
     Rollout Comercio e Servicios Limitada<br><br>
     Software libre bajo GNU AGPL v3<br>
@@ -299,10 +299,16 @@ de salir. Toma cinco minutos.</p>
 </ol>
 
 <div class="ojo">
-  <span class="etq">Sin matrícula no se puede guardar</span>
-  Si el campo de matrícula está vacío, la app bloquea el botón de guardar. No es un
+  <span class="etq">Sin identificar no se puede guardar</span>
+  Con el campo de matrícula vacío, la app bloquea el botón de guardar. No es un
   capricho: la clasificación tiene efectos legales y tiene que estar firmada por
   quien puede firmarla (Ley 400 de 1997, NSR-10).
+  <br><br>
+  Si su brigada lo tiene habilitado —lo decide quien la administra, en el panel—
+  también se puede firmar <strong>sin matrícula</strong>, y entonces hacen falta el
+  <strong>documento y la profesión</strong>. La app se lo pide en Ajustes después de
+  «Probar conexión», que es cuando el teléfono se entera de lo que exige su brigada.
+  Anónimo no se guarda de ninguna manera.
 </div>
 </section>
 
@@ -435,21 +441,31 @@ segunda acordona la vía y evacúa a los vecinos.</p>
       las edificaciones vecinas.</td></tr>
 </table>
 
+<div class="nota-caja">
+  <span class="etq">De dónde salen estos criterios</span>
+  De la <strong>Guía Técnica para la Inspección de Edificaciones Después de un
+  Sismo</strong> (IDIGER y Asociación Colombiana de Ingeniería Sísmica, 4ª edición,
+  2018), que es el documento que acompaña al formulario V2F. Las tablas de este
+  capítulo llevan su número y su página para poder volver a la fuente.
+</div>
+
 <h3>Cinco parciales, y manda la peor</h3>
-<p>La app calcula una clasificación por cada bloque del formulario y la global es
-<strong>la más crítica de las cinco</strong>. Es la regla del V2F; lo que agrega la app
-es calcularlas en vez de dejarlas al ojo, para que dos brigadas distintas frente al
-mismo edificio lleguen al mismo número.</p>
+<p>La app calcula una clasificación por cada bloque y la global es
+<strong>la más crítica de las cinco</strong>. Es textual en la guía: <em>«el nivel de
+habitabilidad estará definido por la clasificación de habitabilidad más conservadora
+definida entre las evaluaciones A a E»</em> (§2.9, pág. 52).</p>
 
 <table class="tabla-chica">
   <tr><td style="width:12%"><strong>A</strong></td><td>Estado general: colapso,
-    desviación o inclinación, falla de la cimentación.</td></tr>
+    desviación o inclinación, falla de la cimentación.</td><td style="width:22%">Tabla 2, pág. 27</td></tr>
   <tr><td><strong>B</strong></td><td>Problemas geotécnicos: talud, asentamiento,
-    grietas en el terreno.</td></tr>
-  <tr><td><strong>C</strong></td><td>Daños no estructurales. <em>Tope 3.</em></td></tr>
+    grietas en el terreno.</td><td>Tabla 3, pág. 30</td></tr>
+  <tr><td><strong>C</strong></td><td>Daños no estructurales. <em>Tope 3.</em></td>
+    <td>Tabla 4, pág. 39</td></tr>
   <tr><td><strong>D</strong></td><td>Daños estructurales: columnas, vigas, nudos,
-    entrepisos.</td></tr>
-  <tr><td><strong>E</strong></td><td>Problemas del entorno. <em>Tope 3.</em></td></tr>
+    entrepisos.</td><td>Tabla 7, pág. 51</td></tr>
+  <tr><td><strong>E</strong></td><td>Problemas del entorno. <em>Tope 3.</em></td>
+    <td>Tabla 8, pág. 52</td></tr>
 </table>
 
 <p>Las cinco aparecen bajo la placa con su letra y su número, y la que manda va
@@ -458,20 +474,106 @@ datos</strong> — y un bloque vacío no vale «sin daño»: vale que nadie lo m
 
 <div class="nota-caja">
   <span class="etq">Por qué C y E no llegan a 4</span>
-  Lo dice el formulario sin explicarlo, y tiene sentido: por un antepecho suelto o
-  por un vecino inestable se cierra la edificación, pero eso no vuelve inminente el
-  colapso de <em>esta</em> estructura. Se llega a «no habitable», no a «peligro de
-  colapso».
+  Sus tablas no tienen esa columna. Tiene sentido: por un antepecho suelto o por un
+  vecino inestable se cierra la edificación, pero eso no vuelve inminente el colapso
+  de <em>esta</em> estructura. Se llega a «no habitable», no a «peligro de colapso».
 </div>
+
+<h3>Daño estructural: grado y extensión — Tabla 7</h3>
+<p>No basta con qué tan grave es el daño: cuenta <strong>en cuántos elementos</strong>
+del piso de mayor afectación aparece. Los porcentajes son sobre el total de elementos
+de ese piso.</p>
+
+<table>
+  <tr><th style="width:20%">Nivel de daño</th><th>Habitable</th><th>Uso restringido</th>
+    <th>No habitable</th><th>Peligro de colapso</th></tr>
+  <tr><td><strong>1 Ninguno</strong></td><td>≤ 100 %</td><td>—</td><td>—</td><td>—</td></tr>
+  <tr><td><strong>2 Leve</strong></td><td>≤ 30 %</td><td>≥ 30 %</td><td>—</td><td>—</td></tr>
+  <tr><td><strong>3 Moderado</strong></td><td>—</td><td>≤ 30 %</td><td>30 – 60 %</td><td>≥ 60 %</td></tr>
+  <tr><td><strong>4 Fuerte</strong></td><td>—</td><td>≤ 10 %</td><td>10 – 30 %</td><td>≥ 30 %</td></tr>
+  <tr><td><strong>5 Severo</strong></td><td>—</td><td>≤ 5 %</td><td>5 – 15 %</td><td>≥ 15 %</td></tr>
+</table>
+
+<p class="nota">Los rangos de la guía se solapan en los extremos («≤ 30 %» y
+«30 – 60 %»). En esos valores la app toma <strong>el nivel más grave</strong>.</p>
+
+<div class="ojo">
+  <span class="etq">Elementos que saturan el daño — Tabla 6, pág. 50</span>
+  Hay elementos cuya importancia es tal que su daño severo compromete toda la
+  edificación, aunque los demás estén bien: <strong>nudos o columnas</strong> en
+  pórticos de concreto y en estructuras metálicas o de madera, <strong>muros de
+  carga</strong> en mampostería, tapia, adobe y bahareque. Si uno de ellos tiene daño
+  severo, el bloque D sube a <strong>peligro de colapso</strong>.
+</div>
+
+<h3>Daño no estructural: también por extensión — Tabla 4</h3>
+<table>
+  <tr><th style="width:20%">Nivel de daño</th><th>Habitable</th><th>Uso restringido</th>
+    <th>No habitable</th></tr>
+  <tr><td><strong>1 Ninguno</strong></td><td>≤ 100 %</td><td>—</td><td>—</td></tr>
+  <tr><td><strong>2 Leve</strong></td><td>≤ 100 %</td><td>—</td><td>—</td></tr>
+  <tr><td><strong>3 Moderado</strong></td><td>≤ 30 %</td><td>30 – 100 %</td><td>—</td></tr>
+  <tr><td><strong>4 Fuerte</strong></td><td>—</td><td>≤ 60 %</td><td>≥ 60 %</td></tr>
+  <tr><td><strong>5 Severo</strong></td><td>—</td><td>≤ 60 %</td><td>≥ 60 %</td></tr>
+</table>
+
+<p>Acá el porcentaje es del <em>área afectada</em> respecto al área total. El
+formulario impreso solo tiene casilla para el grado, así que la app pide el
+porcentaje aparte, y solo cuando el daño llega a moderado — que es desde donde la
+tabla lo necesita.</p>
+
+<h3>Las repreguntas</h3>
+<p>En la Tabla 2, el código «2» de colapso cae a la vez en <em>no habitable</em> y en
+<em>peligro de colapso</em>: lo que decide está en la columna de comentarios de la
+guía. Por eso la app repregunta, y solo cuando la respuesta lo exige:</p>
+
+<table class="tabla-chica">
+  <tr><td style="width:46%">Colapso <strong>parcial</strong></td>
+    <td>¿Supera el 50 % del área, o la parte colapsada sobrecarga el resto?
+      Sí → peligro de colapso · No → no habitable</td></tr>
+  <tr><td>Desviación o inclinación <strong>sí</strong></td>
+    <td>¿Es notable / alcanzó estados últimos? Sí → peligro de colapso ·
+      No → no habitable</td></tr>
+  <tr><td>Falla de cimentación <strong>sí</strong></td>
+    <td>¿Afecta la estabilidad global? Sí → peligro de colapso ·
+      No → no habitable</td></tr>
+  <tr><td>Grietas <strong>generalizadas</strong></td>
+    <td>¿Reactivación inminente o muy probable? Sí → peligro de colapso ·
+      No → no habitable</td></tr>
+</table>
+
+<p class="nota"><strong>Sin responderlas se toma el nivel más grave.</strong> No
+contestar nunca abarata la clasificación.</p>
+
+<h3>El porcentaje global — Tablas 9 y 10</h3>
+<p>Aparte de las cinco parciales, el formulario pide estimar el porcentaje de área
+afectada de toda la edificación. Esa cifra tiene su propia escala, que la app calcula
+y guarda:</p>
+
+<table class="tabla-chica">
+  <tr><th>Área afectada</th><th>Clasificación del daño</th><th>Habitabilidad que le
+    correspondería</th></tr>
+  <tr><td>0 %</td><td>Ninguno</td><td>Habitable</td></tr>
+  <tr><td>0 – 10 %</td><td>Leve</td><td>Habitable</td></tr>
+  <tr><td>10 – 30 %</td><td>Moderado</td><td>Uso restringido</td></tr>
+  <tr><td>30 – 60 %</td><td>Fuerte</td><td>No habitable</td></tr>
+  <tr><td>60 – 100 %</td><td>Severo</td><td>Peligro de colapso</td></tr>
+  <tr><td>100 %</td><td>Colapso total</td><td>Peligro de colapso</td></tr>
+</table>
+
+<p><strong>No reemplaza a las cinco parciales</strong>: la global sigue siendo la peor
+de A a E. Sirve de contraste — si usted estima 70 % de área afectada y las parciales
+dan «uso restringido», hay algo que revisar antes de firmar.</p>
 
 <h3>En triaje, sin el formulario largo</h3>
 <p>Con la escala corta de daño (0 a 3) y las seis condiciones de cierre, la app
-resuelve las cinco parciales igual. Estas tres condiciones son las que llevan
-directo a <strong>peligro de colapso</strong>:</p>
+resuelve las cinco parciales igual, pero <strong>sin aplicar las tablas de
+porcentaje</strong>: sin haber contado elementos no se puede. Ahí la regla es
+conservadora, y estas tres condiciones llevan directo a <strong>peligro de
+colapso</strong>:</p>
 
 <table class="tabla-chica">
-  <tr><td style="width:52%">Colapso total o parcial de algún nivel</td>
-    <td>→ A = 4</td></tr>
+  <tr><td style="width:52%">Colapso total o parcial de algún nivel</td><td>→ A = 4</td></tr>
   <tr><td>Inclinación o desplome visible</td><td>→ A = 4</td></tr>
   <tr><td>Columna con núcleo triturado, acero expuesto o pandeado</td><td>→ D = 4</td></tr>
 </table>
@@ -484,14 +586,6 @@ a <strong>no habitable</strong>. El daño severo en portantes o entrepisos, tamb
   Quiere decir que la estructura no está comprometida. Una casa habitable puede tener
   daños importantes que haya que reparar. Explíqueselo al ocupante, porque el verde
   genera más confianza de la que corresponde.
-</div>
-
-<div class="nota-caja">
-  <span class="etq">Un umbral que está en revisión</span>
-  El daño severo en muros divisorios y fachada da <strong>uso restringido</strong> y no
-  «no habitable». Es el umbral que traía la escala de tres y se conservó tal cual al
-  migrar: mover el límite es una decisión profesional, no un efecto secundario de
-  cambiar la escala. Está anotado en el código para discutirlo con quien firme.
 </div>
 </section>
 
@@ -713,6 +807,27 @@ pantalla de acceso esperando. Vea la sección 24 para activarlo.</p>
     brigada. Ve <em>solo</em> lo de su brigada: sus reportes, su cola de revisión, su mapa, su
     evolución.</p></div>
 </div>
+
+<h3>Quién puede firmar en cada brigada</h3>
+<p>Por defecto, solo quien tiene matrícula profesional: la Ley 400/97 y la NSR-10
+reservan el dictamen de habitabilidad a un matriculado. Pero las comisiones reales no
+siempre son de ingenieros matriculados, y rechazar en el servidor deja el trabajo de
+esa jornada encerrado en un teléfono.</p>
+
+<p>Por eso <strong>cada brigada decide</strong>. El administrador lo cambia en
+<strong>Brigadas</strong>; el coordinador, para la suya, desde su propio
+<strong>Resumen</strong>. Lo que el sistema garantiza pase lo que pase:</p>
+
+<ul>
+  <li><strong>Anónimo nunca.</strong> Sin matrícula se exigen documento y profesión.</li>
+  <li>Cada evaluación queda marcada con qué se firmó, y eso viaja al listado, a la
+    ficha, a la exportación y a la API.</li>
+  <li>Las firmadas sin matrícula entran en la cola de <em>firmas fuera del
+    registro</em>.</li>
+  <li><strong>La segunda revisión de un desalojo sigue siendo de alguien del
+    registro de inspectores</strong>, cuya llave es la matrícula. Quien firma sin
+    ella nunca revisa.</li>
+</ul>
 
 <h3>Crear un coordinador</h3>
 <ol class="pasos">
@@ -1468,7 +1583,7 @@ está consultando mucho más de lo que debería.</p>
 
 <section class="seguido">
 <h2 style="break-before:page">Anexo A · Tarjeta de referencia de la habitabilidad</h2>
-<p><em>Esta página está pensada para imprimirse aparte y llevarse en campo.</em></p>
+<p><em>Estas dos páginas están pensadas para imprimirse aparte, a doble cara, y llevarse en campo. Al frente lo que sirve siempre; al reverso, las tablas de porcentaje del formulario completo.</em></p>
 
 <table>
   <tr><th style="width:24%">Nivel</th><th style="width:26%">Qué ordena</th><th>Se llega ahí por</th></tr>
@@ -1527,14 +1642,39 @@ está consultando mucho más de lo que debería.</p>
 <div class="nota-caja">
   <span class="etq">Recordatorios</span>
   Triaje <strong>preliminar</strong>: la habilitación la deciden UNGRD, Defensa Civil,
-  bomberos y alcaldías. · Solo firma quien tenga <strong>matrícula vigente</strong>. ·
+  bomberos y alcaldías. · Firma quien la brigada tenga habilitado: por defecto, <strong>matrícula vigente</strong>. ·
   Cambiar la clasificación calculada <strong>exige escribir el motivo</strong>. · La dirección
   es <strong>dato personal</strong>: no se publica ni se comparte.
 </div>
 </section>
 
+<h3>Cuánto daño, y en cuántos elementos</h3>
+<p class="nota" style="margin-top:0">Solo aplica con el formulario completo, donde se
+cuentan los elementos. Guía IDIGER–AIS 2018, Tablas 7 y 4.</p>
+
+<table class="tabla-chica">
+  <tr><th style="width:22%">Estructural<br><small>columnas, vigas, nudos, entrepisos</small></th>
+    <th>Uso restringido</th><th>No habitable</th><th>Peligro de colapso</th></tr>
+  <tr><td><strong>Leve</strong></td><td>≥ 30 %</td><td>—</td><td>—</td></tr>
+  <tr><td><strong>Moderado</strong></td><td>≤ 30 %</td><td>30 – 60 %</td><td>≥ 60 %</td></tr>
+  <tr><td><strong>Fuerte</strong></td><td>≤ 10 %</td><td>10 – 30 %</td><td>≥ 30 %</td></tr>
+  <tr><td><strong>Severo</strong></td><td>≤ 5 %</td><td>5 – 15 %</td><td>≥ 15 %</td></tr>
+</table>
+
+<table class="tabla-chica" style="margin-top:4mm">
+  <tr><th style="width:22%">No estructural<br><small>fachadas, cubierta, escaleras…</small></th>
+    <th>Habitable</th><th>Uso restringido</th><th>No habitable</th></tr>
+  <tr><td><strong>Moderado</strong></td><td>≤ 30 %</td><td>&gt; 30 %</td><td>—</td></tr>
+  <tr><td><strong>Fuerte o severo</strong></td><td>—</td><td>≤ 60 %</td><td>≥ 60 %</td></tr>
+</table>
+
+<p class="nota"><strong>Daño severo en un elemento esencial</strong> —nudos o columnas
+en pórticos, muros de carga en mampostería, tapia o bahareque— sube a peligro de
+colapso por sí solo. En los valores de frontera, el nivel más grave.</p>
+
+
 <section>
-<h2>Anexo B · Referencia de la API</h2>
+<h2 style="break-before:page">Anexo B · Referencia de la API</h2>
 
 <h3>POST /api/evaluaciones</h3>
 <p>Cabeceras: <code>Content-Type: application/json</code> y
@@ -1545,7 +1685,8 @@ está consultando mucho más de lo que debería.</p>
   <tr><td><strong>200</strong></td><td>Grabada. Devuelve <code>duplicado</code> (true si ya
     existía ese id), <code>brigada</code> y <code>matricula_verificada</code>.</td></tr>
   <tr><td><strong>401</strong></td><td>Token ausente, inválido o revocado.</td></tr>
-  <tr><td><strong>422</strong></td><td>Falta matrícula, clasificación fuera de rango, o
+  <tr><td><strong>422</strong></td><td>Falta la identidad de quien firma, clasificación
+    fuera de rango, o
     se modificó la clasificación sin justificación.</td></tr>
   <tr><td><strong>503</strong></td><td>No se pudo grabar. <strong>El cliente debe conservar
     el pendiente y reintentar.</strong></td></tr>
@@ -1616,9 +1757,12 @@ Niveles de daño: <code>0</code> N/A, <code>1</code> leve, <code>2</code> modera
   <tr><td><strong>NSR-10</strong></td><td>Reglamento Colombiano de Construcción Sismo
     Resistente.</td></tr>
   <tr><td><strong>V2F</strong></td><td>Formulario para inspección de edificaciones
-    después de un sismo, del IDIGER, sobre el formulario de la AIS de 2002. Es el
-    estándar del que salen los cuatro niveles de habitabilidad y las cinco
-    parciales.</td></tr>
+    después de un sismo, del IDIGER. Es la hoja que se llena. Se descarga de
+    <code>idiger.gov.co</code>.</td></tr>
+  <tr><td><strong>Guía Técnica</strong></td><td><em>Guía Técnica para la Inspección de
+    Edificaciones Después de un Sismo</em>, IDIGER y AIS, 4ª edición, 2018. Es el
+    manual que acompaña al V2F y donde están las tablas de criterios que usa la
+    app. Las citas de este manual llevan número de tabla y página.</td></tr>
   <tr><td><strong>IDIGER</strong></td><td>Instituto Distrital de Gestión de Riesgos y
     Cambio Climático de Bogotá.</td></tr>
   <tr><td><strong>AIS</strong></td><td>Asociación Colombiana de Ingeniería Sísmica.</td></tr>
@@ -1649,7 +1793,7 @@ Niveles de daño: <code>0</code> N/A, <code>1</code> leve, <code>2</code> modera
 <div class="pie-doc">
   <div class="barra"><div class="v"></div><div class="a"></div><div class="o"></div><div class="r"></div></div>
   <strong>Brigada · Evaluación estructural en campo</strong><br>
-  Manual v2.0 · Agosto de 2026<br><br>
+  Manual v2.1 · Agosto de 2026<br><br>
   Desarrollada con Amor por Andrés Benito Revollo Vélez · Rollout Comercio e Servicios Limitada<br>
   Software libre bajo GNU AGPL v3 · github.com/abenito32/brigadaestructural<br>
   Este manual se distribuye bajo la misma licencia que el programa.
