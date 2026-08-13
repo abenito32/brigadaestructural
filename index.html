@@ -126,8 +126,12 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   color:var(--tinta2);border-radius:var(--r);font:inherit;font-size:13px;font-weight:600;
   cursor:pointer;padding:4px 2px}
 .escala button:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
-.escala button[aria-pressed="true"]{border-color:transparent;font-weight:700;
-  box-shadow:var(--sombra)}
+/* Marcado tiene que verse de lejos, con guantes y a pleno sol. Antes esto solo
+   ponía negrita y una sombra: en la escala de daño se notaba porque ADEMÁS hay un
+   color por nivel, pero en los grupos del V2F —que no tienen color— quedaba tan
+   tenue que no se distinguía de lo no marcado. Lo reportaron desde campo. */
+.escala button[aria-pressed="true"]{background:var(--azul);color:#fff;
+  border-color:var(--azul);font-weight:700;box-shadow:var(--sombra)}
 .escala button[data-v="0"][aria-pressed="true"]{background:#E2E8F0;color:var(--tinta);
   border-color:var(--borde);box-shadow:none}
 .escala button[data-v="1"][aria-pressed="true"]{background:var(--verde);color:#fff}
@@ -209,8 +213,15 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 .v2f-grupo{font-size:12px;font-weight:700;color:var(--tinta2);margin:10px 0 5px}
 /* Las repreguntas cuelgan de su pregunta, sangradas: se lee que dependen de ella. */
 .repregunta{border-left:3px solid var(--azul-tinte);padding-left:12px;margin:8px 0 0}
-.v2f-ops{flex-wrap:wrap}
-.v2f-ops button{flex:0 1 auto;min-width:0;padding-left:12px;padding-right:12px;font-size:14px}
+/* La escala de daño es una rejilla de cuatro columnas iguales, y está bien: son
+   siempre cuatro opciones cortas. Los grupos del V2F NO: tienen de dos a doce
+   opciones, y algunas son frases («No se pudo determinar», «Exterior
+   solamente»). Heredando la rejilla, cada opción caía en una celda de un cuarto
+   del ancho y el texto se salía del botón. Acá se pasa a flex con envoltura: los
+   botones toman el ancho de su texto y bajan de línea cuando no caben. */
+.v2f-ops{display:flex;flex-wrap:wrap;gap:8px;grid-template-columns:none}
+.v2f-ops button{flex:0 1 auto;padding:10px 14px;font-size:14px;min-height:52px;
+  max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:center}
 .v2f-fila{margin-bottom:14px}
 .v2f-grilla{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .v2f-celda{display:flex;flex-direction:column;gap:3px;margin:0}
@@ -1106,9 +1117,11 @@ function construirV2F(){
   var s;
 
   s=seccion(c,"Identificación catastral",
-    "Si no la tiene a la vista, siga: se completa después desde el panel.");
-  campo(s,"Localidad",v2fEst.estructura,"localidad");
-  campo(s,"Código catastral",v2fEst.estructura,"cod_catastral");
+    "Los dos campos son OPCIONALES. Si no los tiene a la vista, sáltelos: se "+
+    "completan después desde el panel, cruzando la dirección y la coordenada. "+
+    "En campo casi nadie sabe el código catastral de memoria.");
+  campo(s,"Localidad (opcional)",v2fEst.estructura,"localidad");
+  campo(s,"Código catastral (opcional)",v2fEst.estructura,"cod_catastral");
   opciones(s,"Tipo de inspección",V2F_TIPO_INSPECCION,v2fEst.estructura,"tipo_inspeccion");
 
   s=seccion(c,"Descripción de la estructura");
