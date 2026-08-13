@@ -384,15 +384,27 @@ MODAL_HTML = """
     var marcadas = Object.keys(BAND).filter(function(k){ return b[k]; })
       .map(function(k){ return "<li>"+esc(BAND[k])+"</li>"; }).join("");
 
+    var ORIGEN_PUNTO = {gps:"tomado del GPS", mapa:"señalado en el mapa",
+                        panel:"corregido desde el panel"};
     var html = "<h4>Dónde</h4>" + filas([
       ["Dirección", esc(e.direccion)],
       ["Municipio y barrio", esc([e.municipio, e.barrio].filter(Boolean).join(" · "))],
+      ["Departamento", esc(e.departamento) + (e.cod_dane ?
+        ' <span class="nota" style="margin:0">DANE ' + esc(e.cod_dane) + "</span>" : "")],
+      ["Localidad", esc(e.localidad)],
+      ["Código catastral", esc(e.cod_catastral) +
+        (e.catastral_origen === "panel" ? " <em>(completado desde el panel)</em>" : "")],
       ["Coordenadas", e.lat!=null ? e.lat.toFixed(5)+", "+e.lon.toFixed(5)
-        + (e.precision_m ? " (±"+e.precision_m+" m)" : "") : ""],
+        + (e.precision_m ? " (±"+e.precision_m+" m)" : "")
+        + (ORIGEN_PUNTO[e.origen_punto] ? " · " + ORIGEN_PUNTO[e.origen_punto] : "") : ""],
     ]);
+    var est = e.v2f_estructura || {};
     html += "<h4>Edificación</h4>" + filas([
       ["Sistema constructivo", esc(e.sistema)], ["Uso", esc(e.uso)],
-      ["Pisos", e.pisos], ["Ocupantes", e.ocupantes],
+      ["Pisos", e.pisos], ["Sótanos", est.sotanos],
+      ["Dimensiones", (est.frente || est.fondo)
+        ? esc((est.frente || "?") + " m de frente × " + (est.fondo || "?") + " m de fondo") : ""],
+      ["Ocupantes", e.ocupantes],
     ]);
     html += "<h4>Daño observado</h4><div class='escala-mini'>" + niveles + "</div>";
     if (marcadas) html += "<h4>Condiciones que obligan cierre</h4><ul>" + marcadas + "</ul>";
@@ -419,14 +431,17 @@ MODAL_HTML = """
         ["Período de construcción", cod(e.v2f_estructura, "periodo", CAT.PERIODO_CONSTRUCCION)],
         ["Uso (V2F)", cod(e.v2f_estructura, "uso", CAT.USO)],
         ["Uso de la planta baja", cod(e.v2f_estructura, "uso_planta_baja", CAT.USO)],
-        ["Código catastral", esc(e.cod_catastral) +
-          (e.catastral_origen === "panel" ? " <em>(completado desde el panel)</em>" : "")],
         ["Nivel de mayor daño", e.nivel_mayor_dano],
         ["Área afectada", e.area_afectada_pct != null ? e.area_afectada_pct + " %" : ""],
+        ["Clasificación del daño", e.dano_global != null
+          ? esc(CAT.DANO_GLOBAL[e.dano_global]) +
+            ' <span class="nota" style="margin:0">Tabla 10 de la guía, por el % de área</span>'
+          : ""],
       ]);
       html += bloquePreguntas("A · Estado general", e.v2f_estado, CAT.ESTADO_GENERAL);
       html += bloquePreguntas("B · Problemas geotécnicos", e.v2f_geotecnicos, CAT.GEOTECNICOS);
-      html += bloqueEscala("C · Daños no estructurales", e.v2f_no_estructurales);
+      html += bloqueEscala("C · Daños no estructurales", e.v2f_no_estructurales,
+                           e.v2f_no_estructurales_pct);
       html += bloqueGrilla("D · Daños estructurales", e.v2f_estructurales);
       html += bloquePreguntas("E · Problemas del entorno", e.v2f_entorno, CAT.ENTORNO);
       html += bloqueLibre("Condiciones pre-existentes", e.v2f_preexistentes, CAT.PREEXISTENTES);
@@ -456,6 +471,13 @@ MODAL_HTML = """
         ["Teléfono", esc(rr.contacto_telefono)], ["Correo", esc(rr.contacto_correo)],
       ]);
     }
+    if (e.vigente === false)
+      html += '<h4>Reemplazada</h4><p class="reserva-aviso">Otra evaluación del mismo ' +
+        'predio la reemplazó' +
+        (e.reemplazo_usuario ? ", declarado por " + esc(e.reemplazo_usuario) : "") +
+        (e.reemplazo_en ? " el " + fecha(e.reemplazo_en) : "") +
+        ". Sigue en los listados y en la exportación, pero no cuenta en el " +
+        "consolidado.</p>";
     if (e.parciales) {
       var pk = ["A","B","C","D","E"], pp = "";
       for (var j = 0; j < pk.length; j++)
@@ -464,9 +486,19 @@ MODAL_HTML = """
             + (e.parcial_manda === pk[j] ? " <strong>← manda</strong>" : "") + "</td></tr>";
       html += "<h4>Clasificación por bloque (V2F)</h4><table>" + pp + "</table>";
     }
+    html += "<h4>Cómo se clasificó</h4>" + filas([
+      ["Clasificación firmada", HAB[e.clasificacion]],
+      ["La calculó la regla como", HAB[e.clasificacion_auto]],
+      ["Porque", esc(e.motivo_auto)],
+      ["Escala", e.escala === 3
+        ? "Tres niveles (firmada antes de los cuatro del V2F)" : "Cuatro niveles del V2F"],
+      ["Modo", e.modo === "completo" ? "Formulario V2F completo" : "Triaje"],
+    ]);
     if (e.revision_estado) html += "<h4>Segunda revisión</h4>" + filas([
       ["Estado", esc(e.revision_estado)], ["Revisó", esc(e.revision_matricula)],
-      ["Cuándo", fecha(e.revision_en)], ["Motivo", esc(e.revision_motivo)]]);
+      ["Cuándo", fecha(e.revision_en)],
+      ["Quedó como", e.revision_clasificacion ? HAB[e.revision_clasificacion] : ""],
+      ["Motivo", esc(e.revision_motivo)]]);
     if (e.observaciones) html += "<h4>Observaciones</h4><p>" + esc(e.observaciones) + "</p>";
     if (fotosHtml) html += "<h4>Registro fotográfico</h4><div class='fotos-ficha'>"
       + fotosHtml + "</div>";
@@ -479,17 +511,27 @@ MODAL_HTML = """
   }
   function bloquePreguntas(titulo, datos, defs){
     if (!datos) return "";
-    var f = defs.map(function(q){
-      return [q.rotulo, datos[q.k] == null ? "" : esc(q.opciones[datos[q.k]] ||
-              ("código " + datos[q.k]))];
+    var f = [];
+    defs.forEach(function(q){
+      f.push([q.rotulo, datos[q.k] == null ? "" : esc(q.opciones[datos[q.k]] ||
+              ("código " + datos[q.k]))]);
+      /* Y su repregunta, si la tiene contestada: es lo que decide entre «no
+         habitable» y «peligro de colapso», así que no puede quedar fuera. */
+      CAT.REPREGUNTAS.filter(function(r){ return r.si === q.k; }).forEach(function(r){
+        if (datos[r.k] != null)
+          f.push(["↳ " + r.rotulo, esc({1:"Sí", 2:"No"}[datos[r.k]] || datos[r.k])]);
+      });
     });
     return "<h4>" + esc(titulo) + "</h4>" + filas(f);
   }
-  function bloqueEscala(titulo, datos){
+  function bloqueEscala(titulo, datos, pcts){
     if (!datos) return "";
+    pcts = pcts || {};
     var f = Object.keys(datos).sort(function(a,b){return a-b}).map(function(k){
+      var p = pcts[k];
       return [(CAT.NO_ESTRUCTURALES[k] || ("ítem " + k)),
-              esc(CAT.GRADO_DANO[datos[k]] || datos[k])];
+              esc(CAT.GRADO_DANO[datos[k]] || datos[k]) +
+              (p != null && p !== "" ? " · en el " + esc(p) + " % del área" : "")];
     });
     return "<h4>" + esc(titulo) + "</h4>" + filas(f);
   }

@@ -508,8 +508,13 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   <section class="bloque">
     <h2 class="rotulo">Servidor</h2>
     <label class="campo"><span>Endpoint de sincronización</span>
-      <input id="cUrl" placeholder="https://su-servidor/api/evaluaciones" autocomplete="off"></label>
-    <label class="campo"><span>Token de brigada</span><input id="cTok" autocomplete="off"></label>
+      <input id="cUrl" placeholder="https://servidor/api/evaluaciones" autocomplete="off"
+        inputmode="url" spellcheck="false"></label>
+    <p class="nota" style="margin-top:-6px">Ya viene puesto el servidor desde el que
+      abrió esta app. <strong>Solo cámbielo si su entidad tiene servidor propio</strong>
+      en otra dirección.</p>
+    <label class="campo"><span>Token de brigada</span><input id="cTok" autocomplete="off"
+      spellcheck="false"></label>
     <button class="btn" type="button" id="btnGuardarConf">Guardar ajustes</button>
     <button class="btn" type="button" id="btnProbar">Probar conexión</button>
     <p class="nota" id="probarTxt">Pruébelo con señal, antes de salir a terreno. No envía
@@ -601,6 +606,17 @@ function borrarBorrador(){
 function cfgGet(k,d){try{var v=localStorage.getItem("brg_"+k);return v===null?d:v}catch(e){return (cfgMem[k]===undefined?d:cfgMem[k])}}
 var cfgMem={};
 function cfgSet(k,v){try{localStorage.setItem("brg_"+k,v)}catch(e){cfgMem[k]=v}}
+
+/* El receptor está en el MISMO origen que sirve la app: quien publica una,
+   publica la otra. Así el caso normal —usar el servidor de la brigada— no
+   obliga a escribir una URL entera en un teléfono, que es de donde salía la
+   mitad de los errores de configuración. Quien tenga servidor propio en otro
+   dominio lo cambia en Ajustes y esto deja de aplicar. */
+function urlPorDefecto(){
+  return location.protocol.indexOf("http") === 0
+    ? location.origin + "/api/evaluaciones" : "";
+}
+function urlSync(){ return cfgGet("url","") || urlPorDefecto(); }
 
 /* ---------------- catálogo de daño ---------------- */
 var DANOS=[
@@ -1715,8 +1731,10 @@ document.getElementById("btnJson").onclick=function(){
 
 /* ---------------- sincronizar ---------------- */
 document.getElementById("btnSync").onclick=function(){
-  var url=cfgGet("url",""), tok=cfgGet("tok",""), t=document.getElementById("syncTxt");
+  var url=urlSync(), tok=cfgGet("tok",""), t=document.getElementById("syncTxt");
   if(!url){t.textContent="Falta el endpoint. Configúrelo en Ajustes.";return;}
+  if(!tok){t.textContent="Falta el token de la brigada. Péguelo en Ajustes; "+
+    "el endpoint ya viene puesto.";return;}
   if(!navigator.onLine){t.textContent="Sin conexión. Los datos siguen guardados; reintente con señal.";return;}
   leerRegs().then(function(rs){
     var p=rs.filter(function(o){return o.estado==="pendiente"});
@@ -1754,6 +1772,7 @@ document.getElementById("btnSync").onclick=function(){
 ["nom","mat","bri","url","tok","doc","prof"].forEach(function(k){
   document.getElementById("c"+k.charAt(0).toUpperCase()+k.slice(1)).value=cfgGet(k,"");
 });
+if(!document.getElementById("cUrl").value) document.getElementById("cUrl").value=urlPorDefecto();
 document.getElementById("btnGuardarConf").onclick=function(){
   ["nom","mat","bri","url","tok","doc","prof"].forEach(function(k){
     cfgSet(k,document.getElementById("c"+k.charAt(0).toUpperCase()+k.slice(1)).value.trim());
