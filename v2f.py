@@ -552,3 +552,185 @@ def para_la_app() -> dict:
         "INTERVENCION": txt(INTERVENCION),
         "MEDIDAS_SEGURIDAD": txt(MEDIDAS_SEGURIDAD),
     }
+
+
+# ═══════════════════════════════════════════════════════ exportación del V2F
+#
+# Una columna por casilla del formulario, con SUS códigos: sistema estructural
+# sale como 21, no como "mamposteria". Quien recibe el archivo conoce el V2F, no
+# nuestro modelo de datos, y no tiene por qué cargar con un diccionario de
+# traducción para leerlo. El orden de las columnas es el orden del papel.
+#
+# Al final, y solo al final, van las columnas que el V2F no tiene y nosotros sí:
+# el identificador del servidor, la escala con la que se firmó, los bloques que
+# quedaron sin llenar. Sin ellas el archivo miente por omisión — un formulario
+# que no dice que está incompleto se lee como completo.
+
+# Las casillas de recomendaciones se aplanan a una columna booleana cada una,
+# porque en el papel son casillas independientes, no una lista.
+_MEDIDAS_COL = {
+    1: "medida_restringir_peatones", 2: "medida_restringir_vehiculos",
+    3: "medida_apuntalar", 4: "medida_remover_elementos",
+    5: "medida_evacuar_parcial", 6: "medida_evacuar_total",
+    7: "medida_evacuar_vecinas", 8: "medida_desconectar_energia",
+    9: "medida_desconectar_gas", 10: "medida_desconectar_agua",
+    11: "medida_sustancias_peligrosas", 12: "medida_cubrir_talud",
+    13: "medida_control_escorrentia", 14: "medida_estabilizar_ladera",
+}
+_VISITA_COL = {1: "visita_estructural", 2: "visita_geotecnica", 3: "visita_servicios"}
+_INTERV_COL = {1: "interv_alcaldia", 2: "interv_policia", 3: "interv_transito",
+               4: "interv_bomberos"}
+
+
+def columnas_v2f(con_reservado: bool = False) -> list[str]:
+    """El encabezado, en el orden del formulario. Es el contrato del archivo."""
+    c = ["form_numero", "localidad", "cod_catastral", "tipo_inspeccion",
+         "direccion", "municipio", "barrio",
+         "uso_edificacion", "uso_planta_baja", "pisos", "sotanos", "frente_m", "fondo_m",
+         "sistema_estructural", "tipo_entrepiso", "periodo_construccion",
+         "p1_colapso", "p2_desviacion", "p3_cimentacion", "clas_A",
+         "p4_talud", "p5_asentamiento", "p6_grietas", "clas_B"]
+    c += [f"p{n}_no_estructural" for n in NO_ESTRUCTURALES] + ["clas_C"]
+    c += ["nivel_mayor_dano"]
+    for n in ESTRUCTURALES:
+        c += [f"p{n}_{g}" for g in ("ninguno", "leve", "moderado", "fuerte", "severo")]
+    c += ["clas_D", "p22_vecina", "p23_evento", "clas_E",
+          "clas_global", "area_afectada_pct"]
+    c += list(_VISITA_COL.values()) + list(_INTERV_COL.values())
+    c += list(_MEDIDAS_COL.values()) + ["medidas_lugares"]
+    c += list(PREEXISTENTES)
+    c += ["habitada", "ocupantes", "unidades", "unidades_no_habitables"]
+    if con_reservado:
+        c += ["hubo_victimas", "fallecidos", "heridos", "afectados",
+              "contacto_nombre", "contacto_telefono", "contacto_correo"]
+    c += ["observaciones", "codigo_lider", "nombre_lider", "matricula_lider",
+          "evaluadores", "otro_inspector", "fecha_inspeccion"]
+    # Lo que el V2F no tiene y sin lo cual el archivo se leería mal.
+    c += ["id_servidor", "brigada", "modo", "escala", "bloques_sin_datos",
+          "clasificacion_firmada", "clasificacion_efectiva", "revision_estado",
+          "revision_matricula", "justificacion", "matricula_verificada",
+          "lat", "lon", "recibido_en"]
+    return c
+
+
+# Etiquetas de la escala corta, para poder decirlo en palabras en el V2F.
+_ESCALA_CORTA = {0: "sin daño", 1: "leve", 2: "moderado", 3: "severo"}
+_CATEGORIAS_CORTAS = {
+    "portantes": "elementos portantes", "horizontal": "vigas y entrepisos",
+    "nostruct": "muros divisorios y fachada", "terreno": "terreno y entorno",
+}
+_BANDERAS_CORTAS = {
+    "colapso": "colapso total o parcial", "inclina": "inclinación visible",
+    "acero": "acero expuesto o pandeado", "pasante": "grietas pasantes",
+    "vecino": "riesgo externo", "acceso": "elementos sobre el acceso",
+}
+
+
+def _comentarios(e: dict) -> str:
+    """Los comentarios del V2F, más lo observado en triaje si la grilla va vacía.
+
+    Se acordó que un triaje deja la grilla del bloque D en blanco: un porcentaje
+    ahí dice «conté los elementos», y en triaje nadie los contó. Pero lo que sí
+    se observó no se puede perder, así que baja acá en palabras.
+    """
+    texto = (e.get("observaciones") or "").strip()
+    if e.get("modo") == "completo" and (e.get("v2f_estructurales") or {}):
+        return texto
+    d, b = e.get("danos") or {}, e.get("banderas") or {}
+    if not d and not b:
+        return texto
+    partes = ["%s: %s" % (n, _ESCALA_CORTA.get(int(d.get(k) or 0), "?"))
+              for k, n in _CATEGORIAS_CORTAS.items() if k in d]
+    marcadas = [n for k, n in _BANDERAS_CORTAS.items() if b.get(k)]
+    linea = ("Evaluación de triaje (escala 0-3), sin conteo de elementos. "
+             + " · ".join(partes))
+    if marcadas:
+        linea += ". Condiciones que obligan cierre: " + ", ".join(marcadas) + "."
+    return (texto + "\n\n" + linea).strip() if texto else linea
+
+
+def fila_v2f(e: dict, con_reservado: bool = False) -> dict:
+    """Una evaluación, aplanada a las casillas del formulario.
+
+    `e` es la fila de la base tal como la lee el panel. Lo que no se llenó sale
+    vacío: nunca un cero ni un «1». Un cero en la casilla de un daño afirma que
+    alguien lo miró, y en un documento que firma un ingeniero esa diferencia es
+    justamente la que importa.
+    """
+    b = lambda k: e.get(k) or {}                                    # noqa: E731
+    est, edo = b("v2f_estructura"), b("v2f_estado")
+    geo, ent = b("v2f_geotecnicos"), b("v2f_entorno")
+    ne, gr = b("v2f_no_estructurales"), b("v2f_estructurales")
+    pre, rec = b("v2f_preexistentes"), b("v2f_recomendaciones")
+    ocu, com = b("v2f_ocupacion"), b("v2f_comision")
+    par, res = b("parciales"), b("reservado")
+    ts = e.get("ts")
+
+    f = {
+        "form_numero": e.get("id_local") or e.get("id"),
+        "localidad": e.get("localidad"),
+        "cod_catastral": e.get("cod_catastral"),
+        "tipo_inspeccion": e.get("tipo_inspeccion"),
+        "direccion": e.get("direccion"), "municipio": e.get("municipio"),
+        "barrio": e.get("barrio"),
+        "uso_edificacion": est.get("uso"), "uso_planta_baja": est.get("uso_planta_baja"),
+        "pisos": e.get("pisos"), "sotanos": est.get("sotanos"),
+        "frente_m": est.get("frente"), "fondo_m": est.get("fondo"),
+        "sistema_estructural": est.get("sistema"),
+        "tipo_entrepiso": est.get("entrepiso"),
+        "periodo_construccion": est.get("periodo"),
+        "p1_colapso": edo.get("colapso"), "p2_desviacion": edo.get("desviacion"),
+        "p3_cimentacion": edo.get("cimentacion"), "clas_A": par.get("A"),
+        "p4_talud": geo.get("talud"), "p5_asentamiento": geo.get("asentamiento"),
+        "p6_grietas": geo.get("grietas"), "clas_B": par.get("B"),
+        "clas_C": par.get("C"), "nivel_mayor_dano": e.get("nivel_mayor_dano"),
+        "clas_D": par.get("D"),
+        "p22_vecina": ent.get("vecina"), "p23_evento": ent.get("evento"),
+        "clas_E": par.get("E"),
+        "clas_global": e.get("clasificacion_efectiva"),
+        "area_afectada_pct": e.get("area_afectada_pct"),
+        "medidas_lugares": rec.get("lugares"),
+        "habitada": ocu.get("habitada"), "ocupantes": ocu.get("ocupantes") or e.get("ocupantes"),
+        "unidades": ocu.get("unidades"), "unidades_no_habitables": ocu.get("unidades_no_hab"),
+        "observaciones": _comentarios(e),
+        "codigo_lider": com.get("codigo_lider"), "nombre_lider": e.get("inspector"),
+        "matricula_lider": e.get("matricula"), "evaluadores": com.get("evaluadores"),
+        "otro_inspector": com.get("otro"),
+        "fecha_inspeccion": ts.isoformat() if hasattr(ts, "isoformat") else ts,
+        "id_servidor": e.get("id"), "brigada": e.get("brigada_token"),
+        "modo": e.get("modo"), "escala": e.get("escala"),
+        "bloques_sin_datos": "|".join(e.get("bloques_faltantes") or []),
+        "clasificacion_firmada": e.get("clasificacion"),
+        "clasificacion_efectiva": e.get("clasificacion_efectiva"),
+        "revision_estado": e.get("revision_estado"),
+        "revision_matricula": e.get("revision_matricula"),
+        "justificacion": e.get("justificacion"),
+        "matricula_verificada": e.get("matricula_verificada"),
+        "lat": e.get("lat"), "lon": e.get("lon"),
+        "recibido_en": (e["recibido_en"].isoformat()
+                        if hasattr(e.get("recibido_en"), "isoformat") else e.get("recibido_en")),
+    }
+    for n in NO_ESTRUCTURALES:
+        f[f"p{n}_no_estructural"] = ne.get(str(n), ne.get(n))
+    for n in ESTRUCTURALES:
+        fila = gr.get(str(n)) or gr.get(n) or {}
+        for i, g in enumerate(("ninguno", "leve", "moderado", "fuerte", "severo"), start=1):
+            f[f"p{n}_{g}"] = fila.get(str(i), fila.get(i))
+    for cod, col in _VISITA_COL.items():
+        f[col] = 1 if (rec.get("visita") or {}).get(str(cod)) else None
+    for cod, col in _INTERV_COL.items():
+        f[col] = 1 if (rec.get("intervencion") or {}).get(str(cod)) else None
+    for cod, col in _MEDIDAS_COL.items():
+        f[col] = 1 if (rec.get("medidas") or {}).get(str(cod)) else None
+    for k in PREEXISTENTES:
+        f[k] = pre.get(k)
+    if con_reservado:
+        f.update({
+            "hubo_victimas": res.get("hubo_victimas"),
+            "fallecidos": res.get("fallecidos"), "heridos": res.get("heridos"),
+            "afectados": res.get("afectados"),
+            "contacto_nombre": res.get("contacto_nombre"),
+            "contacto_telefono": res.get("contacto_telefono"),
+            "contacto_correo": res.get("contacto_correo"),
+        })
+    return {k: f.get(k) for k in columnas_v2f(con_reservado)}

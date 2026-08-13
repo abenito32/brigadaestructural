@@ -240,6 +240,75 @@ def evaluaciones(x_api_token: str = Header(default=""),
     })
 
 
+# --------------------------------------------------------------- V2F por API
+# El mismo aplanado que descarga el panel, para que la entidad lo cargue en su
+# sistema sin pasar por un archivo. Con UNA diferencia deliberada: por acá no
+# viaja el compartimento reservado —persona de contacto y efecto en los
+# ocupantes—. El panel lo entrega porque ahí hay una persona con sesión que
+# responde por ese archivo; una credencial de máquina no es esa persona.
+CAMPOS_V2F = [
+    ("id", "id"), ("id_local", "id_local"), ("ts", "ts"), ("recibido_en", "recibido_en"),
+    ("matricula", "matricula"), ("inspector", "inspector"), ("brigada", "brigada"),
+    ("brigada_token", "brigada_token"),
+    ("matricula_verificada", "matricula_verificada"),
+    ("direccion", "direccion"), ("municipio", "municipio"), ("barrio", "barrio"),
+    ("localidad", "localidad"), ("cod_catastral", "cod_catastral"),
+    ("tipo_inspeccion", "tipo_inspeccion"), ("modo", "modo"), ("escala", "escala"),
+    ("pisos", "pisos"), ("ocupantes", "ocupantes"),
+    ("danos", "danos"), ("banderas", "banderas"),
+    ("clasificacion", "clasificacion"), ("clasificacion_efectiva", "clasificacion_efectiva"),
+    ("justificacion", "justificacion"), ("observaciones", "observaciones"),
+    ("parciales", "parciales"), ("bloques_faltantes", "bloques_faltantes"),
+    ("nivel_mayor_dano", "nivel_mayor_dano"), ("area_afectada_pct", "area_afectada_pct"),
+    ("revision_estado", "revision_estado"), ("revision_matricula", "revision_matricula"),
+    ("v2f_estructura", "v2f_estructura"), ("v2f_estado", "v2f_estado"),
+    ("v2f_geotecnicos", "v2f_geotecnicos"),
+    ("v2f_no_estructurales", "v2f_no_estructurales"),
+    ("v2f_estructurales", "v2f_estructurales"), ("v2f_entorno", "v2f_entorno"),
+    ("v2f_preexistentes", "v2f_preexistentes"),
+    ("v2f_recomendaciones", "v2f_recomendaciones"),
+    ("v2f_ocupacion", "v2f_ocupacion"), ("v2f_comision", "v2f_comision"),
+    ("ST_Y(geom)", "lat"), ("ST_X(geom)", "lon"),
+]
+
+
+@router.get("/v2f")
+def v2f_plano(x_api_token: str = Header(default=""),
+              municipio: str = Query("", max_length=120),
+              barrio: str = Query("", max_length=120),
+              desde: date | None = None, hasta: date | None = None,
+              clasificacion: int | None = Query(None, ge=1, le=4),
+              pagina: int = Query(1, ge=1),
+              por_pagina: int = Query(100, ge=1, le=MAX_PAGINA)):
+    """Cada evaluación aplanada a las casillas del formulario V2F del IDIGER."""
+    import v2f as cat
+    cred = autenticar(x_api_token)
+    if cred[1] != "detalle":
+        raise HTTPException(
+            403, "Su credencial es de alcance 'consolidado'. El V2F incluye la "
+                 "dirección del predio, que es dato personal.")
+    donde, args = filtros(cred[2], municipio, barrio, desde, hasta, clasificacion)
+    (total,), = consultar(f"SELECT count(*) FROM evaluacion_brigada WHERE {donde}",
+                          tuple(args))
+    filas = consultar(
+        f"SELECT {', '.join(e for e, _ in CAMPOS_V2F)} FROM evaluacion_brigada "
+        f"WHERE {donde} ORDER BY ts DESC LIMIT %s OFFSET %s",
+        tuple(args) + (por_pagina, (pagina - 1) * por_pagina))
+    nombres = [n for _, n in CAMPOS_V2F]
+    datos = [cat.fila_v2f(dict(zip(nombres, f, strict=True))) for f in filas]
+    return sin_cache({
+        "formulario": "V2F-IDIGER",
+        "total": total, "pagina": pagina, "por_pagina": por_pagina,
+        "paginas": max(1, -(-total // por_pagina)),
+        "columnas": cat.columnas_v2f(),
+        "evaluaciones": datos,
+        "aviso": ("Sin el bloque reservado (persona de contacto y efecto en los "
+                  "ocupantes): esos datos personales de terceros solo salen del "
+                  "panel, descargados por quien responde por ellos. Contiene "
+                  "direcciones y coordenadas: dato personal, Ley 1581 de 2012."),
+    })
+
+
 @router.get("/evaluaciones.geojson")
 def evaluaciones_geojson(x_api_token: str = Header(default=""),
                          municipio: str = Query("", max_length=120),
@@ -274,6 +343,10 @@ def indice(x_api_token: str = Header(default="")):
                                      else "no disponible para esta credencial"),
             "/api/v1/evaluaciones.geojson": ("detalle como capa" if alcance == "detalle"
                                              else "no disponible para esta credencial"),
+            "/api/v1/v2f": ("cada evaluación aplanada a las casillas del formulario "
+                            "V2F del IDIGER, con sus códigos; sin el bloque reservado"
+                            if alcance == "detalle"
+                            else "no disponible para esta credencial"),
         },
         "filtros": ["municipio", "barrio", "desde", "hasta", "clasificacion"],
         "autenticacion": "cabecera X-API-Token",

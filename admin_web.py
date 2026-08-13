@@ -257,6 +257,7 @@ label.acepto>span{display:inline;font-weight:400;font-size:14px;margin:0;color:v
     <a href="/admin/mapa" class="{{ 'on' if pag=='mapa' }}">Mapa</a>
     <a href="/admin/evolucion" class="{{ 'on' if pag=='evolucion' }}">Evolución</a>
     <a href="/admin/reportes" class="{{ 'on' if pag=='reportes' }}">Reportes</a>
+    <a href="/admin/exportar" class="{{ 'on' if pag=='exportar' }}">Exportar</a>
     <a href="/admin/rojos" class="{{ 'on' if pag=='rojos' }}">Revisión</a>
     {% if rol == 'admin' %}<a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>{% endif %}
     <a href="/admin/inspectores" class="{{ 'on' if pag=='inspectores' }}">Inspectores</a>
@@ -2255,3 +2256,163 @@ def catastral_guardar(req: Request, id: str = Form(...), cod: str = Form(...),
             error = "Esa evaluación no existe, no es de su brigada, o ya tenía código."
     return pagina("Catastral", render(CATASTRAL_HTML, filas=_sin_catastral(req),
                                       aviso=aviso, error=error), "catastral", ses=ses)
+
+
+# ═════════════════════════════════════════════ exportación al formulario V2F
+#
+# Una columna por casilla, con los códigos del IDIGER. Es lo que se entrega para
+# que lo carguen en su sistema; el PDF quedaría como respaldo legible y la ficha
+# HTML ya cumple ese papel.
+#
+# Acá SÍ va el compartimento reservado: este archivo es el documento que va a la
+# autoridad, y sin la persona de contacto ni el efecto en los ocupantes el V2F
+# está incompleto. Lo descarga una persona con sesión, dentro del alcance de su
+# brigada, y la respuesta lo dice en el encabezado. Por la API de consulta, que
+# es una credencial de máquina, ese bloque NO viaja.
+CAMPOS_EXPORTA = """
+        SELECT id, id_local, ts, recibido_en, matricula, inspector, brigada,
+               brigada_token, matricula_verificada, direccion, municipio, barrio,
+               localidad, cod_catastral, tipo_inspeccion, modo, escala,
+               pisos, ocupantes, danos, banderas,
+               clasificacion, clasificacion_efectiva, justificacion, observaciones,
+               parciales, bloques_faltantes, nivel_mayor_dano, area_afectada_pct,
+               revision_estado, revision_matricula,
+               v2f_estructura, v2f_estado, v2f_geotecnicos, v2f_no_estructurales,
+               v2f_estructurales, v2f_entorno, v2f_preexistentes,
+               v2f_recomendaciones, v2f_ocupacion, v2f_comision, reservado,
+               ST_Y(geom), ST_X(geom)
+          FROM evaluacion_brigada"""
+NOMBRES_EXPORTA = [
+    "id", "id_local", "ts", "recibido_en", "matricula", "inspector", "brigada",
+    "brigada_token", "matricula_verificada", "direccion", "municipio", "barrio",
+    "localidad", "cod_catastral", "tipo_inspeccion", "modo", "escala",
+    "pisos", "ocupantes", "danos", "banderas",
+    "clasificacion", "clasificacion_efectiva", "justificacion", "observaciones",
+    "parciales", "bloques_faltantes", "nivel_mayor_dano", "area_afectada_pct",
+    "revision_estado", "revision_matricula",
+    "v2f_estructura", "v2f_estado", "v2f_geotecnicos", "v2f_no_estructurales",
+    "v2f_estructurales", "v2f_entorno", "v2f_preexistentes",
+    "v2f_recomendaciones", "v2f_ocupacion", "v2f_comision", "reservado",
+    "lat", "lon"]
+
+
+def _para_exportar(req: Request, desde: str = "", hasta: str = "", clas: str = ""):
+    w, wa = filtro_alcance(req)
+    donde, args = [w], list(wa)
+    if desde:
+        donde.append("ts >= %s::date"); args.append(desde)
+    if hasta:
+        donde.append("ts < (%s::date + 1)"); args.append(hasta)
+    if clas in ("1", "2", "3", "4"):
+        donde.append("clasificacion_efectiva = %s"); args.append(int(clas))
+    filas = consulta(f"{CAMPOS_EXPORTA} WHERE {' AND '.join(donde)} "
+                     f"ORDER BY recibido_en", tuple(args))
+    return [dict(zip(NOMBRES_EXPORTA, f, strict=True)) for f in filas]
+
+
+def _csv_v2f(filas: list, con_reservado: bool) -> str:
+    import csv
+    import io
+    salida = io.StringIO()
+    escritor = csv.DictWriter(salida, fieldnames=v2f.columnas_v2f(con_reservado),
+                              extrasaction="ignore", lineterminator="\r\n")
+    escritor.writeheader()
+    for e in filas:
+        escritor.writerow({k: ("" if v is None else v)
+                           for k, v in v2f.fila_v2f(e, con_reservado).items()})
+    # BOM: sin él, Excel en Windows abre las tildes rotas y alguien acaba
+    # "arreglando" el archivo a mano antes de entregarlo.
+    return "﻿" + salida.getvalue()
+
+
+@router.get("/admin/v2f.csv")
+def exportar_csv(req: Request, desde: str = "", hasta: str = "", clas: str = ""):
+    ses = exigir(req)
+    filas = _para_exportar(req, desde, hasta, clas)
+    cuerpo = _csv_v2f(filas, con_reservado=True)
+    marca = (ses.brigada or "todas").replace(" ", "-").lower()
+    return Response(cuerpo, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="v2f-{marca}.csv"',
+        "Cache-Control": "private, no-store"})
+
+
+@router.get("/admin/v2f.json")
+def exportar_json(req: Request, desde: str = "", hasta: str = "", clas: str = ""):
+    exigir(req)
+    filas = _para_exportar(req, desde, hasta, clas)
+    return JSONResponse({
+        "formulario": "V2F-IDIGER",
+        "columnas": v2f.columnas_v2f(True),
+        "aviso": ("Contiene datos personales de terceros (Ley 1581 de 2012): "
+                  "persona de contacto y efecto en los ocupantes. Se entrega a la "
+                  "autoridad competente, no se difunde."),
+        "evaluaciones": [v2f.fila_v2f(e, con_reservado=True) for e in filas],
+    }, headers={"Cache-Control": "private, no-store"})
+
+
+EXPORTA_HTML = """
+<h1>Exportar al formulario V2F</h1>
+<p class="sub">Una columna por casilla del formulario del IDIGER, con sus códigos:
+el sistema estructural sale como <code>21</code>, no como «mampostería». Quien lo
+recibe conoce el V2F, no nuestro modelo de datos.</p>
+
+<div class="tarjeta">
+  <form method="get" class="fila" id="fExp">
+    <label><span>Desde</span><input type="date" name="desde" value="{{ f.desde }}"></label>
+    <label><span>Hasta</span><input type="date" name="hasta" value="{{ f.hasta }}"></label>
+    <label><span>Clasificación</span><select name="clas">
+      <option value="">Todas</option>
+      <option value="4" {{ 'selected' if f.clas=='4' }}>Peligro de colapso</option>
+      <option value="3" {{ 'selected' if f.clas=='3' }}>No habitable</option>
+      <option value="2" {{ 'selected' if f.clas=='2' }}>Uso restringido</option>
+      <option value="1" {{ 'selected' if f.clas=='1' }}>Habitable</option>
+    </select></label>
+    <button class="btn">Ver cuántas</button>
+  </form>
+  <p class="nota"><strong>{{ total }}</strong> evaluaciones con ese filtro
+    {% if completas is not none %}· {{ completas }} con el formulario completo,
+    {{ total - completas }} solo con triaje{% endif %}.</p>
+  <div class="fila" style="margin-top:12px">
+    <a class="btn btn-p" href="/admin/v2f.csv?{{ qs }}">Descargar CSV</a>
+    <a class="btn" href="/admin/v2f.json?{{ qs }}">Descargar JSON</a>
+  </div>
+</div>
+
+<div class="tarjeta">
+  <p class="rotulo">Qué lleva y qué no</p>
+  <table>
+    <tr><td style="width:38%"><strong>Casillas del formulario</strong></td>
+      <td>Las {{ n_columnas }} columnas van en el orden del papel y con los códigos
+        del IDIGER. Lo que no se llenó sale <em>vacío</em>, nunca en cero: un cero
+        afirma que alguien lo miró.</td></tr>
+    <tr><td><strong>Evaluaciones de triaje</strong></td>
+      <td>La grilla de porcentajes del bloque D va en blanco —nadie contó los
+        elementos— y lo observado con la escala corta baja escrito en comentarios.
+        La columna <code>modo</code> lo dice y <code>bloques_sin_datos</code>
+        enumera lo que quedó sin mirar.</td></tr>
+    <tr><td><strong>Datos personales de terceros</strong></td>
+      <td>Persona de contacto y efecto en los ocupantes <strong>sí van</strong>:
+        este archivo es el documento que va a la autoridad y sin ellos el V2F está
+        incompleto. Por la API de consulta no viajan.</td></tr>
+    <tr><td><strong>Alcance</strong></td>
+      <td>{% if rol == 'coordinador' %}Solo las evaluaciones de su brigada.{% else %}
+        Todas las brigadas.{% endif %}</td></tr>
+  </table>
+  <p class="nota">Contiene direcciones, coordenadas y datos personales (Ley 1581 de
+    2012). Va a la entidad competente por un canal que usted controle; no es un
+    archivo para un grupo de mensajería.</p>
+</div>
+"""
+
+
+@router.get("/admin/exportar", response_class=HTMLResponse)
+def exportar(req: Request, desde: str = "", hasta: str = "", clas: str = ""):
+    ses = exigir(req)
+    filas = _para_exportar(req, desde, hasta, clas)
+    from urllib.parse import urlencode
+    qs = urlencode({k: v for k, v in
+                    (("desde", desde), ("hasta", hasta), ("clas", clas)) if v})
+    return pagina("Exportar", render(
+        EXPORTA_HTML, f={"desde": desde, "hasta": hasta, "clas": clas},
+        total=len(filas), completas=sum(1 for e in filas if e["modo"] == "completo"),
+        n_columnas=len(v2f.columnas_v2f(True)), qs=qs, rol=ses.rol), "exportar", ses=ses)
