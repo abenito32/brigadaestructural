@@ -314,7 +314,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 <nav class="tabs" role="tablist">
   <div class="tabs-in">
     <button class="tab" role="tab" id="t-form" aria-selected="true" aria-controls="p-form">Evaluar</button>
-    <button class="tab" role="tab" id="t-cola" aria-selected="false" aria-controls="p-cola">Cola <span id="conteo"></span></button>
+    <button class="tab" role="tab" id="t-cola" aria-selected="false" aria-controls="p-cola">Envíos <span id="conteo"></span></button>
     <button class="tab" role="tab" id="t-conf" aria-selected="false" aria-controls="p-conf">Ajustes</button>
   </div>
 </nav>
@@ -407,7 +407,8 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
     <input type="file" id="fotoIn" accept="image/*" capture="environment" multiple class="oculto">
     <button class="btn" type="button" id="btnFoto">Agregar foto</button>
     <div class="fotos" id="fotos"></div>
-    <p class="nota">Máximo 4. Se reducen a 1280 px en el teléfono para que la cola no se llene.</p>
+    <p class="nota">Máximo 4. Se reducen a 1280 px en el teléfono para que el envío no se pese
+      de más.</p>
   </section>
 
   <section class="bloque">
@@ -454,10 +455,10 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   </div>
 </dialog>
 
-<!-- ============ COLA ============ -->
+<!-- ============ ENVÍOS ============ -->
 <main class="wrap oculto" id="p-cola" role="tabpanel" aria-labelledby="t-cola">
   <section class="bloque">
-    <h2 class="rotulo">Evaluaciones guardadas</h2>
+    <h2 class="rotulo">Evaluaciones guardadas en este teléfono</h2>
     <div id="lista"></div>
   </section>
   <section class="bloque">
@@ -1268,7 +1269,7 @@ document.getElementById("final").onchange=pintarPlaca;
       document.getElementById("p-"+m).classList.toggle("oculto", m!==n);
     });
     if(n==="cola") pintarCola();
-    // La barra de guardado pertenece al formulario. En Cola y Ajustes no hay
+    // La barra de guardado pertenece al formulario. En Envíos y Ajustes no hay
     // nada que guardar, y dejarla ahi sugiere una accion que no existe.
     var pie=document.querySelector(".pie");
     pie.classList.toggle("oculto", n!=="form");
@@ -1533,7 +1534,7 @@ document.getElementById("btnGuardar").onclick=function(){
     };
     guardarReg(o).then(function(){
       limpiar();
-      alert("Guardada "+o.id+" · "+TIT[v]+"\nQueda en el teléfono hasta que sincronice.");
+      alert("Guardada "+o.id+" · "+TIT[v]+"\nQueda en Envíos hasta que sincronice.");
       actualizarConteo();
     });
   });
@@ -1558,7 +1559,7 @@ function limpiar(){
 /* ---------------- borrador ----------------
    El formulario completo son veinte minutos de trabajo con el edificio delante.
    Basta que el sistema operativo descarte la pestaña por memoria, que entre una
-   llamada, o que alguien toque «Cola» sin querer, para perderlo todo — y la
+   llamada, o que alguien toque «Envíos» sin querer, para perderlo todo — y la
    única forma de recuperarlo es volver a caminar hasta el predio.
 
    Se guarda entero, fotos incluidas: retomarlas obliga a volver. Va a IndexedDB
@@ -1783,7 +1784,8 @@ document.getElementById("btnProbar").onclick=function(){
 
   if(!u){t.textContent="Escriba primero el endpoint.";return;}
   // Sin https el navegador bloquea el envío por contenido mixto y el error no se
-  // ve por ningún lado; mejor decirlo acá que descubrirlo con la cola llena.
+  // ve por ningún lado; mejor decirlo acá que descubrirlo con el teléfono lleno
+  // de evaluaciones sin enviar.
   if(u.indexOf("https://")!==0 && u.indexOf("http://localhost")!==0){
     t.textContent="El endpoint debe empezar con https://. Sin cifrado el teléfono no envía nada.";return;}
   if(!/\/evaluaciones\/?$/.test(u)){
