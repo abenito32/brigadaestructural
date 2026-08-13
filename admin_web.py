@@ -1909,8 +1909,9 @@ def _evaluacion(req: Request, ident: str):
                modo, tipo_inspeccion, cod_catastral, catastral_origen, localidad,
                nivel_mayor_dano, area_afectada_pct, bloques_faltantes,
                v2f_estructura, v2f_estado, v2f_geotecnicos, v2f_no_estructurales,
-               v2f_estructurales, v2f_entorno, v2f_preexistentes,
-               v2f_recomendaciones, v2f_ocupacion, v2f_comision,
+               v2f_no_estructurales_pct, v2f_estructurales, v2f_entorno,
+               v2f_preexistentes, v2f_recomendaciones, v2f_ocupacion, v2f_comision,
+               dano_global,
                -- Datos personales de un tercero. Esta es la ÚNICA consulta del
                -- panel que los selecciona: en el listado, el CSV y la API no
                -- existen. Ver el bloque «Compartimento reservado» en esquema.sql.
@@ -1932,9 +1933,10 @@ def _evaluacion(req: Request, ident: str):
               "localidad", "nivel_mayor_dano", "area_afectada_pct",
               "bloques_faltantes",
               "v2f_estructura", "v2f_estado", "v2f_geotecnicos",
-              "v2f_no_estructurales", "v2f_estructurales", "v2f_entorno",
+              "v2f_no_estructurales", "v2f_no_estructurales_pct",
+              "v2f_estructurales", "v2f_entorno",
               "v2f_preexistentes", "v2f_recomendaciones", "v2f_ocupacion",
-              "v2f_comision", "reservado"]
+              "v2f_comision", "dano_global", "reservado"]
     return dict(zip(campos, filas[0], strict=True))
 
 
@@ -2290,8 +2292,9 @@ CAMPOS_EXPORTA = """
                parciales, bloques_faltantes, nivel_mayor_dano, area_afectada_pct,
                revision_estado, revision_matricula,
                v2f_estructura, v2f_estado, v2f_geotecnicos, v2f_no_estructurales,
-               v2f_estructurales, v2f_entorno, v2f_preexistentes,
-               v2f_recomendaciones, v2f_ocupacion, v2f_comision, reservado,
+               v2f_no_estructurales_pct, v2f_estructurales, v2f_entorno,
+               v2f_preexistentes, v2f_recomendaciones, v2f_ocupacion, v2f_comision,
+               dano_global, reservado,
                ST_Y(geom), ST_X(geom)
           FROM evaluacion_brigada"""
 NOMBRES_EXPORTA = [
@@ -2304,8 +2307,9 @@ NOMBRES_EXPORTA = [
     "parciales", "bloques_faltantes", "nivel_mayor_dano", "area_afectada_pct",
     "revision_estado", "revision_matricula",
     "v2f_estructura", "v2f_estado", "v2f_geotecnicos", "v2f_no_estructurales",
-    "v2f_estructurales", "v2f_entorno", "v2f_preexistentes",
-    "v2f_recomendaciones", "v2f_ocupacion", "v2f_comision", "reservado",
+    "v2f_no_estructurales_pct", "v2f_estructurales", "v2f_entorno",
+    "v2f_preexistentes", "v2f_recomendaciones", "v2f_ocupacion", "v2f_comision",
+    "dano_global", "reservado",
     "lat", "lon"]
 
 

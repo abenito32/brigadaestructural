@@ -153,6 +153,27 @@ ENTORNO = {
          "opciones": {1: "No", 2: "Sí"}},
 }
 
+# Repreguntas. La guía distingue niveles que el formulario impreso no separa: en
+# la Tabla 2 el código «2» de colapso cae en «no habitable» y en «peligro de
+# colapso» a la vez, y lo que decide está en la columna de comentarios. Se
+# pregunta solo cuando hace falta, y sin respuesta se toma el nivel más grave.
+REPREGUNTAS = [
+    {"blq": "estado", "si": "colapso", "vale": 2, "k": "colapso_mayor_50",
+     "rotulo": "¿El colapso supera el 50 % del área, o la parte colapsada "
+               "sobrecarga el resto?"},
+    {"blq": "estado", "si": "desviacion", "vale": 2, "k": "desviacion_notable",
+     "rotulo": "¿La inclinación es notable / la edificación alcanzó estados últimos?"},
+    {"blq": "estado", "si": "cimentacion", "vale": 2, "k": "cimentacion_global",
+     "rotulo": "¿La falla de cimentación afecta la estabilidad global?"},
+    {"blq": "geotecnicos", "si": "grietas", "vale": 3, "k": "grietas_reactivacion",
+     "rotulo": "¿El potencial de reactivación es inminente o muy probable?"},
+    {"blq": "entorno", "si": "vecina", "vale": 2, "k": "vecina_grave",
+     "rotulo": "¿La vecina crítica impide habitar esta edificación?"},
+    {"blq": "entorno", "si": "evento", "vale": 2, "k": "evento_grave",
+     "rotulo": "¿El evento adverso impide habitar, o solo restringe el uso?"},
+]
+SI_NO = {1: "Sí", 2: "No"}
+
 # ------------------------------------------------ recomendaciones y seguridad
 VISITA_ESPECIALIZADA = {1: "Estructurales", 2: "Geotécnicos", 3: "Servicios públicos"}
 INTERVENCION = {
@@ -322,16 +343,60 @@ def _global(p: dict, por: dict, *, sin_datos: bool = False) -> dict:
 
 # ------------------------------------------------- la regla del formulario largo
 #
-# Umbrales NUESTROS otra vez: el V2F imprime las casillas pero no publica la
-# regla, porque en el papel decide una persona. Están acá, juntos y por escrito,
-# para poder discutirlos con un ingeniero en vez de deducirlos del código.
+# Los umbrales de acá NO son nuestros: salen de la «Guía Técnica para la
+# Inspección de Edificaciones Después de un Sismo» (IDIGER–AIS, 4ª edición,
+# 2018), que es el documento que acompaña al formulario V2F. Cada tabla lleva su
+# número y su página para poder volver a la fuente.
 #
-# La escala de daño del V2F tiene cinco grados y la nuestra de triaje tiene
-# cuatro. Se alinean así: ninguno=ninguno, leve=leve, moderado=moderado, y
-# nuestro «severo» equivale al «fuerte» del V2F. El «severo» del V2F queda por
-# encima de lo que la escala corta sabe expresar, y por eso puede cerrar una
-# edificación donde el triaje solo la restringía.
-UMBRAL_D = 30      # % de elementos en un grado que hace saltar el nivel
+# Antes de tener la guía, acá había un umbral único del 30 % inventado por
+# nosotros. Al comparar contra las tablas se quedaba corto en 11 de 15 casos del
+# bloque D, siempre hacia el lado peligroso: daño moderado en el 70 % de las
+# columnas daba «uso restringido» cuando la guía dice «peligro de colapso».
+#
+# En los valores de frontera se adopta el criterio más conservador: la guía
+# escribe rangos que se solapan («≤ 30 %» y «30 – 100 %») y no dice cuál manda
+# en el punto exacto. Ante la duda, el nivel más grave.
+
+# Tabla 4 (pág. 39) · daño arquitectónico, no estructural → parcial C.
+# Nivel 1..5 = ninguno, leve, moderado, fuerte, severo. C nunca llega a 4: por un
+# antepecho no se declara inminente el colapso de la estructura.
+def _tabla_4(nivel: int, pct: float) -> int:
+    if nivel <= 2:                      # ninguno o leve, hasta el 100 %
+        return 1
+    if nivel == 3:                      # moderado
+        return 1 if pct < 30 else 2
+    return 2 if pct < 60 else 3         # fuerte o severo
+
+
+# Tabla 7 (pág. 51) · daño estructural → parcial D.
+def _tabla_7(nivel: int, pct: float) -> int:
+    if nivel <= 1:
+        return 1
+    if nivel == 2:                      # leve
+        return 1 if pct < 30 else 2
+    if nivel == 3:                      # moderado
+        return 2 if pct < 30 else (3 if pct < 60 else 4)
+    if nivel == 4:                      # fuerte
+        return 2 if pct < 10 else (3 if pct < 30 else 4)
+    return 2 if pct < 5 else (3 if pct < 15 else 4)      # severo
+
+
+# Tabla 6 (pág. 50) · elementos cuyo daño severo satura el daño global.
+# «La calificación con daño severo de ciertos elementos "esenciales" puede
+# comprometer toda la edificación», dice la guía. Lo escribe como advertencia,
+# no como regla; acá se aplica como regla porque el inspector siempre puede
+# bajar la global con justificación, y al revés no.
+SATURAN = {
+    11: (18, 20), 12: (18, 20), 13: (18, 20), 14: (18, 20),   # concreto: columnas, nudos
+    21: (18,), 22: (18,), 23: (18,),                          # mampostería: muros de carga
+    31: (18, 20), 32: (18, 20), 33: (18, 20),                 # acero: columnas, conexiones
+    41: (18, 20), 42: (18, 20),                               # madera: columnas, conexiones
+    51: (18,), 52: (18,),                                     # bahareque y tapia: muros
+}
+
+
+def _tope(parcial: str, valor: int) -> int:
+    return min(valor, TECHO_PARCIAL[parcial])
 
 
 def _max_con_motivo(candidatos):
@@ -350,84 +415,146 @@ def clasificar_completo(bloques: dict) -> dict:
     p, por = {}, {}
     g = lambda blq, k: (bloques.get(blq) or {}).get(k)      # noqa: E731
 
-    # A · estado general -----------------------------------------------------
-    colapso, desv, cim = g("estado", "colapso"), g("estado", "desviacion"), g("estado", "cimentacion")
-    if colapso or desv or cim:
+    # A · estado general — Tabla 2, pág. 27 ----------------------------------
+    #
+    # La tabla no basta por sí sola: para «colapso parcial» el código del
+    # formulario es el mismo (2) tanto en «no habitable» como en «peligro de
+    # colapso», y lo que decide está en la columna de comentarios — si supera el
+    # 50 % del área o si la parte colapsada sobrecarga el resto. Por eso hay una
+    # repregunta. Sin responderla se toma el nivel más grave.
+    edo = bloques.get("estado") or {}
+    if edo:
         cand = []
-        if colapso == 3: cand.append((4, "Colapso total"))
-        elif colapso == 2: cand.append((4, "Colapso parcial"))
-        if desv == 2: cand.append((4, "Desviación o inclinación de la edificación"))
-        elif desv == 3: cand.append((2, "No se pudo determinar si hay desviación"))
-        if cim == 2: cand.append((3, "Falla o asentamiento de la cimentación"))
-        elif cim == 3: cand.append((2, "No se pudo determinar el estado de la cimentación"))
+        if edo.get("colapso") == 3:
+            cand.append((4, "Colapso total"))
+        elif edo.get("colapso") == 2:
+            grave = edo.get("colapso_mayor_50") != 2      # 1 sí, 2 no, ausente = sí
+            cand.append((4, "Colapso parcial superior al 50 % o que sobrecarga el resto")
+                        if grave else
+                        (3, "Colapso parcial inferior al 50 %, sin sobrecargar el resto"))
+        if edo.get("desviacion") == 2:
+            grave = edo.get("desviacion_notable") != 2
+            cand.append((4, "Inclinación notable: la edificación alcanzó estados últimos")
+                        if grave else (3, "Desviación o inclinación de la edificación"))
+        elif edo.get("desviacion") == 3:
+            cand.append((3, "No se pudo determinar si hay desviación o inclinación"))
+        if edo.get("cimentacion") == 2:
+            grave = edo.get("cimentacion_global") != 2
+            cand.append((4, "Falla de cimentación que afecta la estabilidad global")
+                        if grave else (3, "Falla o asentamiento puntual de la cimentación"))
+        elif edo.get("cimentacion") == 3:
+            cand.append((3, "Existen dudas sobre posibles fallas de la cimentación"))
         v, m = _max_con_motivo(cand)
-        p["A"], por["A"] = (v or 1), (m or "Sin colapso, desviación ni falla de cimentación")
+        p["A"], por["A"] = (v or 1), (m or "Sin colapso, inclinación ni falla de cimentación")
     else:
         p["A"], por["A"] = None, None
 
-    # B · geotécnicos --------------------------------------------------------
-    talud, asent, grietas = g("geotecnicos", "talud"), g("geotecnicos", "asentamiento"), g("geotecnicos", "grietas")
-    if talud or asent or grietas:
+    # B · geotécnicos — Tabla 3, pág. 30 -------------------------------------
+    geo = bloques.get("geotecnicos") or {}
+    if geo:
         cand = []
-        if talud == 3: cand.append((4, "Falla general en talud o movimiento en masa"))
-        elif talud == 2: cand.append((3, "Falla puntual en talud"))
-        if asent == 3: cand.append((4, "Asentamiento, subsidencia o licuación generalizada"))
-        elif asent == 2: cand.append((3, "Asentamiento, subsidencia o licuación puntual"))
-        if grietas == 3: cand.append((3, "Grietas generalizadas en el terreno circundante"))
-        elif grietas == 2: cand.append((2, "Grietas incipientes en el terreno circundante"))
+        if geo.get("talud") == 3: cand.append((4, "Falla general en talud o movimiento en masa"))
+        elif geo.get("talud") == 2: cand.append((3, "Falla puntual en talud que afecta la edificación"))
+        if geo.get("asentamiento") == 3: cand.append((4, "Asentamiento, subsidencia o licuación general"))
+        elif geo.get("asentamiento") == 2: cand.append((3, "Asentamiento, subsidencia o licuación puntual"))
+        if geo.get("grietas") == 3:
+            # La tabla admite 3 ó 4 según el potencial de reactivación.
+            grave = geo.get("grietas_reactivacion") == 1
+            cand.append((4, "Grietas generalizadas con reactivación inminente") if grave
+                        else (3, "Grietas generalizadas en el terreno circundante"))
+        elif geo.get("grietas") == 2:
+            cand.append((2, "Grietas incipientes en el terreno circundante"))
         v, m = _max_con_motivo(cand)
         p["B"], por["B"] = (v or 1), (m or "Sin problema geotécnico observado")
     else:
         p["B"], por["B"] = None, None
 
-    # C · no estructurales (ítems 7 a 17, escala 1 a 5) -----------------------
-    ne = {int(k): v for k, v in (bloques.get("no_estructurales") or {}).items()
-          if v}
+    # C · no estructurales — Tabla 4, pág. 39 --------------------------------
+    ne = {int(k): v for k, v in (bloques.get("no_estructurales") or {}).items() if v}
+    pcts = {int(k): v for k, v in (bloques.get("no_estructurales_pct") or {}).items()}
     if ne:
-        peor = max(ne.values())
-        cual = NO_ESTRUCTURALES.get(max(ne, key=lambda k: ne[k]), "")
-        if peor >= 5:
-            p["C"], por["C"] = 3, f"Daño severo · {cual.lower()}"
-        elif peor == 4:
-            p["C"], por["C"] = 2, f"Daño fuerte · {cual.lower()}"
-        else:
-            p["C"], por["C"] = 1, "Sin daño no estructural que restrinja el uso"
+        cand = []
+        for item, nivel in ne.items():
+            pct = float(pcts.get(item) or 100)   # sin porcentaje, la extensión es total
+            r = _tabla_4(int(nivel), pct)
+            if r > 1:
+                cand.append((r, "%s · %s en el %.0f %% del área"
+                             % (NO_ESTRUCTURALES.get(item, "elemento"),
+                                GRADO_DANO.get(int(nivel), "?").lower(), pct)))
+        v, m = _max_con_motivo(cand)
+        p["C"], por["C"] = (v or 1), (m or "Sin daño no estructural que restrinja el uso")
     else:
         p["C"], por["C"] = None, None
 
-    # D · estructurales (porcentajes por elemento en el piso de mayor daño) ---
+    # D · estructurales — Tabla 7, pág. 51, con la saturación de la Tabla 6 ---
     grid = bloques.get("estructurales") or {}
     filas = {int(k): v for k, v in grid.items() if isinstance(v, dict) and any(v.values())}
     if filas:
+        sistema = (bloques.get("estructura") or {}).get("sistema")
+        esenciales = SATURAN.get(int(sistema), ()) if sistema else ()
         cand = []
-        for elem, pct in filas.items():
-            sev = float(pct.get("5") or pct.get(5) or 0)
-            fue = float(pct.get("4") or pct.get(4) or 0)
-            mod = float(pct.get("3") or pct.get(3) or 0)
+        for elem, pct_por_nivel in filas.items():
             nom = ESTRUCTURALES.get(elem, "elemento").lower()
-            if sev >= UMBRAL_D: cand.append((4, f"{sev:.0f}% de {nom} con daño severo"))
-            elif sev > 0: cand.append((3, f"{sev:.0f}% de {nom} con daño severo"))
-            elif fue >= UMBRAL_D: cand.append((3, f"{fue:.0f}% de {nom} con daño fuerte"))
-            elif fue > 0: cand.append((2, f"{fue:.0f}% de {nom} con daño fuerte"))
-            elif mod >= UMBRAL_D: cand.append((2, f"{mod:.0f}% de {nom} con daño moderado"))
+            for nivel in (2, 3, 4, 5):
+                pct = float(pct_por_nivel.get(str(nivel), pct_por_nivel.get(nivel)) or 0)
+                if pct <= 0:
+                    continue
+                cand.append((_tabla_7(nivel, pct),
+                             "%.0f %% de %s con daño %s"
+                             % (pct, nom, GRADO_DANO[nivel].lower())))
+            sev = float(pct_por_nivel.get("5", pct_por_nivel.get(5)) or 0)
+            if sev > 0 and elem in esenciales:
+                cand.append((4, "Daño severo en %s, elemento esencial del sistema "
+                                "estructural: satura el daño global" % nom))
         v, m = _max_con_motivo(cand)
         p["D"], por["D"] = (v or 1), (m or "Sin daño estructural relevante")
     else:
         p["D"], por["D"] = None, None
 
-    # E · entorno ------------------------------------------------------------
-    vecina, evento = g("entorno", "vecina"), g("entorno", "evento")
-    if vecina or evento:
+    # E · entorno — Tabla 8, pág. 52 -----------------------------------------
+    ent = bloques.get("entorno") or {}
+    if ent:
         cand = []
-        if vecina == 2: cand.append((3, "Edificación o infraestructura vecina crítica"))
-        elif vecina == 3: cand.append((2, "No se pudo determinar el riesgo de la vecina"))
-        if evento == 2: cand.append((3, "Evento adverso inminente"))
+        if ent.get("vecina") == 2:
+            grave = ent.get("vecina_grave") != 2
+            cand.append((3, "Edificación o infraestructura vecina crítica que puede caer")
+                        if grave else (2, "Vecina con riesgo acotado"))
+        elif ent.get("vecina") == 3:
+            cand.append((3, "No se pudo determinar el riesgo de la edificación vecina"))
+        if ent.get("evento") == 2:
+            grave = ent.get("evento_grave") != 2
+            cand.append((3, "Evento adverso inminente que impide habitar")
+                        if grave else (2, "Evento adverso que permite uso restringido"))
         v, m = _max_con_motivo(cand)
         p["E"], por["E"] = (v or 1), (m or "Entorno sin amenaza observada")
     else:
         p["E"], por["E"] = None, None
 
     return _global(p, por)
+
+
+# Tabla 10 (pág. 54) · el porcentaje de área afectada de toda la edificación,
+# que el formulario pide aparte, tiene su propia escala de daño. Y la Tabla 9
+# (pág. 53) la traduce a habitabilidad. NO reemplaza a las cinco parciales —el
+# V2F dice que la global es la más conservadora de A a E— pero sirve de contraste:
+# si el inspector estima 70 % de área afectada y las parciales dan «uso
+# restringido», hay algo que revisar antes de firmar.
+DANO_GLOBAL = {1: "Ninguno", 2: "Leve", 3: "Moderado", 4: "Fuerte", 5: "Severo",
+               6: "Colapso total"}
+DANO_A_HABITABILIDAD = {1: 1, 2: 1, 3: 2, 4: 3, 5: 4, 6: 4}
+
+
+def dano_global(pct_area: float | None) -> int | None:
+    """Clasificación global del daño según el % de área afectada (Tabla 10)."""
+    if pct_area is None:
+        return None
+    p = float(pct_area)
+    if p <= 0: return 1
+    if p >= 100: return 6
+    if p < 10: return 2
+    if p < 30: return 3
+    if p < 60: return 4
+    return 5
 
 
 def clasificar(danos: dict, banderas: dict, bloques: dict | None = None) -> dict:
@@ -475,6 +602,7 @@ CATALOGOS = {
     ("entorno", "vecina"): ENTORNO[22]["opciones"],
     ("entorno", "evento"): ENTORNO[23]["opciones"],
 }
+CATALOGOS.update({(r["blq"], r["k"]): SI_NO for r in REPREGUNTAS})
 
 
 def codigos_desconocidos(bloques: dict) -> list[str]:
@@ -510,6 +638,8 @@ def nombre(valor: int) -> str:
 # Lo que necesita el teléfono para pintar el formulario y clasificar igual que el
 # servidor. Se inyecta en index.html con `build_catalogo.py`; no se descarga en
 # tiempo de ejecución, porque la app tiene que arrancar sin señal.
+
+
 def _preguntas(defs: dict, claves: dict) -> list:
     """Normaliza un bloque a [{k, n, rotulo, opciones}] para que el teléfono solo
     tenga que pintar, sin conocer la forma interna de cada catálogo."""
@@ -530,7 +660,6 @@ def para_la_app() -> dict:
         "COLOR_TINTA": COLOR_TINTA,
         "TECHO_PARCIAL": TECHO_PARCIAL,
         "PARCIALES": PARCIALES,
-        "UMBRAL_D": UMBRAL_D,
         "SISTEMA_ESTRUCTURAL": SISTEMA_ESTRUCTURAL,
         "SISTEMA_GRUPO": SISTEMA_GRUPO,
         "TIPO_ENTREPISO": TIPO_ENTREPISO,
@@ -539,6 +668,9 @@ def para_la_app() -> dict:
         "USO": USO,
         "TIPO_INSPECCION": TIPO_INSPECCION,
         "GRADO_DANO": txt(GRADO_DANO),
+        "REPREGUNTAS": REPREGUNTAS,
+        "SATURAN": {str(k): list(v) for k, v in SATURAN.items()},
+        "DANO_GLOBAL": txt(DANO_GLOBAL),
         "NO_ESTRUCTURALES": txt(NO_ESTRUCTURALES),
         "ESTRUCTURALES": txt(ESTRUCTURALES),
         "ESTADO_GENERAL": _preguntas(ESTADO_GENERAL,
@@ -590,12 +722,14 @@ def columnas_v2f(con_reservado: bool = False) -> list[str]:
          "sistema_estructural", "tipo_entrepiso", "periodo_construccion",
          "p1_colapso", "p2_desviacion", "p3_cimentacion", "clas_A",
          "p4_talud", "p5_asentamiento", "p6_grietas", "clas_B"]
-    c += [f"p{n}_no_estructural" for n in NO_ESTRUCTURALES] + ["clas_C"]
+    for n in NO_ESTRUCTURALES:
+        c += [f"p{n}_no_estructural", f"p{n}_pct"]
+    c += ["clas_C"]
     c += ["nivel_mayor_dano"]
     for n in ESTRUCTURALES:
         c += [f"p{n}_{g}" for g in ("ninguno", "leve", "moderado", "fuerte", "severo")]
     c += ["clas_D", "p22_vecina", "p23_evento", "clas_E",
-          "clas_global", "area_afectada_pct"]
+          "clas_global", "area_afectada_pct", "dano_global"]
     c += list(_VISITA_COL.values()) + list(_INTERV_COL.values())
     c += list(_MEDIDAS_COL.values()) + ["medidas_lugares"]
     c += list(PREEXISTENTES)
@@ -610,6 +744,9 @@ def columnas_v2f(con_reservado: bool = False) -> list[str]:
           "clasificacion_firmada", "clasificacion_efectiva", "revision_estado",
           "revision_matricula", "justificacion", "matricula_verificada",
           "lat", "lon", "origen_punto", "recibido_en"]
+    # Repreguntas: no son casillas del formulario impreso, son la precisión que
+    # la guía pide en su columna de comentarios y el papel no captura.
+    c += [r["k"] for r in REPREGUNTAS]
     return c
 
 
@@ -690,6 +827,8 @@ def fila_v2f(e: dict, con_reservado: bool = False) -> dict:
         "clas_E": par.get("E"),
         "clas_global": e.get("clasificacion_efectiva"),
         "area_afectada_pct": e.get("area_afectada_pct"),
+        # Tabla 10: la casilla «clasificación del daño» del formulario.
+        "dano_global": e.get("dano_global"),
         "medidas_lugares": rec.get("lugares"),
         "habitada": ocu.get("habitada"), "ocupantes": ocu.get("ocupantes") or e.get("ocupantes"),
         "unidades": ocu.get("unidades"), "unidades_no_habitables": ocu.get("unidades_no_hab"),
@@ -712,8 +851,10 @@ def fila_v2f(e: dict, con_reservado: bool = False) -> dict:
         "recibido_en": (e["recibido_en"].isoformat()
                         if hasattr(e.get("recibido_en"), "isoformat") else e.get("recibido_en")),
     }
+    nep = e.get("v2f_no_estructurales_pct") or {}
     for n in NO_ESTRUCTURALES:
         f[f"p{n}_no_estructural"] = ne.get(str(n), ne.get(n))
+        f[f"p{n}_pct"] = nep.get(str(n), nep.get(n))
     for n in ESTRUCTURALES:
         fila = gr.get(str(n)) or gr.get(n) or {}
         for i, g in enumerate(("ninguno", "leve", "moderado", "fuerte", "severo"), start=1):
@@ -726,6 +867,8 @@ def fila_v2f(e: dict, con_reservado: bool = False) -> dict:
         f[col] = 1 if (rec.get("medidas") or {}).get(str(cod)) else None
     for k in PREEXISTENTES:
         f[k] = pre.get(k)
+    for r in REPREGUNTAS:
+        f[r["k"]] = (e.get("v2f_" + r["blq"]) or {}).get(r["k"])
     if con_reservado:
         f.update({
             "hubo_victimas": res.get("hubo_victimas"),

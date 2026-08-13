@@ -207,6 +207,8 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 .v2f-cuerpo{padding:0 14px 14px}
 .v2f-sec[open] .v2f-tit{border-bottom:1px solid var(--linea);margin-bottom:12px}
 .v2f-grupo{font-size:12px;font-weight:700;color:var(--tinta2);margin:10px 0 5px}
+/* Las repreguntas cuelgan de su pregunta, sangradas: se lee que dependen de ella. */
+.repregunta{border-left:3px solid var(--azul-tinte);padding-left:12px;margin:8px 0 0}
 .v2f-ops{flex-wrap:wrap}
 .v2f-ops button{flex:0 1 auto;min-width:0;padding-left:12px;padding-right:12px;font-size:14px}
 .v2f-fila{margin-bottom:14px}
@@ -618,63 +620,102 @@ function peor(cands){
   for(i=0;i<cands.length;i++) if(cands[i] && (!mejor || cands[i][0]>mejor[0])) mejor=cands[i];
   return mejor;
 }
+/* Espejo de clasificar_completo() en v2f.py. Los umbrales salen de la Guía
+   Técnica IDIGER–AIS 2018: Tabla 2 (estado general), 3 (geotécnicos), 4 (no
+   estructurales), 6 (saturación), 7 (estructurales) y 8 (entorno). En los
+   valores de frontera se adopta el criterio más conservador. */
+function tabla4(nivel, pct){
+  if(nivel<=2) return 1;
+  if(nivel===3) return pct<30?1:2;
+  return pct<60?2:3;
+}
+function tabla7(nivel, pct){
+  if(nivel<=1) return 1;
+  if(nivel===2) return pct<30?1:2;
+  if(nivel===3) return pct<30?2:(pct<60?3:4);
+  if(nivel===4) return pct<10?2:(pct<30?3:4);
+  return pct<5?2:(pct<15?3:4);
+}
 function clasificarCompleto(bl){
-  var p={}, por={}, c, r;
+  var p={}, por={}, c, r, k;
+
   var e=bl.estado||{};
-  if(e.colapso||e.desviacion||e.cimentacion){
+  if(Object.keys(e).length){
     c=[];
     if(e.colapso===3) c.push([4,"Colapso total"]);
-    else if(e.colapso===2) c.push([4,"Colapso parcial"]);
-    if(e.desviacion===2) c.push([4,"Desviación o inclinación de la edificación"]);
-    else if(e.desviacion===3) c.push([2,"No se pudo determinar si hay desviación"]);
-    if(e.cimentacion===2) c.push([3,"Falla o asentamiento de la cimentación"]);
-    else if(e.cimentacion===3) c.push([2,"No se pudo determinar el estado de la cimentación"]);
-    r=peor(c); p.A=r?r[0]:1; por.A=r?r[1]:"Sin colapso, desviación ni falla de cimentación";
+    else if(e.colapso===2) c.push(e.colapso_mayor_50!==2
+      ? [4,"Colapso parcial superior al 50 % o que sobrecarga el resto"]
+      : [3,"Colapso parcial inferior al 50 %, sin sobrecargar el resto"]);
+    if(e.desviacion===2) c.push(e.desviacion_notable!==2
+      ? [4,"Inclinación notable: la edificación alcanzó estados últimos"]
+      : [3,"Desviación o inclinación de la edificación"]);
+    else if(e.desviacion===3) c.push([3,"No se pudo determinar si hay desviación o inclinación"]);
+    if(e.cimentacion===2) c.push(e.cimentacion_global!==2
+      ? [4,"Falla de cimentación que afecta la estabilidad global"]
+      : [3,"Falla o asentamiento puntual de la cimentación"]);
+    else if(e.cimentacion===3) c.push([3,"Existen dudas sobre posibles fallas de la cimentación"]);
+    r=peor(c); p.A=r?r[0]:1; por.A=r?r[1]:"Sin colapso, inclinación ni falla de cimentación";
   } else { p.A=null; por.A=null; }
 
   var g=bl.geotecnicos||{};
-  if(g.talud||g.asentamiento||g.grietas){
+  if(Object.keys(g).length){
     c=[];
     if(g.talud===3) c.push([4,"Falla general en talud o movimiento en masa"]);
-    else if(g.talud===2) c.push([3,"Falla puntual en talud"]);
-    if(g.asentamiento===3) c.push([4,"Asentamiento, subsidencia o licuación generalizada"]);
+    else if(g.talud===2) c.push([3,"Falla puntual en talud que afecta la edificación"]);
+    if(g.asentamiento===3) c.push([4,"Asentamiento, subsidencia o licuación general"]);
     else if(g.asentamiento===2) c.push([3,"Asentamiento, subsidencia o licuación puntual"]);
-    if(g.grietas===3) c.push([3,"Grietas generalizadas en el terreno circundante"]);
+    if(g.grietas===3) c.push(g.grietas_reactivacion===1
+      ? [4,"Grietas generalizadas con reactivación inminente"]
+      : [3,"Grietas generalizadas en el terreno circundante"]);
     else if(g.grietas===2) c.push([2,"Grietas incipientes en el terreno circundante"]);
     r=peor(c); p.B=r?r[0]:1; por.B=r?r[1]:"Sin problema geotécnico observado";
   } else { p.B=null; por.B=null; }
 
-  var ne=bl.no_estructurales||{}, mx=0, cual="", k;
-  for(k in ne) if(ne[k]>mx){ mx=ne[k]; cual=V2F_NO_ESTRUCTURALES[k]||""; }
-  if(mx){
-    if(mx>=5){ p.C=3; por.C="Daño severo · "+cual.toLowerCase(); }
-    else if(mx===4){ p.C=2; por.C="Daño fuerte · "+cual.toLowerCase(); }
-    else { p.C=1; por.C="Sin daño no estructural que restrinja el uso"; }
-  } else { p.C=null; por.C=null; }
+  var ne=bl.no_estructurales||{}, pcts=bl.no_estructurales_pct||{}, hayNe=false;
+  c=[];
+  for(k in ne){
+    if(!ne[k]) continue;
+    hayNe=true;
+    var pc = (pcts[k]===undefined||pcts[k]===null||pcts[k]==="") ? 100 : +pcts[k];
+    var v = tabla4(ne[k], pc);
+    if(v>1) c.push([v, (V2F_NO_ESTRUCTURALES[k]||"elemento")+" · "+
+      (V2F_GRADO_DANO[ne[k]]||"").toLowerCase()+" en el "+pc+" % del área"]);
+  }
+  if(hayNe){ r=peor(c); p.C=r?r[0]:1; por.C=r?r[1]:"Sin daño no estructural que restrinja el uso"; }
+  else { p.C=null; por.C=null; }
 
   var gr=bl.estructurales||{}, hayFila=false;
+  var sistema=(bl.estructura||{}).sistema;
+  var esenciales=(V2F_SATURAN[sistema]||[]);
   c=[];
   for(k in gr){
-    var fila=gr[k], sev=fila["5"]||0, fue=fila["4"]||0, mod=fila["3"]||0, algo=false, j;
+    var fila=gr[k], algo=false, j;
     for(j in fila) if(fila[j]) algo=true;
     if(!algo) continue;
     hayFila=true;
     var nom=(V2F_ESTRUCTURALES[k]||"elemento").toLowerCase();
-    if(sev>=V2F_UMBRAL_D) c.push([4,sev+"% de "+nom+" con daño severo"]);
-    else if(sev>0) c.push([3,sev+"% de "+nom+" con daño severo"]);
-    else if(fue>=V2F_UMBRAL_D) c.push([3,fue+"% de "+nom+" con daño fuerte"]);
-    else if(fue>0) c.push([2,fue+"% de "+nom+" con daño fuerte"]);
-    else if(mod>=V2F_UMBRAL_D) c.push([2,mod+"% de "+nom+" con daño moderado"]);
+    [2,3,4,5].forEach(function(niv){
+      var pct=+fila[niv]||0;
+      if(pct>0) c.push([tabla7(niv,pct), pct+" % de "+nom+" con daño "+
+        (V2F_GRADO_DANO[niv]||"").toLowerCase()]);
+    });
+    if((+fila[5]||0)>0 && esenciales.indexOf(+k)>=0)
+      c.push([4,"Daño severo en "+nom+", elemento esencial del sistema estructural: "+
+                "satura el daño global"]);
   }
   if(hayFila){ r=peor(c); p.D=r?r[0]:1; por.D=r?r[1]:"Sin daño estructural relevante"; }
   else { p.D=null; por.D=null; }
 
   var en=bl.entorno||{};
-  if(en.vecina||en.evento){
+  if(Object.keys(en).length){
     c=[];
-    if(en.vecina===2) c.push([3,"Edificación o infraestructura vecina crítica"]);
-    else if(en.vecina===3) c.push([2,"No se pudo determinar el riesgo de la vecina"]);
-    if(en.evento===2) c.push([3,"Evento adverso inminente"]);
+    if(en.vecina===2) c.push(en.vecina_grave!==2
+      ? [3,"Edificación o infraestructura vecina crítica que puede caer"]
+      : [2,"Vecina con riesgo acotado"]);
+    else if(en.vecina===3) c.push([3,"No se pudo determinar el riesgo de la edificación vecina"]);
+    if(en.evento===2) c.push(en.evento_grave!==2
+      ? [3,"Evento adverso inminente que impide habitar"]
+      : [2,"Evento adverso que permite uso restringido"]);
     r=peor(c); p.E=r?r[0]:1; por.E=r?r[1]:"Entorno sin amenaza observada";
   } else { p.E=null; por.E=null; }
 
@@ -752,7 +793,6 @@ var V2F_COLOR={"0": "#64748B", "1": "#15803D", "2": "#EAB308", "3": "#C2410C", "
 var V2F_COLOR_TINTA={"0": "#FFFFFF", "1": "#FFFFFF", "2": "#422006", "3": "#FFFFFF", "4": "#FFFFFF"};
 var V2F_TECHO_PARCIAL={"A": 4, "B": 4, "C": 3, "D": 4, "E": 3};
 var V2F_PARCIALES={"A": "Estado general de la edificación", "B": "Problemas geotécnicos", "C": "Daños en elementos no estructurales", "D": "Daños en elementos estructurales", "E": "Problemas del entorno"};
-var V2F_UMBRAL_D=30;
 var V2F_SISTEMA_ESTRUCTURAL={"11": "Pórtico de concreto", "12": "Muros estructurales", "13": "Sistemas duales", "14": "Prefabricados", "21": "Mampostería confinada", "22": "Mampostería reforzada", "23": "Mampostería no reforzada (simple)", "31": "Pórticos arriostrados", "32": "Pórticos no arriostrados", "33": "Pórticos en celosía", "41": "Pórticos y paneles en madera", "42": "Pórticos en madera y paneles en otros materiales", "51": "Muros en bahareque", "52": "Muros en tapia o adobe", "60": "Mixta", "61": "Construida en material precario (sin sistema estructural)", "70": "Otros"};
 var V2F_SISTEMA_GRUPO={"Concreto reforzado": [11, 12, 13, 14], "Mampostería": [21, 22, 23], "Acero": [31, 32, 33], "Madera": [41, 42], "Bahareque o tapia (adobe)": [51, 52], "Otros": [60, 61, 70]};
 var V2F_TIPO_ENTREPISO={"11": "Placa maciza", "12": "Placa aligerada", "13": "Reticular celulado", "21": "Lámina colaborante (steel deck)", "22": "Vigas", "23": "Cerchas", "31": "Vigas en madera", "32": "Cerchas en madera", "40": "Mixta", "50": "Otros"};
@@ -761,6 +801,9 @@ var V2F_PERIODO_CONSTRUCCION={"1": "Antes de 1960", "2": "1960 a 1985", "3": "19
 var V2F_USO={"1": "Residencial", "2": "Comercial", "3": "Educacional", "4": "Salud", "5": "Hotelero", "6": "Oficinas", "7": "Industrial", "8": "Institucional", "9": "Bodegas", "10": "Estacionamientos", "11": "Otros"};
 var V2F_TIPO_INSPECCION={"1": "Completa", "2": "Parcial", "3": "Exterior solamente"};
 var V2F_GRADO_DANO={"1": "Ninguno", "2": "Leve", "3": "Moderado", "4": "Fuerte", "5": "Severo"};
+var V2F_REPREGUNTAS=[{"blq": "estado", "si": "colapso", "vale": 2, "k": "colapso_mayor_50", "rotulo": "¿El colapso supera el 50 % del área, o la parte colapsada sobrecarga el resto?"}, {"blq": "estado", "si": "desviacion", "vale": 2, "k": "desviacion_notable", "rotulo": "¿La inclinación es notable / la edificación alcanzó estados últimos?"}, {"blq": "estado", "si": "cimentacion", "vale": 2, "k": "cimentacion_global", "rotulo": "¿La falla de cimentación afecta la estabilidad global?"}, {"blq": "geotecnicos", "si": "grietas", "vale": 3, "k": "grietas_reactivacion", "rotulo": "¿El potencial de reactivación es inminente o muy probable?"}, {"blq": "entorno", "si": "vecina", "vale": 2, "k": "vecina_grave", "rotulo": "¿La vecina crítica impide habitar esta edificación?"}, {"blq": "entorno", "si": "evento", "vale": 2, "k": "evento_grave", "rotulo": "¿El evento adverso impide habitar, o solo restringe el uso?"}];
+var V2F_SATURAN={"11": [18, 20], "12": [18, 20], "13": [18, 20], "14": [18, 20], "21": [18], "22": [18], "23": [18], "31": [18, 20], "32": [18, 20], "33": [18, 20], "41": [18, 20], "42": [18, 20], "51": [18], "52": [18]};
+var V2F_DANO_GLOBAL={"1": "Ninguno", "2": "Leve", "3": "Moderado", "4": "Fuerte", "5": "Severo", "6": "Colapso total"};
 var V2F_NO_ESTRUCTURALES={"7": "Muros de fachadas o antepechos", "8": "Vidrios exteriores", "9": "Acabados exteriores (incluyendo antenas, letreros o similares)", "10": "Muros divisorios o particiones", "11": "Balcones", "12": "Cielo rasos o luminarias", "13": "Cubierta", "14": "Escaleras", "15": "Instalaciones: acueducto, red sanitaria, energía, gas", "16": "Ductos de ventilación", "17": "Tanques elevados"};
 var V2F_ESTRUCTURALES={"18": "Columnas o muros portantes", "19": "Vigas", "20": "Nudos o puntos de conexión", "21": "Entrepisos"};
 var V2F_ESTADO_GENERAL=[{"k": "colapso", "n": 1, "rotulo": "Colapso", "opciones": {"1": "No", "2": "Parcial", "3": "Total"}}, {"k": "desviacion", "n": 2, "rotulo": "Desviación o inclinación de la edificación o de algún entrepiso", "opciones": {"1": "No", "2": "Sí", "3": "No se pudo determinar"}}, {"k": "cimentacion", "n": 3, "rotulo": "Falla o asentamiento de la cimentación", "opciones": {"1": "No", "2": "Sí", "3": "No se pudo determinar"}}];
@@ -816,6 +859,7 @@ function pintarParciales(c){
    único que hace falta para que cambie la app. */
 var nRotulo = 0;
 var v2fEst = {estructura:{}, estado:{}, geotecnicos:{}, no_estructurales:{},
+              no_estructurales_pct:{},
               estructurales:{}, entorno:{}, preexistentes:{}, recomendaciones:{},
               ocupacion:{}, comision:{}};
 var reservado = {};
@@ -880,7 +924,22 @@ function contarTodo(){
 /* Botones de opción: mismo gesto que la escala de daño, que ya está probado en
    campo con guantes. No se usa <select> porque abre una rueda del sistema y
    obliga a dos toques y a leer una lista sin ver la pregunta. */
-function opciones(padre, rotulo, mapa, destino, clave){
+/* Repregunta: la guía 2018 distingue niveles que el formulario impreso no separa
+   (Tabla 2: el código «2» de colapso cae en «no habitable» y en «peligro de
+   colapso» a la vez). Aparece solo cuando la respuesta la exige, y sin contestar
+   se toma el nivel más grave. */
+function repregunta(padre, destino, blq, clave){
+  var defs = V2F_REPREGUNTAS.filter(function(r){ return r.blq===blq && r.si===clave; });
+  if(!defs.length) return null;
+  var caja = el("div","repregunta oculto");
+  defs.forEach(function(r){
+    opciones(caja, r.rotulo, {"1":"Sí","2":"No"}, destino, r.k);
+  });
+  padre.appendChild(caja);
+  return {caja:caja, vale:defs[0].vale};
+}
+
+function opciones(padre, rotulo, mapa, destino, clave, blq){
   var w=el("div","item"), p=el("p"); p.textContent=rotulo;
   p.id = "rot" + (++nRotulo); w.appendChild(p);
   /* El grupo de botones se anuncia con su pregunta: sin esto un lector lee
@@ -897,11 +956,14 @@ function opciones(padre, rotulo, mapa, destino, clave){
       Array.prototype.forEach.call(g.children,function(x){x.setAttribute("aria-pressed","false")});
       if(ya){ delete destino[clave]; }
       else { b.setAttribute("aria-pressed","true"); destino[clave]=parseInt(cod,10); }
+      if(w.repre) w.repre.caja.classList.toggle("oculto", destino[clave]!==w.repre.vale);
       pintarPlaca();
     };
     g.appendChild(b);
   });
-  w.appendChild(g); padre.appendChild(w); return w;
+  w.appendChild(g); padre.appendChild(w);
+  if(blq) w.repre = repregunta(w, destino, blq, clave);
+  return w;
 }
 function campo(padre, rotulo, destino, clave, tipo){
   var l=el("label","campo"), sp=el("span",null,rotulo);
@@ -1054,16 +1116,31 @@ function construirV2F(){
 
   s=seccion(c,"A · Estado general de la edificación");
   V2F_ESTADO_GENERAL.forEach(function(q){
-    opciones(s,q.n+". "+q.rotulo,q.opciones,v2fEst.estado,q.k); });
+    opciones(s,q.n+". "+q.rotulo,q.opciones,v2fEst.estado,q.k,"estado"); });
 
   s=seccion(c,"B · Problemas geotécnicos");
   V2F_GEOTECNICOS.forEach(function(q){
-    opciones(s,q.n+". "+q.rotulo,q.opciones,v2fEst.geotecnicos,q.k); });
+    opciones(s,q.n+". "+q.rotulo,q.opciones,v2fEst.geotecnicos,q.k,"geotecnicos"); });
 
   s=seccion(c,"C · Daños en elementos no estructurales",
     "Deje sin marcar lo que no aplique a esta edificación.");
+  /* La Tabla 4 clasifica por grado Y extensión, pero el formulario impreso solo
+     tiene casilla para el grado. El porcentaje aparece cuando el daño llega a
+     moderado, que es a partir de donde la tabla lo necesita. */
   Object.keys(V2F_NO_ESTRUCTURALES).sort(function(a,b){return a-b}).forEach(function(it){
-    opciones(s,it+". "+V2F_NO_ESTRUCTURALES[it],V2F_GRADO_DANO,v2fEst.no_estructurales,it); });
+    var w = opciones(s,it+". "+V2F_NO_ESTRUCTURALES[it],V2F_GRADO_DANO,
+                     v2fEst.no_estructurales,it);
+    var caja = el("div","repregunta oculto");
+    campo(caja,"% del área afectada",v2fEst.no_estructurales_pct,it,"number");
+    w.appendChild(caja);
+    w.repre = {caja:caja, vale:null};
+    w.querySelectorAll(".escala button").forEach(function(b){
+      b.addEventListener("click", function(){
+        var v = v2fEst.no_estructurales[it];
+        caja.classList.toggle("oculto", !(v >= 3));
+      });
+    });
+  });
 
   s=seccion(c,"D · Daños en elementos estructurales");
   campo(s,"Nivel de entrepiso con el mayor daño",v2fEst.estructura,"nivel_mayor_dano","number");
@@ -1071,7 +1148,7 @@ function construirV2F(){
 
   s=seccion(c,"E · Problemas del entorno");
   V2F_ENTORNO.forEach(function(q){
-    opciones(s,q.n+". "+q.rotulo,q.opciones,v2fEst.entorno,q.k); });
+    opciones(s,q.n+". "+q.rotulo,q.opciones,v2fEst.entorno,q.k,"entorno"); });
   campo(s,"% del área afectada respecto al área construida",v2fEst.estructura,
         "area_afectada_pct","number");
 

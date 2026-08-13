@@ -266,6 +266,8 @@ CAMPOS_V2F = [
     ("v2f_estructura", "v2f_estructura"), ("v2f_estado", "v2f_estado"),
     ("v2f_geotecnicos", "v2f_geotecnicos"),
     ("v2f_no_estructurales", "v2f_no_estructurales"),
+    ("v2f_no_estructurales_pct", "v2f_no_estructurales_pct"),
+    ("dano_global", "dano_global"),
     ("v2f_estructurales", "v2f_estructurales"), ("v2f_entorno", "v2f_entorno"),
     ("v2f_preexistentes", "v2f_preexistentes"),
     ("v2f_recomendaciones", "v2f_recomendaciones"),

@@ -117,6 +117,10 @@ ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_geotecnicos jsonb;
   -- bloque B: talud, asentamiento, grietas
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_no_estructurales jsonb;
   -- bloque C: items 7 a 17, escala 1 a 5
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_no_estructurales_pct jsonb;
+  -- % de area afectada por item del bloque C. La Tabla 4 de la guia 2018
+  -- clasifica por grado Y extension, pero el formulario impreso solo tiene
+  -- casilla para el grado.
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_estructurales jsonb;
   -- bloque D: items 18 a 21, % por grado que suma 100 en el piso de mayor daño
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS v2f_entorno jsonb;
@@ -131,6 +135,14 @@ ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS nivel_mayor_dano smallin
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS area_afectada_pct smallint
   CHECK (area_afectada_pct BETWEEN 0 AND 100);
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS bloques_faltantes text[];
+
+-- Clasificacion global del dano (Tabla 10, pag. 54) derivada del % de area
+-- afectada, y la habitabilidad que le corresponde (Tabla 9, pag. 53). NO
+-- reemplaza a las cinco parciales: el V2F dice que la global es la mas
+-- conservadora de A a E. Sirve de contraste — si el inspector estima 70 % de
+-- area afectada y las parciales dan "uso restringido", hay algo que revisar.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS dano_global smallint
+  CHECK (dano_global BETWEEN 1 AND 6);
 
 -- Municipio segun la DIVIPOLA del DANE. El nombre escrito a mano produce
 -- "Bogota", "BOGOTÁ" y "Bogotá, D.C." como tres sectores distintos, y el umbral

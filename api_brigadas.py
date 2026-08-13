@@ -230,8 +230,9 @@ INSERT INTO evaluacion_brigada (
   departamento, cod_dane, origen_punto,
   nivel_mayor_dano, area_afectada_pct, bloques_faltantes, reservado,
   v2f_estructura, v2f_estado, v2f_geotecnicos, v2f_no_estructurales,
+  v2f_no_estructurales_pct,
   v2f_estructurales, v2f_entorno, v2f_preexistentes, v2f_recomendaciones,
-  v2f_ocupacion, v2f_comision,
+  v2f_ocupacion, v2f_comision, dano_global,
   revision_estado, revision_vence
 ) VALUES (
   %(id)s, %(id_local)s, %(ts)s, %(matricula)s, %(inspector)s, %(brigada)s,
@@ -252,8 +253,9 @@ INSERT INTO evaluacion_brigada (
   %(departamento)s, %(cod_dane)s, %(origen_punto)s,
   %(nivel_mayor_dano)s, %(area_afectada_pct)s, %(bloques_faltantes)s, %(reservado)s,
   %(v2f_estructura)s, %(v2f_estado)s, %(v2f_geotecnicos)s, %(v2f_no_estructurales)s,
+  %(v2f_no_estructurales_pct)s,
   %(v2f_estructurales)s, %(v2f_entorno)s, %(v2f_preexistentes)s, %(v2f_recomendaciones)s,
-  %(v2f_ocupacion)s, %(v2f_comision)s,
+  %(v2f_ocupacion)s, %(v2f_comision)s, %(dano_global)s,
   -- Entran en cola los dos niveles que ordenan desalojo. Un verde no necesita
   -- que dos personas confirmen que la casa sigue en pie.
   CASE WHEN %(clasificacion)s >= 3 THEN 'pendiente' END,
@@ -387,11 +389,16 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
         "nivel_mayor_dano": entero(ev.nivel_mayor_dano),
         "area_afectada_pct": entero(ev.area_afectada_pct),
         "bloques_faltantes": calculo.get("faltan") or None,
+        # Tabla 10 de la guia: la escala de dano global sale del % de area
+        # afectada, no de las parciales. Se calcula aca para que el V2F
+        # exportado lleve esa casilla llena.
+        "dano_global": v2f.dano_global(entero(ev.area_afectada_pct)),
         "reservado": Jsonb(ev.reservado) if ev.reservado else None,
         "v2f_estructura": Jsonb(bloques["estructura"]) if bloques.get("estructura") else None,
         "v2f_estado": Jsonb(bloques["estado"]) if bloques.get("estado") else None,
         "v2f_geotecnicos": Jsonb(bloques["geotecnicos"]) if bloques.get("geotecnicos") else None,
         "v2f_no_estructurales": Jsonb(bloques["no_estructurales"]) if bloques.get("no_estructurales") else None,
+        "v2f_no_estructurales_pct": Jsonb(bloques["no_estructurales_pct"]) if bloques.get("no_estructurales_pct") else None,
         "v2f_estructurales": Jsonb(bloques["estructurales"]) if bloques.get("estructurales") else None,
         "v2f_entorno": Jsonb(bloques["entorno"]) if bloques.get("entorno") else None,
         "v2f_preexistentes": Jsonb(bloques["preexistentes"]) if bloques.get("preexistentes") else None,
@@ -429,6 +436,10 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
                 if previa:
                     verificada = previa[1]
     except (psycopg.Error, PoolTimeout) as e:
+        # El detalle va al log del servidor, no a la respuesta: el mensaje de
+        # psycopg puede llevar fragmentos del dato. Sin esta linea, un 503
+        # obligaba a reproducir el fallo a ciegas.
+        print(f"[grabar] {e.__class__.__name__} en {ev.id}: {e}", flush=True)
         # 503 y NO 200: la app deja el registro como pendiente y reintenta.
         # Devolver ok aca perderia la evaluacion sin que nadie se entere.
         raise HTTPException(503, f"No se pudo grabar la evaluación: {e.__class__.__name__}")
