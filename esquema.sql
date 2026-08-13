@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS evaluacion_brigada (
   ocupantes       int,
   danos           jsonb,                     -- {portantes,horizontal,nostruct,terreno}: 0..3
   banderas        jsonb,                     -- condiciones de cierre, booleanas
-  clasificacion   smallint NOT NULL CHECK (clasificacion IN (1,2,3)),  -- 1 verde 2 amarillo 3 rojo
+  clasificacion   smallint NOT NULL,  -- habitabilidad firmada; ver la escala mas abajo
   clasificacion_auto smallint,               -- lo que calculó la regla
   motivo_auto     text,                      -- por qué lo calculó así
   justificacion   text,                      -- obligatorio si difiere del automático
@@ -48,6 +48,35 @@ CREATE TABLE IF NOT EXISTS evaluacion_brigada (
 CREATE INDEX IF NOT EXISTS evaluacion_brigada_geom_idx   ON evaluacion_brigada USING gist (geom);
 CREATE INDEX IF NOT EXISTS evaluacion_brigada_sector_idx ON evaluacion_brigada (municipio, barrio);
 CREATE INDEX IF NOT EXISTS evaluacion_brigada_clasif_idx ON evaluacion_brigada (clasificacion);
+
+-- ---------------------------------------------------------------------------
+-- Cuatro niveles de habitabilidad (formulario V2F del IDIGER)
+-- ---------------------------------------------------------------------------
+--
+--   1 Habitable · 2 Uso restringido · 3 No habitable · 4 Peligro de colapso
+--
+-- La escala de tres mezclaba dos decisiones distintas dentro del rojo: no entrar
+-- a esta edificacion, y esta edificacion puede caerse sobre la calle. La segunda
+-- acordona la via y evacua vecinos; no es el mismo acto.
+--
+-- Lo ya firmado NO se reescribe. Un rojo de la escala vieja queda en 3, que es
+-- lo que decia su texto ("inseguro, no ingresar"); nadie sube a 4 de forma
+-- retroactiva, porque 4 es un dictamen que ningun ingeniero firmo. `escala`
+-- registra con cual se firmo cada fila, para que dentro de un año se pueda
+-- distinguir "descarto el peligro de colapso" de "ni siquiera se lo preguntaron".
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS escala smallint NOT NULL DEFAULT 3
+  CHECK (escala IN (3,4));
+
+ALTER TABLE evaluacion_brigada DROP CONSTRAINT IF EXISTS evaluacion_brigada_clasificacion_check;
+ALTER TABLE evaluacion_brigada ADD CONSTRAINT evaluacion_brigada_clasificacion_check
+  CHECK (clasificacion BETWEEN 1 AND escala);
+
+-- Las cinco parciales A-E del V2F, tal como se calcularon. Se guardan porque el
+-- formulario las imprime y porque son la explicacion de la global: sin ellas,
+-- "3" es un numero sin defensa.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS parciales jsonb;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS parcial_manda text
+  CHECK (parcial_manda IN ('A','B','C','D','E'));
 
 -- ---------------------------------------------------------------------------
 -- Registro de brigadas e inspectores
@@ -127,8 +156,11 @@ ALTER TABLE evaluacion_brigada
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_vence timestamptz;
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_matricula text;
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_en timestamptz;
-ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_clasificacion smallint
-  CHECK (revision_clasificacion IN (1,2,3));
+ALTER TABLE evaluacion_brigada DROP CONSTRAINT IF EXISTS
+  evaluacion_brigada_revision_clasificacion_check;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_clasificacion smallint;
+ALTER TABLE evaluacion_brigada ADD CONSTRAINT evaluacion_brigada_revision_clasificacion_check
+  CHECK (revision_clasificacion BETWEEN 1 AND 4);
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS revision_motivo text;
 
 -- Lo que vale operativamente. La columna `clasificacion` sigue siendo lo que
@@ -139,17 +171,19 @@ ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS clasificacion_efectiva s
 CREATE INDEX IF NOT EXISTS evaluacion_brigada_revision_idx
   ON evaluacion_brigada (revision_estado, revision_vence);
 
--- Los rojos que todavía no tienen segunda mirada, los vencidos primero.
+-- Lo que ordena desalojo y todavia no tiene segunda mirada. Entran 3 y 4: los
+-- dos vacian un edificio. El 4 va primero porque ademas compromete la via y a
+-- los vecinos, y trae su propio plazo, mas corto.
 DROP VIEW IF EXISTS rojos_pendientes;
 CREATE VIEW rojos_pendientes AS
 SELECT id, id_local, ts, recibido_en, matricula, inspector, brigada_token,
        direccion, municipio, barrio, observaciones, justificacion,
-       revision_vence,
+       clasificacion, revision_vence,
        (revision_vence < now())                       AS vencido,
        round(extract(epoch FROM (now() - revision_vence)) / 3600.0, 1) AS horas_de_atraso
   FROM evaluacion_brigada
  WHERE revision_estado = 'pendiente'
- ORDER BY revision_vence;
+ ORDER BY clasificacion DESC, revision_vence;
 
 -- Cola de revisión: quién firmó sin estar en el registro. No se rechaza en campo
 -- —perder una evaluación es peor que aceptarla marcada— pero no puede pasar
@@ -225,10 +259,14 @@ SELECT municipio, barrio,
        count(*)                                  AS evaluadas,
        -- Efectiva, no la firmada: si un segundo inspector revocó un rojo, el
        -- consolidado tiene que reflejar la realidad revisada.
-       count(*) FILTER (WHERE clasificacion_efectiva = 3) AS rojas,
-       count(*) FILTER (WHERE clasificacion_efectiva = 2) AS amarillas,
-       count(*) FILTER (WHERE clasificacion_efectiva = 1) AS verdes,
-       count(*) FILTER (WHERE revision_estado = 'pendiente') AS rojas_sin_revisar,
+       -- Los nombres son los del formulario y de la resolucion, no los del
+       -- semaforo: el color vive en la interfaz, donde ayuda. Se renombro con
+       -- cero credenciales de consulta emitidas, que era el momento de hacerlo.
+       count(*) FILTER (WHERE clasificacion_efectiva = 1) AS habitables,
+       count(*) FILTER (WHERE clasificacion_efectiva = 2) AS uso_restringido,
+       count(*) FILTER (WHERE clasificacion_efectiva = 3) AS no_habitables,
+       count(*) FILTER (WHERE clasificacion_efectiva = 4) AS peligro_colapso,
+       count(*) FILTER (WHERE revision_estado = 'pendiente') AS sin_segunda_revision,
        ST_Centroid(ST_Collect(geom))             AS centro
 FROM evaluacion_brigada
 GROUP BY municipio, barrio

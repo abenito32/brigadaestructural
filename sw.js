@@ -14,7 +14,7 @@
    vea <https://www.gnu.org/licenses/>.
  */
 
-const CACHE = "brigada-v8";   // subir en CADA cambio de los archivos cacheados
+const CACHE = "brigada-v9";   // subir en CADA cambio de los archivos cacheados
 const ARCHIVOS = ["./", "./index.html", "./manifest.json"];
 
 self.addEventListener("install", e => {

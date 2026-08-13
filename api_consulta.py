@@ -109,10 +109,14 @@ SELECT_CONSOLIDADO = """
 SELECT municipio, barrio, count(*) AS evaluadas,
        -- Efectiva: si un segundo inspector revoco un rojo, el consolidado tiene
        -- que reflejar la realidad revisada, no la primera firma.
-       count(*) FILTER (WHERE clasificacion_efectiva = 3) AS rojas,
-       count(*) FILTER (WHERE clasificacion_efectiva = 2) AS amarillas,
-       count(*) FILTER (WHERE clasificacion_efectiva = 1) AS verdes,
-       count(*) FILTER (WHERE revision_estado = 'pendiente') AS rojas_sin_revisar,
+       -- Los nombres son los del formulario V2F del IDIGER, no los del semaforo:
+       -- quien integra ve las mismas palabras que estan en el papel. Se renombro
+       -- con cero credenciales emitidas, que era el momento de hacerlo.
+       count(*) FILTER (WHERE clasificacion_efectiva = 1) AS habitables,
+       count(*) FILTER (WHERE clasificacion_efectiva = 2) AS uso_restringido,
+       count(*) FILTER (WHERE clasificacion_efectiva = 3) AS no_habitables,
+       count(*) FILTER (WHERE clasificacion_efectiva = 4) AS peligro_colapso,
+       count(*) FILTER (WHERE revision_estado = 'pendiente') AS sin_segunda_revision,
        max(recibido_en) AS ultima,
        ST_X(ST_Centroid(ST_Collect(geom))) AS lon,
        ST_Y(ST_Centroid(ST_Collect(geom))) AS lat
@@ -127,10 +131,11 @@ HAVING count(*) >= %s
 def _consolidado(cred, municipio, barrio, desde, hasta):
     donde, args = filtros(cred[2], municipio, barrio, desde, hasta, None)
     filas = consultar(SELECT_CONSOLIDADO.format(donde=donde), tuple(args) + (K_ANONIMATO,))
-    return [{"municipio": f[0], "barrio": f[1], "evaluadas": f[2], "rojas": f[3],
-             "amarillas": f[4], "verdes": f[5], "rojas_sin_revisar": f[6],
-             "ultima_actualizacion": f[7].isoformat() if f[7] else None,
-             "lon": f[8], "lat": f[9]} for f in filas]
+    return [{"municipio": f[0], "barrio": f[1], "evaluadas": f[2],
+             "habitables": f[3], "uso_restringido": f[4], "no_habitables": f[5],
+             "peligro_colapso": f[6], "sin_segunda_revision": f[7],
+             "ultima_actualizacion": f[8].isoformat() if f[8] else None,
+             "lon": f[9], "lat": f[10]} for f in filas]
 
 
 @router.get("/consolidado")
@@ -179,7 +184,9 @@ CAMPOS_DETALLE = [
     ("direccion", "direccion"), ("municipio", "municipio"), ("barrio", "barrio"),
     ("sistema", "sistema"), ("uso", "uso"), ("pisos", "pisos"),
     ("ocupantes", "ocupantes"), ("danos", "danos"), ("banderas", "banderas"),
+    ("escala", "escala"),
     ("clasificacion", "clasificacion"), ("clasificacion_auto", "clasificacion_auto"),
+    ("parciales", "parciales"), ("parcial_manda", "parcial_manda"),
     ("motivo_auto", "motivo_auto"), ("justificacion", "justificacion"),
     ("clasificacion_efectiva", "clasificacion_efectiva"),
     ("revision_estado", "revision_estado"), ("revision_matricula", "revision_matricula"),
@@ -218,7 +225,7 @@ def evaluaciones(x_api_token: str = Header(default=""),
                  municipio: str = Query("", max_length=120),
                  barrio: str = Query("", max_length=120),
                  desde: date | None = None, hasta: date | None = None,
-                 clasificacion: int | None = Query(None, ge=1, le=3),
+                 clasificacion: int | None = Query(None, ge=1, le=4),
                  pagina: int = Query(1, ge=1),
                  por_pagina: int = Query(100, ge=1, le=MAX_PAGINA)):
     cred = autenticar(x_api_token)
@@ -238,7 +245,7 @@ def evaluaciones_geojson(x_api_token: str = Header(default=""),
                          municipio: str = Query("", max_length=120),
                          barrio: str = Query("", max_length=120),
                          desde: date | None = None, hasta: date | None = None,
-                         clasificacion: int | None = Query(None, ge=1, le=3),
+                         clasificacion: int | None = Query(None, ge=1, le=4),
                          pagina: int = Query(1, ge=1),
                          por_pagina: int = Query(MAX_PAGINA, ge=1, le=MAX_PAGINA)):
     cred = autenticar(x_api_token)

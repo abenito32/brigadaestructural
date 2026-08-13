@@ -45,9 +45,10 @@
 
   --verde:#15803D;
   --ambar:#B45309;      /* ámbar oscuro: para texto y bordes */
-  --ambar-fondo:#FACC15;/* relleno del semáforo, siempre con tinta oscura */
+  --ambar-fondo:#EAB308;/* relleno del semáforo, siempre con tinta oscura */
   --ambar-tinta:#422006;
-  --rojo:#B91C1C;
+  --naranja:#C2410C;    /* no habitable: evacuar la edificación */
+  --rojo:#7F1D1D;       /* peligro de colapso: además acordonar el entorno */
   --rojo-tinte:#FEF2F2;
 
   --r:8px;              /* campos y botones */
@@ -156,7 +157,17 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 .v-0{background:#E2E8F0;color:var(--tinta)}
 .v-1{background:var(--verde);color:#fff}
 .v-2{background:var(--ambar-fondo);color:var(--ambar-tinta)}
-.v-3{background:var(--rojo);color:#fff}
+.v-3{background:var(--naranja);color:#fff}
+.v-4{background:var(--rojo);color:#fff}
+
+/* Las cinco parciales del V2F. Se muestran siempre: el número global sale de
+   una de ellas, y quien firma tiene derecho a ver de cuál. */
+.parciales{display:flex;gap:6px;padding:11px 16px;background:var(--carta);
+  border-top:1px solid var(--linea);flex-wrap:wrap}
+.parcial{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tinta2);
+  border:1px solid var(--linea);border-radius:999px;padding:4px 10px}
+.parcial.manda{border-color:var(--tinta2);font-weight:700;color:var(--tinta)}
+.parcial i{width:10px;height:10px;border-radius:2px;display:inline-block}
 
 /* ---------- fotos ---------- */
 .fotos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
@@ -199,7 +210,8 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   align-items:center;box-shadow:var(--sombra)}
 .reg.c1{border-left-color:var(--verde)}
 .reg.c2{border-left-color:var(--ambar)}
-.reg.c3{border-left-color:var(--rojo)}
+.reg.c3{border-left-color:var(--naranja)}
+.reg.c4{border-left-color:var(--rojo)}
 .reg .d{flex:1;min-width:0}
 .reg .id{font-size:12px;color:var(--tenue);font-weight:600;font-variant-numeric:tabular-nums}
 .reg .a{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -319,13 +331,15 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
         <p id="placaS">Complete el nivel de daño</p>
       </div>
       <div class="placa-pie" id="placaP">La clasificación se calcula sola y usted puede cambiarla.</div>
+      <div class="parciales" id="parciales"></div>
     </div>
     <label class="campo"><span>Clasificación que firma</span>
       <select id="final">
         <option value="auto">Usar la calculada</option>
         <option value="1">Verde · Habitable</option>
         <option value="2">Amarillo · Uso restringido</option>
-        <option value="3">Rojo · Inseguro, no ingresar</option>
+        <option value="3">Naranja · No habitable</option>
+        <option value="4">Rojo · Peligro de colapso</option>
       </select></label>
     <label class="campo" id="wrapJust" style="display:none"><span>Motivo del cambio (obligatorio)</span>
       <textarea id="just" placeholder="Criterio técnico que sustenta la modificación"></textarea></label>
@@ -461,19 +475,67 @@ DANOS.forEach(function(x){est.danos[x.k]=0});
 BANDERAS.forEach(function(x){est.banderas[x.k]=false});
 
 /* ---------------- clasificación ---------------- */
+/* Las cinco parciales del V2F y la global, que es la más crítica de las cinco.
+   Es el espejo exacto de clasificar_triaje() en v2f.py; el servidor recalcula lo
+   mismo al recibir y guarda SU resultado, así que una diferencia entre los dos
+   se ve en el panel en vez de quedar escondida en un teléfono.
+   Techo por bloque: C y E no pasan de 3. Por un antepecho suelto se cierra la
+   edificación, no se declara inminente el colapso de la estructura. */
 function clasificar(){
-  var d=est.danos,b=est.banderas;
-  for(var k in b) if(b[k]) return {v:3,por:"Condición que obliga cierre inmediato"};
-  if(d.portantes===3||d.horizontal===3) return {v:3,por:"Daño severo en elementos portantes"};
-  if(d.terreno===3) return {v:3,por:"Daño severo en el terreno de soporte"};
-  if(d.portantes===2||d.horizontal===2||d.terreno===2||d.nostruct===3)
-    return {v:2,por:"Daño moderado; requiere restricción de uso"};
-  if(d.portantes===0&&d.horizontal===0&&d.nostruct===0&&d.terreno===0)
-    return {v:0,por:"Complete el nivel de daño"};
-  return {v:1,por:"Sin daño estructural relevante"};
+  var d=est.danos, b=est.banderas, p={}, por={}, k, vacio=true;
+  for(k in d) if(d[k]) vacio=false;
+  for(k in b) if(b[k]) vacio=false;
+
+  if(b.colapso){ p.A=4; por.A="Colapso total o parcial de algún nivel"; }
+  else if(b.inclina){ p.A=4; por.A="Inclinación o desplome visible de la edificación"; }
+  else { p.A=1; por.A="Sin colapso ni desplome visible"; }
+
+  if(d.terreno===3){ p.B=3; por.B="Daño severo en el terreno de soporte"; }
+  else if(d.terreno===2){ p.B=2; por.B="Daño moderado en el terreno"; }
+  else { p.B=1; por.B="Sin problema geotécnico observado"; }
+
+  /* Umbral heredado de la escala de tres, a propósito: ver la nota en v2f.py. */
+  if(b.acceso){ p.C=3; por.C="Elementos pesados sueltos sobre el acceso o la vía"; }
+  else if(d.nostruct===3){ p.C=2; por.C="Daño severo en muros divisorios o fachada"; }
+  else { p.C=1; por.C="Sin daño no estructural que restrinja el uso"; }
+
+  if(b.acero){ p.D=4; por.D="Núcleo de columna triturado, acero expuesto o pandeado"; }
+  else if(d.portantes===3||d.horizontal===3){ p.D=3; por.D="Daño severo en elementos portantes o entrepisos"; }
+  else if(b.pasante){ p.D=3; por.D="Grietas pasantes o anchas en muros portantes"; }
+  else if(d.portantes===2||d.horizontal===2){ p.D=2; por.D="Daño moderado en la estructura"; }
+  else { p.D=1; por.D="Sin daño estructural relevante"; }
+
+  if(b.vecino){ p.E=3; por.E="Riesgo externo: vecino inestable, talud o deslizamiento"; }
+  else { p.E=1; por.E="Entorno sin amenaza observada"; }
+
+  var orden=["A","B","C","D","E"], manda=null;
+  for(var i=0;i<orden.length;i++){
+    k=orden[i];
+    if(p[k]>V2F_TECHO_PARCIAL[k]) p[k]=V2F_TECHO_PARCIAL[k];
+    if(manda===null||p[k]>p[manda]) manda=k;
+  }
+  if(vacio) return {v:0,por:"Complete el nivel de daño",parciales:p,manda:null};
+  return {v:p[manda],por:por[manda],parciales:p,manda:manda};
 }
-var TIT=["Sin evaluar","Verde","Amarillo","Rojo"];
-var SUB=["Complete el nivel de daño","Habitable","Uso restringido","Inseguro · no ingresar"];
+/* V2F:catalogo:inicio */
+/* Generado por build_catalogo.py desde v2f.py. NO editar a mano:
+   el próximo generador lo sobrescribe. Cambie v2f.py y vuelva a correrlo. */
+var V2F_HABITABILIDAD={"1": "Habitable", "2": "Uso restringido", "3": "No habitable", "4": "Peligro de colapso"};
+var V2F_SUBTITULO={"1": "Puede ocuparse", "2": "Ocupación limitada", "3": "No ingresar · evacuar", "4": "Evacuar y acordonar el entorno"};
+var V2F_COLOR={"0": "#64748B", "1": "#15803D", "2": "#EAB308", "3": "#C2410C", "4": "#7F1D1D"};
+var V2F_COLOR_TINTA={"0": "#FFFFFF", "1": "#FFFFFF", "2": "#422006", "3": "#FFFFFF", "4": "#FFFFFF"};
+var V2F_TECHO_PARCIAL={"A": 4, "B": 4, "C": 3, "D": 4, "E": 3};
+var V2F_PARCIALES={"A": "Estado general de la edificación", "B": "Problemas geotécnicos", "C": "Daños en elementos no estructurales", "D": "Daños en elementos estructurales", "E": "Problemas del entorno"};
+var V2F_SISTEMA_ESTRUCTURAL={"11": "Pórtico de concreto", "12": "Muros estructurales", "13": "Sistemas duales", "14": "Prefabricados", "21": "Mampostería confinada", "22": "Mampostería reforzada", "23": "Mampostería no reforzada (simple)", "31": "Pórticos arriostrados", "32": "Pórticos no arriostrados", "33": "Pórticos en celosía", "41": "Pórticos y paneles en madera", "42": "Pórticos en madera y paneles en otros materiales", "51": "Muros en bahareque", "52": "Muros en tapia o adobe", "60": "Mixta", "61": "Construida en material precario (sin sistema estructural)", "70": "Otros"};
+var V2F_SISTEMA_GRUPO={"Acero": [31, 32, 33], "Bahareque o tapia (adobe)": [51, 52], "Concreto reforzado": [11, 12, 13, 14], "Madera": [41, 42], "Mampostería": [21, 22, 23], "Otros": [60, 61, 70]};
+var V2F_TIPO_ENTREPISO={"11": "Placa maciza", "12": "Placa aligerada", "13": "Reticular celulado", "21": "Lámina colaborante (steel deck)", "22": "Vigas", "23": "Cerchas", "31": "Vigas en madera", "32": "Cerchas en madera", "40": "Mixta", "50": "Otros"};
+var V2F_ENTREPISO_GRUPO={"Acero": [21, 22, 23], "Concreto reforzado": [11, 12, 13], "Madera": [31, 32], "Otros": [40, 50]};
+var V2F_PERIODO_CONSTRUCCION={"1": "Antes de 1960", "2": "1960 a 1985", "3": "1986 a 1999", "4": "2000 a 2011", "5": "A partir de 2012"};
+var V2F_USO={"1": "Residencial", "2": "Comercial", "3": "Educacional", "4": "Salud", "5": "Hotelero", "6": "Oficinas", "7": "Industrial", "8": "Institucional", "9": "Bodegas", "10": "Estacionamientos", "11": "Otros"};
+var V2F_TIPO_INSPECCION={"1": "Completa", "2": "Parcial", "3": "Exterior solamente"};
+var TIT=["Sin evaluar",V2F_HABITABILIDAD["1"],V2F_HABITABILIDAD["2"],V2F_HABITABILIDAD["3"],V2F_HABITABILIDAD["4"]];
+var SUB=["Complete el nivel de daño",V2F_SUBTITULO["1"],V2F_SUBTITULO["2"],V2F_SUBTITULO["3"],V2F_SUBTITULO["4"]];
+/* V2F:catalogo:fin */
 
 function pintarPlaca(){
   var c=clasificar(), sel=document.getElementById("final").value;
@@ -484,10 +546,21 @@ function pintarPlaca(){
   document.getElementById("placaS").textContent=SUB[v];
   document.getElementById("placaP").textContent =
     (sel==="auto") ? c.por : "Modificada por criterio del inspector. Cálculo automático: "+TIT[c.v]+".";
+  pintarParciales(c);
   var chip=document.getElementById("chip");
   chip.className="chip v-"+v; chip.textContent=TIT[v];
   document.getElementById("wrapJust").style.display=(sel==="auto")?"none":"block";
   return v;
+}
+
+function pintarParciales(c){
+  var caja=document.getElementById("parciales"), orden=["A","B","C","D","E"], h="";
+  for(var i=0;i<orden.length;i++){
+    var k=orden[i], v=c.parciales?c.parciales[k]:1;
+    h+='<span class="parcial'+(c.manda===k?" manda":"")+'" title="'+V2F_PARCIALES[k]+'">'+
+       '<i style="background:'+V2F_COLOR[c.v===0?0:v]+'"></i>'+k+" "+(c.v===0?"—":v)+'</span>';
+  }
+  caja.innerHTML=h;
 }
 
 /* ---------------- construir formulario ---------------- */
@@ -612,7 +685,9 @@ document.getElementById("btnGuardar").onclick=function(){
       pisos:document.getElementById("pisos").value, ocupantes:document.getElementById("ocu").value,
       danos:JSON.parse(JSON.stringify(est.danos)),
       banderas:JSON.parse(JSON.stringify(est.banderas)),
+      escala:4,
       clasificacion:v, clasificacion_auto:c.v, motivo_auto:c.por,
+      parciales:c.parciales, parcial_manda:c.manda,
       justificacion:document.getElementById("just").value.trim(),
       observaciones:document.getElementById("obs").value.trim(),
       fotos:est.fotos.slice()
@@ -672,15 +747,20 @@ document.getElementById("btnCsv").onclick=function(){
     if(!rs.length){alert("No hay evaluaciones.");return;}
     var cab=["id","fecha","matricula","brigada","lat","lon","precision_m","direccion","municipio",
       "barrio","sistema","uso","pisos","ocupantes","d_portantes","d_horizontal","d_nostruct",
-      "d_terreno","banderas","clasificacion","observaciones"];
+      "d_terreno","banderas","clasificacion","nivel","clas_A","clas_B","clas_C","clas_D",
+      "clas_E","observaciones"];
     var f=function(x){return '"'+String(x===null||x===undefined?"":x).replace(/"/g,'""')+'"'};
     var l=[cab.join(",")];
     rs.forEach(function(o){
       var bs=Object.keys(o.banderas).filter(function(k){return o.banderas[k]}).join("|");
+      /* Las evaluaciones firmadas antes de los cuatro niveles no tienen parciales:
+         la columna sale vacía en vez de inventarle un valor. */
+      var pc=o.parciales||{};
       l.push([o.id,o.ts,o.inspector.matricula,o.inspector.brigada,o.lat,o.lon,o.precision_m,
         o.direccion,o.municipio,o.barrio,o.sistema,o.uso,o.pisos,o.ocupantes,
         o.danos.portantes,o.danos.horizontal,o.danos.nostruct,o.danos.terreno,bs,
-        TIT[o.clasificacion],o.observaciones].map(f).join(","));
+        TIT[o.clasificacion],o.clasificacion,
+        pc.A,pc.B,pc.C,pc.D,pc.E,o.observaciones].map(f).join(","));
     });
     bajar("evaluaciones.csv","\ufeff"+l.join("\r\n"),"text/csv;charset=utf-8");
   });

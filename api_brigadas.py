@@ -48,6 +48,8 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool, PoolTimeout
 from pydantic import BaseModel
 
+import v2f   # catalogo y regla del formulario V2F: fuente unica de la clasificacion
+
 TOKENS = set(filter(None, os.getenv("BRIGADA_TOKENS", "").split(",")))
 DSN = os.getenv("BRIGADA_DSN", "")
 # Un fork que despliegue esto debe apuntar BRIGADA_FUENTE a su propio repositorio.
@@ -66,7 +68,11 @@ MAX_BYTES_FOTO = 3_000_000
 ESPERA_POOL = 5
 # Plazo para la segunda mirada de un rojo. Vencido no degrada nada: solo lo vuelve
 # visible como atrasado en el panel.
-HORAS_REVISION = int(os.getenv("BRIGADA_REVISION_HORAS", "24"))
+# Plazo de la segunda revision. Distinto por nivel: un peligro de colapso no solo
+# vacia el edificio, acordona la via y compromete a los vecinos. Vencido el plazo
+# NADA se degrada: el nivel se mantiene y la fila solo sale marcada como atrasada.
+HORAS_REVISION = int(os.getenv("BRIGADA_REVISION_HORAS", "24"))        # no habitable
+HORAS_REVISION_COLAPSO = int(os.getenv("BRIGADA_REVISION_HORAS_COLAPSO", "8"))
 # Lo escribe respaldo.sh. Sin MTA en el servidor, esta es la unica forma de
 # enterarse de que el respaldo dejo de correr antes de necesitarlo.
 ESTADO_RESPALDO = pathlib.Path(os.getenv("BRIGADA_RESPALDO_ESTADO",
@@ -148,8 +154,14 @@ class Evaluacion(BaseModel):
     ocupantes: str | int | None = None
     danos: dict[str, int]
     banderas: dict[str, bool]
+    # 3 = telefono con la escala vieja (verde/amarillo/rojo); 4 = escala del V2F.
+    # Sin el campo se asume 3: un telefono ya instalado no puede actualizarse
+    # hasta tener señal, y tener señal es justo cuando intenta enviar.
+    escala: int = 3
     clasificacion: int
     clasificacion_auto: int | None = None
+    parciales: dict[str, int] | None = None
+    parcial_manda: str | None = None
     motivo_auto: str = ""
     justificacion: str = ""
     observaciones: str = ""
@@ -200,6 +212,7 @@ INSERT INTO evaluacion_brigada (
   sistema, uso, pisos, ocupantes, danos, banderas,
   clasificacion, clasificacion_auto, motivo_auto, justificacion,
   observaciones, fotos, brigada_token, matricula_verificada,
+  escala, parciales, parcial_manda,
   revision_estado, revision_vence
 ) VALUES (
   %(id)s, %(id_local)s, %(ts)s, %(matricula)s, %(inspector)s, %(brigada)s,
@@ -215,10 +228,13 @@ INSERT INTO evaluacion_brigada (
   -- Se resuelve en la misma sentencia para no gastar otra ida a la base.
   EXISTS (SELECT 1 FROM inspector
           WHERE matricula = %(matricula)s AND vigente),
-  -- Solo los rojos entran en cola de segunda revision. Un verde no necesita
+  %(escala)s, %(parciales)s, %(parcial_manda)s,
+  -- Entran en cola los dos niveles que ordenan desalojo. Un verde no necesita
   -- que dos personas confirmen que la casa sigue en pie.
-  CASE WHEN %(clasificacion)s = 3 THEN 'pendiente' END,
-  CASE WHEN %(clasificacion)s = 3
+  CASE WHEN %(clasificacion)s >= 3 THEN 'pendiente' END,
+  CASE WHEN %(clasificacion)s = 4
+       THEN now() + make_interval(hours => %(horas_revision_colapso)s)
+       WHEN %(clasificacion)s = 3
        THEN now() + make_interval(hours => %(horas_revision)s) END
 )
 -- La idempotencia es por brigada: dos brigadas pueden mandar el mismo id_local
@@ -277,7 +293,8 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
     matricula = str(ev.inspector.get("matricula", "")).strip()
     if not matricula:
         raise HTTPException(422, "Falta la matrícula profesional de quien firma")
-    if ev.clasificacion not in (1, 2, 3):
+    escala = 4 if ev.escala == 4 else 3
+    if ev.clasificacion not in range(1, escala + 1):
         raise HTTPException(422, "Clasificación fuera de rango")
     # Cambiar el semaforo calculado exige motivo escrito: es el registro de
     # responsabilidad profesional, no un campo opcional.
@@ -285,6 +302,22 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
             and ev.clasificacion != ev.clasificacion_auto
             and not ev.justificacion.strip()):
         raise HTTPException(422, "Modificar la clasificación calculada exige justificación")
+
+    # El automatico se recalcula ACA y se guarda el del servidor, no el del
+    # telefono. La regla vive en dos sitios por fuerza —una corre sin señal en el
+    # navegador y otra en Python— y esta es la forma de que una diferencia entre
+    # las dos se vea en el panel en vez de quedar escondida en un telefono.
+    calculo = v2f.clasificar_triaje(ev.danos, ev.banderas)
+    auto = calculo["v"] if escala == 4 else min(calculo["v"], 3)
+    parciales = calculo["parciales"]
+    manda = calculo["manda"]
+    if ev.clasificacion_auto is not None and ev.clasificacion_auto != auto:
+        # No se rechaza: la evaluacion es valida y lo firmado es lo que vale. Pero
+        # que las dos implementaciones de la regla no coincidan es un defecto, y
+        # tiene que doler en el log en vez de pasar inadvertido.
+        print(f"[regla] discrepancia en {ev.id}: telefono={ev.clasificacion_auto} "
+              f"servidor={auto} escala={escala} danos={ev.danos} banderas={ev.banderas}",
+              flush=True)
 
     canonico = ulid()
     rutas = guardar_fotos(canonico, ev.fotos)
@@ -308,14 +341,19 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
         "ocupantes": entero(ev.ocupantes),
         "danos": Jsonb(ev.danos),
         "banderas": Jsonb(ev.banderas),
+        "escala": escala,
         "clasificacion": ev.clasificacion,
-        "clasificacion_auto": ev.clasificacion_auto,
-        "motivo_auto": ev.motivo_auto,
+        "clasificacion_auto": auto,
+        "parciales": Jsonb(parciales),
+        "parcial_manda": manda,
+        # El motivo del servidor, para que acompañe al valor del servidor.
+        "motivo_auto": calculo["por"],
         "justificacion": ev.justificacion,
         "observaciones": ev.observaciones,
         "fotos": Jsonb(rutas),
         "brigada_token": brigada_auth,
         "horas_revision": HORAS_REVISION,
+        "horas_revision_colapso": HORAS_REVISION_COLAPSO,
     }
 
     try:

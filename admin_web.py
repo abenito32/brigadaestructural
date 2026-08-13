@@ -18,6 +18,7 @@ lo que sale hacia autoridades es la vista consolidado_publico, agregada por sect
 """
 import base64
 import hashlib
+import json
 import pathlib
 from typing import NamedTuple
 import hmac
@@ -25,6 +26,7 @@ import os
 import secrets
 import time
 
+import v2f   # nombres y escala de la habitabilidad
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
                                Response)
@@ -164,7 +166,8 @@ BASE = """<!doctype html>
 <style>
 :root{--papel:#F1F5F9;--carta:#fff;--tinta:#0F172A;--tinta2:#475569;--tenue:#5E6E82;
  --borde:#CBD5E1;--linea:#E2E8F0;--azul:#0369A1;--azul-osc:#075985;--azul-tinte:#E0F2FE;
- --verde:#15803D;--ambar:#B45309;--ambar-fondo:#FACC15;--ambar-tinta:#422006;--rojo:#B91C1C;
+ --verde:#15803D;--ambar:#B45309;--ambar-fondo:#EAB308;--ambar-tinta:#422006;
+ --naranja:#C2410C;--rojo:#7F1D1D;
  --rojo-tinte:#FEF2F2;--r:8px;--r-l:12px;--sombra:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.08)}
 *{box-sizing:border-box}html{color-scheme:light}
 body{margin:0;background:var(--papel);color:var(--tinta);font:16px/1.5 ui-sans-serif,system-ui,
@@ -191,7 +194,8 @@ h1{font-size:22px;margin:0 0 4px;letter-spacing:-.02em}
  box-shadow:var(--sombra)}
 .cifra b{display:block;font-size:30px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .cifra span{font-size:12px;color:var(--tinta2);font-weight:600}
-.cifra.c1 b{color:var(--verde)}.cifra.c2 b{color:var(--ambar)}.cifra.c3 b{color:var(--rojo)}
+.cifra.c1 b{color:var(--verde)}.cifra.c2 b{color:var(--ambar)}
+.cifra.c3 b{color:var(--naranja)}.cifra.c4 b{color:var(--rojo)}
 .cifra.alerta{border-color:#FECACA;background:var(--rojo-tinte)}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--tenue);
@@ -202,7 +206,7 @@ tbody tr:hover{background:var(--papel)}
 .pastilla{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;
  white-space:nowrap}
 .p1{background:#DCFCE7;color:#14532D}.p2{background:#FEF3C7;color:var(--ambar-tinta)}
-.p3{background:#FEE2E2;color:#7F1D1D}
+.p3{background:#FFEDD5;color:#7C2D12}.p4{background:#FEE2E2;color:#7F1D1D}
 .pi{background:var(--azul-tinte);color:var(--azul-osc)}.pn{background:#F1F5F9;color:var(--tinta2)}
 .palerta{background:#FEE2E2;color:#7F1D1D}
 label{display:block;margin-bottom:13px}
@@ -250,7 +254,7 @@ label.acepto>span{display:inline;font-weight:400;font-size:14px;margin:0;color:v
     <a href="/admin/mapa" class="{{ 'on' if pag=='mapa' }}">Mapa</a>
     <a href="/admin/evolucion" class="{{ 'on' if pag=='evolucion' }}">Evolución</a>
     <a href="/admin/reportes" class="{{ 'on' if pag=='reportes' }}">Reportes</a>
-    <a href="/admin/rojos" class="{{ 'on' if pag=='rojos' }}">Rojos</a>
+    <a href="/admin/rojos" class="{{ 'on' if pag=='rojos' }}">Revisión</a>
     {% if rol == 'admin' %}<a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>{% endif %}
     <a href="/admin/inspectores" class="{{ 'on' if pag=='inspectores' }}">Inspectores</a>
     {% if rol == 'admin' %}<a href="/admin/solicitudes" class="{{ 'on' if pag=='solicitudes' }}">Solicitudes</a>{% endif %}
@@ -340,7 +344,9 @@ MODAL_HTML = """
   "use strict";
   var dlg = document.getElementById("ficha");
   if (!dlg) return;
-  var NIV = ["N/A","Leve","Moderado","Severo"];
+  var NIV = ["N/A","Leve","Moderado","Severo"];          // escala de daño, 0 a 3
+  var HAB = __HAB__;                                     // habitabilidad, 1 a 4
+  var PARC = __PARC__;
   var COLOR_NIV = ["#EEF2F6","#DCFCE7","#FEF3C7","#FEE2E2"];
   var TINTA_NIV = ["#475569","#14532D","#422006","#7F1D1D"];
   var CATEG = {portantes:"Elementos portantes", horizontal:"Vigas y entrepisos",
@@ -390,8 +396,16 @@ MODAL_HTML = """
     ]);
     if (e.clasificacion_auto != null && e.clasificacion !== e.clasificacion_auto)
       html += "<h4>Clasificación modificada por el inspector</h4>" + filas([
-        ["Calculada", NIV[e.clasificacion_auto]], ["Firmada", NIV[e.clasificacion]],
+        ["Calculada", HAB[e.clasificacion_auto]], ["Firmada", HAB[e.clasificacion]],
         ["Motivo", esc(e.justificacion)]]);
+    if (e.parciales) {
+      var pk = ["A","B","C","D","E"], pp = "";
+      for (var j = 0; j < pk.length; j++)
+        pp += "<tr><td>" + pk[j] + " · " + esc(PARC[pk[j]]) + "</td><td>"
+            + esc(HAB[e.parciales[pk[j]]] || "—")
+            + (e.parcial_manda === pk[j] ? " <strong>← manda</strong>" : "") + "</td></tr>";
+      html += "<h4>Clasificación por bloque (V2F)</h4><table>" + pp + "</table>";
+    }
     if (e.revision_estado) html += "<h4>Segunda revisión</h4>" + filas([
       ["Estado", esc(e.revision_estado)], ["Revisó", esc(e.revision_matricula)],
       ["Cuándo", fecha(e.revision_en)], ["Motivo", esc(e.revision_motivo)]]);
@@ -492,7 +506,12 @@ MODAL_HTML = """
   };
 })();
 </script>
-"""
+""".replace(
+    # Catálogos del V2F resueltos al importar: el modal se inserta en tres
+    # pantallas y no tiene sentido que las tres pasen el mismo diccionario.
+    "__HAB__", json.dumps({str(k): v["nombre"] for k, v in v2f.HABITABILIDAD.items()},
+                          ensure_ascii=False)
+).replace("__PARC__", json.dumps(v2f.PARCIALES, ensure_ascii=False))
 
 
 # ---------------------------------------------------------------------- entrar
@@ -581,9 +600,11 @@ INICIO = """
 <p class="sub">Estado de lo que han enviado las brigadas.</p>
 <div class="cifras">
   <div class="cifra"><b class="num">{{ t.total }}</b><span>Evaluaciones recibidas</span></div>
-  <div class="cifra c3"><b class="num">{{ t.rojas }}</b><span>Rojas · inseguro</span></div>
-  <div class="cifra c2"><b class="num">{{ t.amarillas }}</b><span>Amarillas · uso restringido</span></div>
-  <div class="cifra c1"><b class="num">{{ t.verdes }}</b><span>Verdes · habitable</span></div>
+  <div class="cifra c4"><b class="num">{{ t.peligro_colapso }}</b>
+    <span>Peligro de colapso</span></div>
+  <div class="cifra c3"><b class="num">{{ t.no_habitables }}</b><span>No habitables</span></div>
+  <div class="cifra c2"><b class="num">{{ t.uso_restringido }}</b><span>Uso restringido</span></div>
+  <div class="cifra c1"><b class="num">{{ t.habitables }}</b><span>Habitables</span></div>
   <div class="cifra {{ 'alerta' if t.sin_verificar }}"><b class="num">{{ t.sin_verificar }}</b>
     <span>Firmas fuera del registro</span></div>
 </div>
@@ -615,27 +636,30 @@ consolidar. <a href="/admin/reportes?verificada=no">Verlas</a>.</div>
 <div class="tarjeta">
   <p class="rotulo">Por brigada</p>
   <div class="desplaza"><table>
-  <thead><tr><th>Brigada</th><th>Evaluadas</th><th>Rojas</th><th>Amarillas</th><th>Verdes</th>
+  <thead><tr><th>Brigada</th><th>Evaluadas</th><th>Peligro de colapso</th>
+    <th>No habitables</th><th>Uso restringido</th><th>Habitables</th>
     <th>Sin verificar</th><th>Última</th></tr></thead><tbody>
   {% for f in por_brigada %}<tr>
     <td>{{ f[0] or "— sin atribuir (token heredado)" }}</td>
     <td class="num">{{ f[1] }}</td><td class="num">{{ f[2] }}</td><td class="num">{{ f[3] }}</td>
-    <td class="num">{{ f[4] }}</td>
-    <td class="num">{% if f[5] %}<span class="pastilla palerta">{{ f[5] }}</span>{% else %}0{% endif %}</td>
-    <td class="num">{{ f[6].strftime("%Y-%m-%d %H:%M") if f[6] else "—" }}</td>
-  </tr>{% else %}<tr><td colspan="7" class="vacio">Todavía no hay evaluaciones.</td></tr>{% endfor %}
+    <td class="num">{{ f[4] }}</td><td class="num">{{ f[5] }}</td>
+    <td class="num">{% if f[6] %}<span class="pastilla palerta">{{ f[6] }}</span>{% else %}0{% endif %}</td>
+    <td class="num">{{ f[7].strftime("%Y-%m-%d %H:%M") if f[7] else "—" }}</td>
+  </tr>{% else %}<tr><td colspan="8" class="vacio">Todavía no hay evaluaciones.</td></tr>{% endfor %}
   </tbody></table></div>
 </div>
 
 <div class="tarjeta">
   <p class="rotulo">Por sector · lo que se entrega a las autoridades</p>
   <div class="desplaza"><table>
-  <thead><tr><th>Municipio</th><th>Barrio o vereda</th><th>Evaluadas</th><th>Rojas</th>
-    <th>Amarillas</th><th>Verdes</th></tr></thead><tbody>
+  <thead><tr><th>Municipio</th><th>Barrio o vereda</th><th>Evaluadas</th>
+    <th>Peligro de colapso</th><th>No habitables</th><th>Uso restringido</th>
+    <th>Habitables</th></tr></thead><tbody>
   {% for f in consolidado %}<tr>
     <td>{{ f[0] or "—" }}</td><td>{{ f[1] or "—" }}</td><td class="num">{{ f[2] }}</td>
     <td class="num">{{ f[3] }}</td><td class="num">{{ f[4] }}</td><td class="num">{{ f[5] }}</td>
-  </tr>{% else %}<tr><td colspan="6" class="vacio">Ningún sector llega todavía al mínimo de
+    <td class="num">{{ f[6] }}</td>
+  </tr>{% else %}<tr><td colspan="7" class="vacio">Ningún sector llega todavía al mínimo de
     5 registros.</td></tr>{% endfor %}
   </tbody></table></div>
   <p class="nota">Esta es la vista <code>consolidado_publico</code>: agregada por sector y con
@@ -649,8 +673,9 @@ consolidar. <a href="/admin/reportes?verificada=no">Verlas</a>.</div>
 def inicio(req: Request):
     ses = exigir(req)
     w, wa = filtro_alcance(req)
-    (total, rojas, amarillas, verdes, sinv, rpend, rvenc), = consulta(f"""
-        SELECT count(*), count(*) FILTER (WHERE clasificacion=3),
+    (total, colapso, nohab, restr, hab, sinv, rpend, rvenc), = consulta(f"""
+        SELECT count(*), count(*) FILTER (WHERE clasificacion=4),
+               count(*) FILTER (WHERE clasificacion=3),
                count(*) FILTER (WHERE clasificacion=2),
                count(*) FILTER (WHERE clasificacion=1),
                count(*) FILTER (WHERE NOT matricula_verificada),
@@ -659,7 +684,8 @@ def inicio(req: Request):
                                   AND revision_vence < now())
           FROM evaluacion_brigada WHERE {w}""", tuple(wa))
     por_brigada = consulta(f"""
-        SELECT brigada_token, count(*), count(*) FILTER (WHERE clasificacion_efectiva=3),
+        SELECT brigada_token, count(*), count(*) FILTER (WHERE clasificacion_efectiva=4),
+               count(*) FILTER (WHERE clasificacion_efectiva=3),
                count(*) FILTER (WHERE clasificacion_efectiva=2),
                count(*) FILTER (WHERE clasificacion_efectiva=1),
                count(*) FILTER (WHERE NOT matricula_verificada), max(recibido_en)
@@ -668,8 +694,9 @@ def inicio(req: Request):
     # El consolidado por sector se recalcula con el alcance aplicado: la vista
     # consolidado_publico no distingue brigadas, y servirla tal cual le mostraria
     # a un coordinador los sectores de las demas.
-    consolidado = [(f[0], f[1], f[2], f[3], f[4], f[5]) for f in sectores(req)]
-    t = {"total": total, "rojas": rojas, "amarillas": amarillas, "verdes": verdes,
+    consolidado = [f[:7] for f in sectores(req)]
+    t = {"total": total, "peligro_colapso": colapso, "no_habitables": nohab,
+         "uso_restringido": restr, "habitables": hab,
          "sin_verificar": sinv, "rojos_pendientes": rpend, "rojos_vencidos": rvenc}
     import api_brigadas
     # El estado del servidor es cosa de quien lo administra, no de una brigada.
@@ -695,9 +722,10 @@ REPORTES = """
   </select></label>{% endif %}
   <label><span>Clasificación</span><select name="clas">
     <option value="">Todas</option>
-    <option value="3" {{ 'selected' if f.clas=='3' }}>Rojo</option>
-    <option value="2" {{ 'selected' if f.clas=='2' }}>Amarillo</option>
-    <option value="1" {{ 'selected' if f.clas=='1' }}>Verde</option>
+    <option value="4" {{ 'selected' if f.clas=='4' }}>Peligro de colapso</option>
+    <option value="3" {{ 'selected' if f.clas=='3' }}>No habitable</option>
+    <option value="2" {{ 'selected' if f.clas=='2' }}>Uso restringido</option>
+    <option value="1" {{ 'selected' if f.clas=='1' }}>Habitable</option>
   </select></label>
   <label><span>Municipio</span><input name="municipio" value="{{ f.municipio }}"></label>
   <label><span>Firma</span><select name="verificada">
@@ -742,7 +770,9 @@ exportarla.</p>
 (Ley 1581 de 2012). Sirve para coordinar la brigada; lo que se entrega a las autoridades
 es el consolidado por sector del Resumen, nunca este listado.</p>
 """
-NOMBRE_CLAS = {1: "Verde", 2: "Amarillo", 3: "Rojo"}
+# Los nombres salen del catálogo del V2F: una sola fuente para el papel, el panel
+# y la API. El color quedó en la interfaz, que es donde ayuda.
+NOMBRE_CLAS = {k: v["nombre"] for k, v in v2f.HABITABILIDAD.items()}
 POR_PAGINA = 50
 
 
@@ -1108,9 +1138,10 @@ def solicitud_atender(req: Request, id: int = Form(...)):
 
 # ------------------------------------------------------------ doble revisión
 ROJOS = """
-<h1>Rojos pendientes de segunda revisión</h1>
-<p class="sub">Un rojo ordena no habitar una edificación. Antes de consolidarlo,
-otro inspector registrado tiene que mirarlo.</p>
+<h1>Pendientes de segunda revisión</h1>
+<p class="sub">No habitable y peligro de colapso ordenan desalojar. Antes de
+consolidarlos, otro inspector registrado tiene que mirarlos. El peligro de colapso va
+primero: no solo vacía el edificio, también compromete la vía y a los vecinos.</p>
 
 {% if error %}<div class="aviso">{{ error }}</div>{% endif %}
 {% if aviso %}<div class="ok">{{ aviso }}</div>{% endif %}
@@ -1123,7 +1154,7 @@ revise. Registre al menos uno en <a href="/admin/inspectores">Inspectores</a>.</
 {% for r in filas %}
 <div class="tarjeta" style="{{ 'border-color:#FECACA' if r.vencido }}">
   <div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap">
-    <span class="pastilla p3">ROJO</span>
+    <span class="pastilla p{{ r.clas }}">{{ r.nombre_clas|upper }}</span>
     <strong>{{ r.id_local or r.id }}</strong>
     <span class="nota" style="margin:0">{{ r.ts.strftime("%Y-%m-%d %H:%M") }}</span>
     {% if r.vencido %}
@@ -1174,9 +1205,10 @@ revise. Registre al menos uno en <a href="/admin/inspectores">Inspectores</a>.</
         {% endfor %}
       </select></label>
       <label><span>Resultado</span><select name="resultado" required>
-        <option value="confirmado">Confirmar el rojo</option>
-        <option value="2">Revocar → Amarillo</option>
-        <option value="1">Revocar → Verde</option>
+        <option value="confirmado">Confirmar la clasificación</option>
+        {% if r.clas == 4 %}<option value="3">Revocar → No habitable</option>{% endif %}
+        <option value="2">Revocar → Uso restringido</option>
+        <option value="1">Revocar → Habitable</option>
       </select></label>
       <label><span>Motivo</span><input name="motivo" placeholder="Criterio técnico"></label>
       <button class="btn btn-p">Registrar revisión</button>
@@ -1184,14 +1216,16 @@ revise. Registre al menos uno en <a href="/admin/inspectores">Inspectores</a>.</
   </form>
 </div>
 {% else %}
-<div class="tarjeta"><p class="vacio" style="margin:0">No hay rojos esperando revisión.</p></div>
+<div class="tarjeta"><p class="vacio" style="margin:0">No hay evaluaciones esperando
+  segunda revisión.</p></div>
 {% endfor %}
 
 <p class="nota">Revocar no borra nada: la clasificación firmada queda tal cual y se
 guarda aparte quién revisó, cuándo y por qué. Lo que cambia es la clasificación
 efectiva, que es la que usan el consolidado y la API.</p>
-<p class="nota">El vencimiento no degrada el rojo. Un rojo atrasado sigue siendo rojo:
-solo aparece marcado para que nadie lo dé por revisado sin estarlo.</p>
+<p class="nota">El vencimiento no degrada nada. Un peligro de colapso atrasado sigue
+siendo peligro de colapso: solo aparece marcado, para que nadie lo dé por revisado sin
+estarlo. Un temporizador no puede rebajar un desalojo.</p>
 """ + MODAL_HTML + """
 """
 
@@ -1200,7 +1234,7 @@ def _rojos(req: Request):
     w, wa = filtro_alcance(req)
     crudas = consulta(f"""SELECT id, id_local, ts, matricula, inspector, brigada_token,
                                 direccion, municipio, barrio, observaciones,
-                                justificacion, vencido, horas_de_atraso,
+                                justificacion, vencido, horas_de_atraso, clasificacion,
                                 (SELECT coalesce(jsonb_array_length(e.fotos), 0)
                                    FROM evaluacion_brigada e WHERE e.id = rojos_pendientes.id)
                            FROM rojos_pendientes WHERE {w} LIMIT 100""", tuple(wa))
@@ -1209,7 +1243,8 @@ def _rojos(req: Request):
              "municipio": r[7], "barrio": r[8], "observaciones": r[9],
              "justificacion": r[10], "vencido": r[11],
              "horas": round(r[12]) if r[12] is not None else 0,
-             "fotos": r[13]} for r in crudas]
+             "clas": r[13], "nombre_clas": NOMBRE_CLAS.get(r[13], "?"),
+             "fotos": r[14]} for r in crudas]
 
 
 def _inspectores_vigentes(req: Request):
@@ -1221,7 +1256,7 @@ def _inspectores_vigentes(req: Request):
 @router.get("/admin/rojos", response_class=HTMLResponse)
 def rojos(req: Request):
     ses = exigir(req)
-    return pagina("Rojos", render(ROJOS, filas=_rojos(req),
+    return pagina("Segunda revisión", render(ROJOS, filas=_rojos(req),
                                   inspectores=_inspectores_vigentes(req),
                                   error=None, aviso=None), "rojos", ses=ses)
 
@@ -1243,7 +1278,7 @@ def rojos_revisar(req: Request, id: str = Form(...), matricula: str = Form(...),
         # es lo que impide que alguien lo fuerce desde fuera del formulario.
         error = "Quien firmó no puede revisar su propia evaluación."
     elif resultado != "confirmado" and not motivo.strip():
-        error = "Revocar un rojo exige escribir el motivo."
+        error = "Revocar una clasificación exige escribir el motivo."
     else:
         nueva = None if resultado == "confirmado" else int(resultado)
         consulta("""UPDATE evaluacion_brigada
@@ -1253,10 +1288,10 @@ def rojos_revisar(req: Request, id: str = Form(...), matricula: str = Form(...),
                      WHERE id = %s AND revision_estado = 'pendiente'""",
                  ("confirmado" if nueva is None else "revocado", matricula,
                   nueva, motivo.strip() or None, id))
-        aviso = ("Rojo confirmado." if nueva is None else
-                 f"Rojo revocado a {NOMBRE_CLAS[nueva].lower()}. La clasificación firmada "
+        aviso = ("Clasificación confirmada." if nueva is None else
+                 f"Revocada a «{NOMBRE_CLAS[nueva].lower()}». La clasificación firmada "
                  "queda registrada igual.")
-    return pagina("Rojos", render(ROJOS, filas=_rojos(req),
+    return pagina("Segunda revisión", render(ROJOS, filas=_rojos(req),
                                   inspectores=_inspectores_vigentes(req),
                                   error=error, aviso=aviso), "rojos", ses=ses)
 
@@ -1318,6 +1353,7 @@ def sectores(req: Request, brigada: str | None = None):
         donde, args = "brigada_token = %s", [alcance]
     return consulta(f"""
         SELECT municipio, barrio, count(*),
+               count(*) FILTER (WHERE clasificacion_efectiva = 4),
                count(*) FILTER (WHERE clasificacion_efectiva = 3),
                count(*) FILTER (WHERE clasificacion_efectiva = 2),
                count(*) FILTER (WHERE clasificacion_efectiva = 1),
@@ -1363,14 +1399,20 @@ def mapa_geojson(req: Request, brigada: str = ""):
     if ses.rol != "admin":
         brigada = ""      # su alcance ya lo pone sectores(); el parametro se ignora
     rasgos = []
-    for m, b, n, rojas, ama, ver, sinrev, lon, lat, ultima in sectores(req, brigada or None):
+    for m, b, n, colapso, nohab, restr, hab, sinrev, lon, lat, ultima in sectores(
+            req, brigada or None):
         if lon is None:
             continue
         rasgos.append({
             "type": "Feature",
             "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            # `desalojos` es 3 y 4 juntos: es lo que pinta el color del círculo,
+            # porque para leer un sector de un vistazo lo que importa es cuánta
+            # gente quedó fuera de su casa, no en cuál de los dos niveles.
             "properties": {"municipio": m or "—", "barrio": b or "—", "evaluadas": n,
-                           "rojas": rojas, "amarillas": ama, "verdes": ver,
+                           "peligro_colapso": colapso, "no_habitables": nohab,
+                           "uso_restringido": restr, "habitables": hab,
+                           "desalojos": colapso + nohab,
                            "sin_revisar": sinrev,
                            "ultima": ultima.strftime("%Y-%m-%d %H:%M") if ultima else None},
         })
@@ -1381,7 +1423,7 @@ def mapa_geojson(req: Request, brigada: str = ""):
 MAPA = """
 <h1>Mapa del consolidado</h1>
 <p class="sub">Un círculo por sector. El tamaño es cuántas evaluaciones tiene; el color,
-qué proporción de ellas quedó en rojo.</p>
+qué proporción de ellas quedó sin poder habitarse.</p>
 
 {% if brigadas|length > 1 %}
 <div class="tarjeta">
@@ -1418,7 +1460,7 @@ qué proporción de ellas quedó en rojo.</p>
   <div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start">
     <div>
       <p style="font-size:12px;font-weight:700;color:var(--tinta2);margin:0 0 8px">
-        Proporción en rojo</p>
+        Proporción sin habitar</p>
       <div style="display:flex;align-items:center;gap:0">
         {% for c in rampa %}<span style="width:44px;height:14px;background:{{ c }}"></span>{% endfor %}
       </div>
@@ -1439,12 +1481,12 @@ qué proporción de ellas quedó en rojo.</p>
     </div>
     <div>
       <p style="font-size:12px;font-weight:700;color:var(--tinta2);margin:0 0 8px">
-        Rojos sin segunda revisión</p>
+        Sin segunda revisión</p>
       <svg width="60" height="40" role="img" aria-label="Círculo con anillo azul">
         <circle cx="26" cy="20" r="13" fill="#D13A3A" stroke="#0369A1" stroke-width="3.5"/>
       </svg>
       <p class="nota" style="margin:0;max-width:190px">El anillo marca los sectores con
-        rojos pendientes. Nunca es solo el color: también salen en la tabla.</p>
+        desalojos sin segunda firma. Nunca es solo el color: también salen en la tabla.</p>
     </div>
   </div>
 </div>
@@ -1452,15 +1494,17 @@ qué proporción de ellas quedó en rojo.</p>
 <div class="tarjeta">
   <p class="rotulo">Los mismos datos, en tabla</p>
   <div class="desplaza"><table>
-    <thead><tr><th>Municipio</th><th>Barrio</th><th>Evaluadas</th><th>Rojas</th>
-      <th>Amarillas</th><th>Verdes</th><th>Sin revisar</th><th>Última</th></tr></thead>
+    <thead><tr><th>Municipio</th><th>Barrio</th><th>Evaluadas</th>
+      <th>Peligro de colapso</th><th>No habitables</th><th>Uso restringido</th>
+      <th>Habitables</th><th>Sin revisar</th><th>Última</th></tr></thead>
     <tbody>
     {% for f in filas %}<tr>
       <td>{{ f[0] or "—" }}</td><td>{{ f[1] or "—" }}</td>
       <td class="num">{{ f[2] }}</td>
-      <td class="num">{{ f[3] }}</td><td class="num">{{ f[4] }}</td><td class="num">{{ f[5] }}</td>
-      <td class="num">{% if f[6] %}<span class="pastilla palerta">{{ f[6] }}</span>{% else %}0{% endif %}</td>
-      <td class="num">{{ f[9].strftime("%Y-%m-%d %H:%M") if f[9] else "—" }}</td>
+      <td class="num">{% if f[3] %}<span class="pastilla p4">{{ f[3] }}</span>{% else %}0{% endif %}</td>
+      <td class="num">{{ f[4] }}</td><td class="num">{{ f[5] }}</td><td class="num">{{ f[6] }}</td>
+      <td class="num">{% if f[7] %}<span class="pastilla palerta">{{ f[7] }}</span>{% else %}0{% endif %}</td>
+      <td class="num">{{ f[10].strftime("%Y-%m-%d %H:%M") if f[10] else "—" }}</td>
     </tr>{% endfor %}
     </tbody>
   </table></div>
@@ -1477,8 +1521,10 @@ registros, decir «el barrio X tiene una roja» equivale a señalar la casa con 
 (function(){
   "use strict";
   var RAMPA = {{ rampa|tojson }}, CORTES = {{ cortes|tojson }};
-  function color(rojas, total){
-    var p = total ? rojas / total : 0;
+  // El color mide desalojos: no habitables y peligro de colapso juntos. Separar
+  // los dos en la rampa haría falsa precisión sobre un centroide de sector.
+  function color(desalojos, total){
+    var p = total ? desalojos / total : 0;
     for (var i = 0; i < CORTES.length; i++) if (p < CORTES[i]) return RAMPA[i];
     return RAMPA[RAMPA.length - 1];
   }
@@ -1523,7 +1569,7 @@ registros, decir «el barrio X tiene una roja» equivale a señalar la casa con 
           var p = f.properties;
           return L.circleMarker(latlng, {
             radius: radio(p.evaluadas),
-            fillColor: color(p.rojas, p.evaluadas),
+            fillColor: color(p.desalojos, p.evaluadas),
             fillOpacity: 0.85,
             // Anillo azul = rojos sin revisar. El azul es de la interfaz y no
             // pertenece al semáforo, así que no se confunde con un estado de daño.
@@ -1536,8 +1582,11 @@ registros, decir «el barrio X tiene una roja» equivale a señalar la casa con 
           capa.bindPopup(
             "<strong>" + p.barrio + "</strong><br>" + p.municipio +
             "<br><br><strong>" + p.evaluadas + "</strong> evaluaciones<br>" +
-            p.rojas + " rojas · " + p.amarillas + " amarillas · " + p.verdes + " verdes" +
-            (p.sin_revisar ? "<br><strong>" + p.sin_revisar + " rojos sin revisar</strong>" : "") +
+            (p.peligro_colapso ? p.peligro_colapso + " en peligro de colapso<br>" : "") +
+            p.no_habitables + " no habitables · " + p.uso_restringido +
+            " uso restringido · " + p.habitables + " habitables" +
+            (p.sin_revisar ? "<br><strong>" + p.sin_revisar +
+             " sin segunda revisión</strong>" : "") +
             (p.ultima ? "<br><small>última: " + p.ultima + "</small>" : ""));
           capa.bindTooltip(p.barrio + " · " + p.evaluadas);
         }
@@ -1553,7 +1602,8 @@ registros, decir «el barrio X tiene una roja» equivale a señalar la casa con 
 
   // Segunda capa: un punto por evaluación. Se carga solo si alguien la pide, y
   // el aviso deja claro que a partir de ahí hay direcciones en pantalla.
-  var CLAS_COLOR = {1:"#15803D", 2:"#FACC15", 3:"#B91C1C"};
+    // Del catálogo del V2F: el mismo color que usa la app de campo.
+  var CLAS_COLOR = {{ clas_color|tojson }};
   function preparaIndividual(capaAgregada){
     var casilla = document.getElementById("capa-individual");
     var aviso = document.getElementById("aviso-individual");
@@ -1603,7 +1653,8 @@ def mapa(req: Request, brigada: str = ""):
                                  rampa=RAMPA_ROJAS, cortes=CORTES_ROJAS, k=K_ANONIMATO,
                                  teselas=TESELAS, credito=TESELAS_CREDITO,
                                  satelite=TESELAS_SAT, rotulos=TESELAS_ROTULOS,
-                                 credito_sat=TESELAS_SAT_CREDITO), "mapa", ses=ses)
+                                 credito_sat=TESELAS_SAT_CREDITO,
+                                 clas_color=v2f.COLOR), "mapa", ses=ses)
 
 
 @router.get("/admin/vendor/{archivo}")
@@ -1722,7 +1773,8 @@ def _evaluacion(req: Request, ident: str):
                clasificacion_auto, motivo_auto, justificacion, observaciones,
                coalesce(jsonb_array_length(fotos), 0), ST_Y(geom), ST_X(geom),
                precision_m, revision_estado, revision_matricula, revision_en,
-               revision_clasificacion, revision_motivo, clasificacion_efectiva
+               revision_clasificacion, revision_motivo, clasificacion_efectiva,
+               escala, parciales, parcial_manda
           FROM evaluacion_brigada WHERE id = %s AND {w}""", (ident, *wa))
     if not filas:
         return None
@@ -1733,7 +1785,7 @@ def _evaluacion(req: Request, ident: str):
               "motivo_auto", "justificacion", "observaciones", "fotos", "lat",
               "lon", "precision_m", "revision_estado", "revision_matricula",
               "revision_en", "revision_clasificacion", "revision_motivo",
-              "clasificacion_efectiva"]
+              "clasificacion_efectiva", "escala", "parciales", "parcial_manda"]
     return dict(zip(campos, filas[0], strict=True))
 
 
@@ -1755,11 +1807,12 @@ def evaluacion_json(req: Request, ident: str):
 # una persona por cuántas evaluaciones firmó premia la prisa, y en este trabajo la
 # prisa es exactamente el riesgo. Lo que se mide es la operación.
 #
-# El amarillo del mapa (#FACC15) no se reutiliza aquí: sobre una tarjeta blanca no
-# llega a 3:1 y las barras finas se pierden. #CA8A04 conserva el significado y pasa
-# el chequeo de daltonismo contra el verde (ΔE 9.9 protan).
+# Los colores salen del catálogo del V2F, que es el mismo que usa la app de campo.
+# La paleta de cuatro está validada con el script: el color nunca va solo, siempre
+# con el número y la palabra, porque amarillo, naranja y rojo no se separan bajo
+# daltonismo por más que se elijan bien.
 ALTO_BARRA = 140       # px del área de dibujo; las etiquetas van debajo
-COLOR_CLAS = {3: "#B91C1C", 2: "#CA8A04", 1: "#15803D"}
+COLOR_CLAS = v2f.COLOR      # del catálogo del V2F: un solo sitio para el color
 
 TABLERO_HTML = """
 <h1>Evolución de la operación</h1>
@@ -1771,7 +1824,7 @@ y qué queda por resolver.</p>
   <div class="cifra"><b class="num">{{ t.dias }}</b><span>Días con actividad</span></div>
   <div class="cifra"><b class="num">{{ t.sectores }}</b><span>Sectores trabajados</span></div>
   <div class="cifra {{ 'alerta' if t.rojos_vencidos }}"><b class="num">{{ t.rojos_pend }}</b>
-    <span>Rojos sin segunda revisión</span></div>
+    <span>Desalojos sin segunda revisión</span></div>
   <div class="cifra {{ 'alerta' if t.sin_registro }}"><b class="num">{{ t.sin_registro }}</b>
     <span>Firmas fuera del registro</span></div>
 </div>
@@ -1788,7 +1841,7 @@ y qué queda por resolver.</p>
     <div class="barra-col">
       <span class="barra-val num">{{ d.total }}</span>
       <div class="barra-pila" style="height:{{ d.alto }}px"
-           title="{{ d.fecha }} · {{ d.rojas }} rojas, {{ d.amarillas }} amarillas, {{ d.verdes }} verdes">
+           title="{{ d.fecha }} · {{ d.colapso }} en peligro de colapso, {{ d.no_hab }} no habitables, {{ d.restr }} uso restringido, {{ d.hab }} habitables">
         {% for seg in d.segmentos %}
         <div style="height:{{ seg.alto }}px;background:{{ seg.color }}"></div>
         {% endfor %}
@@ -1798,18 +1851,21 @@ y qué queda por resolver.</p>
     {% endfor %}
   </div></div>
   <div class="leyenda">
-    <span><i style="background:#B91C1C"></i>Rojas</span>
-    <span><i style="background:#CA8A04"></i>Amarillas</span>
-    <span><i style="background:#15803D"></i>Verdes</span>
+    <span><i style="background:#7F1D1D"></i>Peligro de colapso</span>
+    <span><i style="background:#C2410C"></i>No habitables</span>
+    <span><i style="background:#EAB308"></i>Uso restringido</span>
+    <span><i style="background:#15803D"></i>Habitables</span>
     <span style="color:var(--tenue)">Clasificación ya revisada, no la original.</span>
   </div>
   <details class="detalle">
     <summary>Ver los mismos datos en tabla</summary>
     <div class="desplaza"><table>
-      <thead><tr><th>Día</th><th>Rojas</th><th>Amarillas</th><th>Verdes</th><th>Total</th></tr></thead>
+      <thead><tr><th>Día</th><th>Peligro de colapso</th><th>No habitables</th>
+        <th>Uso restringido</th><th>Habitables</th><th>Total</th></tr></thead>
       <tbody>{% for d in serie|reverse %}<tr><td class="num">{{ d.fecha }}</td>
-        <td class="num">{{ d.rojas }}</td><td class="num">{{ d.amarillas }}</td>
-        <td class="num">{{ d.verdes }}</td><td class="num">{{ d.total }}</td></tr>{% endfor %}</tbody>
+        <td class="num">{{ d.colapso }}</td><td class="num">{{ d.no_hab }}</td>
+        <td class="num">{{ d.restr }}</td><td class="num">{{ d.hab }}</td>
+        <td class="num">{{ d.total }}</td></tr>{% endfor %}</tbody>
     </table></div>
   </details>
 </div>
@@ -1817,13 +1873,13 @@ y qué queda por resolver.</p>
 <div class="tarjeta">
   <p class="rotulo">Cobertura · dónde se trabajó y cuándo fue la última vez</p>
   <div class="desplaza"><table>
-    <thead><tr><th>Municipio</th><th>Barrio</th><th>Evaluadas</th><th>Rojas</th>
+    <thead><tr><th>Municipio</th><th>Barrio</th><th>Evaluadas</th><th>Desalojos</th>
       <th>Última evaluación</th><th>Sin actividad</th></tr></thead>
     <tbody>
     {% for c in cobertura %}<tr>
       <td>{{ c.municipio or "—" }}</td><td>{{ c.barrio or "—" }}</td>
       <td class="num">{{ c.evaluadas }}</td>
-      <td class="num">{% if c.rojas %}<span class="pastilla p3">{{ c.rojas }}</span>{% else %}0{% endif %}</td>
+      <td class="num">{% if c.desalojos %}<span class="pastilla p3">{{ c.desalojos }}</span>{% else %}0{% endif %}</td>
       <td class="num">{{ c.ultima }}</td>
       <td class="num">{% if c.horas >= 24 %}<span class="pastilla palerta">{{ c.horas }} h</span>
         {% else %}{{ c.horas }} h{% endif %}</td>
@@ -1839,7 +1895,7 @@ y qué queda por resolver.</p>
   <p class="rotulo">Por brigada</p>
   <div class="desplaza"><table>
     <thead><tr><th>Brigada</th><th>Evaluaciones</th><th>Sectores</th><th>Firmas distintas</th>
-      <th>Rojos sin revisar</th><th>Última actividad</th></tr></thead>
+      <th>Sin segunda revisión</th><th>Última actividad</th></tr></thead>
     <tbody>
     {% for b in por_brigada %}<tr>
       <td>{{ b.nombre }}</td>
@@ -1856,10 +1912,10 @@ y qué queda por resolver.</p>
 <div class="tarjeta">
   <p class="rotulo">Cumplimiento · lo que queda por resolver</p>
   <table>
-    <tr><td style="width:58%">Rojos esperando segunda revisión</td>
+    <tr><td style="width:58%">Desalojos esperando segunda revisión</td>
       <td class="num">{{ t.rojos_pend }}{% if t.rojos_vencidos %}
         <span class="pastilla palerta">{{ t.rojos_vencidos }} fuera de plazo</span>{% endif %}</td></tr>
-    <tr><td>Demora media en revisar un rojo</td><td class="num">{{ t.demora or "—" }}</td></tr>
+    <tr><td>Demora media en la segunda revisión</td><td class="num">{{ t.demora or "—" }}</td></tr>
     <tr><td>Evaluaciones firmadas por matrícula fuera del registro</td>
       <td class="num">{{ t.sin_registro }}</td></tr>
     <tr><td>Evaluaciones sin coordenada</td><td class="num">{{ t.sin_geo }}</td></tr>
@@ -1899,7 +1955,7 @@ def _segmentos(dia: dict, alto: int) -> list:
     """
     segs, usado = [], 0
     presentes = [(c, dia[k]) for c, k in
-                 ((3, "rojas"), (2, "amarillas"), (1, "verdes")) if dia[k]]
+                 ((4, "colapso"), (3, "no_hab"), (2, "restr"), (1, "hab")) if dia[k]]
     for i, (clas, n) in enumerate(presentes):
         parte = (alto - usado if i == len(presentes) - 1
                  else max(2, round(alto * n / dia["total"])))
@@ -1928,24 +1984,25 @@ def evolucion(req: Request):
 
     crudas = consulta(f"""
         SELECT ts::date, count(*),
+               count(*) FILTER (WHERE clasificacion_efectiva = 4),
                count(*) FILTER (WHERE clasificacion_efectiva = 3),
                count(*) FILTER (WHERE clasificacion_efectiva = 2),
                count(*) FILTER (WHERE clasificacion_efectiva = 1)
           FROM evaluacion_brigada WHERE {w}
          GROUP BY 1 ORDER BY 1 DESC LIMIT 21""", tuple(wa))
     serie = [{"fecha": f[0].isoformat(), "etiqueta": f[0].strftime("%d/%m"),
-              "total": f[1], "rojas": f[2], "amarillas": f[3], "verdes": f[4]}
+              "total": f[1], "colapso": f[2], "no_hab": f[3], "restr": f[4], "hab": f[5]}
              for f in reversed(crudas)]
     maximo = max((d["total"] for d in serie), default=1)
     for d in serie:
         d["alto"] = max(4, round(ALTO_BARRA * d["total"] / maximo))
         d["segmentos"] = _segmentos(d, d["alto"])
 
-    cobertura = [{"municipio": f[0], "barrio": f[1], "evaluadas": f[2], "rojas": f[3],
+    cobertura = [{"municipio": f[0], "barrio": f[1], "evaluadas": f[2], "desalojos": f[3],
                   "ultima": f[4].strftime("%Y-%m-%d %H:%M"), "horas": round(f[5])}
                  for f in consulta(f"""
         SELECT municipio, barrio, count(*),
-               count(*) FILTER (WHERE clasificacion_efectiva = 3),
+               count(*) FILTER (WHERE clasificacion_efectiva >= 3),
                max(recibido_en),
                extract(epoch FROM (now() - max(recibido_en))) / 3600.0
           FROM evaluacion_brigada WHERE {w}
