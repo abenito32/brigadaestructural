@@ -738,6 +738,7 @@ def columnas_v2f(con_reservado: bool = False) -> list[str]:
         c += ["hubo_victimas", "fallecidos", "heridos", "afectados",
               "contacto_nombre", "contacto_telefono", "contacto_correo"]
     c += ["observaciones", "codigo_lider", "nombre_lider", "matricula_lider",
+          "firma_tipo", "documento_lider", "profesion_lider",
           "evaluadores", "otro_inspector", "fecha_inspeccion"]
     # Lo que el V2F no tiene y sin lo cual el archivo se leería mal.
     c += ["id_servidor", "brigada", "modo", "escala", "bloques_sin_datos",
@@ -834,7 +835,10 @@ def fila_v2f(e: dict, con_reservado: bool = False) -> dict:
         "unidades": ocu.get("unidades"), "unidades_no_habitables": ocu.get("unidades_no_hab"),
         "observaciones": _comentarios(e),
         "codigo_lider": com.get("codigo_lider"), "nombre_lider": e.get("inspector"),
-        "matricula_lider": e.get("matricula"), "evaluadores": com.get("evaluadores"),
+        "matricula_lider": e.get("matricula"),
+        "firma_tipo": e.get("firma_tipo"),
+        "documento_lider": e.get("documento"), "profesion_lider": e.get("profesion"),
+        "evaluadores": com.get("evaluadores"),
         "otro_inspector": com.get("otro"),
         "fecha_inspeccion": ts.isoformat() if hasattr(ts, "isoformat") else ts,
         "id_servidor": e.get("id"), "brigada": e.get("brigada_token"),

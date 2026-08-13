@@ -238,6 +238,20 @@ CREATE TABLE IF NOT EXISTS brigada (
   creada_en   timestamptz NOT NULL DEFAULT now()
 );
 
+-- Si esta brigada admite que firme quien no tiene matricula profesional.
+--
+-- Por defecto NO: la Ley 400/97 y la NSR-10 reservan el dictamen de habitabilidad
+-- a quien tiene matricula, y ese fue el criterio del sistema desde el principio.
+-- Pero las comisiones reales no siempre son de ingenieros matriculados —el
+-- instrumento del PNUD para el sismo de agosto de 2026 pide "profesion" como
+-- texto libre y ni siquiera menciona la matricula—, y rechazar en el servidor
+-- deja el trabajo de esa jornada encerrado en un telefono.
+--
+-- La decision es de quien administra la brigada, y queda registrada evaluacion
+-- por evaluacion: lo que NO se puede es que el sistema afirme que todo lo que
+-- contiene lo firmo un matriculado cuando no es asi.
+ALTER TABLE brigada ADD COLUMN IF NOT EXISTS exige_matricula boolean NOT NULL DEFAULT true;
+
 -- Quién puede firmar. `vigente` es la baja lógica: nunca se borra un inspector
 -- que ya firmó evaluaciones, porque su matrícula es parte del registro legal.
 CREATE TABLE IF NOT EXISTS inspector (
@@ -281,6 +295,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS evaluacion_brigada_idem_idx
   ON evaluacion_brigada (origen, id_local);
 CREATE INDEX IF NOT EXISTS evaluacion_brigada_id_local_idx
   ON evaluacion_brigada (id_local);
+
+-- Con que se identifica quien firmo. 'matricula' es el caso normal; 'documento'
+-- solo aparece si la brigada lo admite, y entonces se exigen documento Y
+-- profesion. Anonimo, nunca.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS firma_tipo text NOT NULL
+  DEFAULT 'matricula' CHECK (firma_tipo IN ('matricula','documento'));
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS documento text;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS profesion text;
+
+-- La columna `matricula` era NOT NULL. Esa garantia se cambia por otra mas
+-- exacta: siempre hay UNA identidad, sea matricula o documento. Lo que no puede
+-- haber es una evaluacion sin firmante.
+ALTER TABLE evaluacion_brigada ALTER COLUMN matricula DROP NOT NULL;
+ALTER TABLE evaluacion_brigada DROP CONSTRAINT IF EXISTS evaluacion_brigada_firmante_check;
+ALTER TABLE evaluacion_brigada ADD CONSTRAINT evaluacion_brigada_firmante_check
+  CHECK (matricula IS NOT NULL OR documento IS NOT NULL);
+
+CREATE INDEX IF NOT EXISTS evaluacion_brigada_firma_idx
+  ON evaluacion_brigada (firma_tipo) WHERE firma_tipo <> 'matricula';
 
 -- ---------------------------------------------------------------------------
 -- Doble revisión de los rojos
@@ -340,7 +373,7 @@ SELECT e.id, e.ts, e.matricula, e.inspector, e.brigada AS brigada_declarada,
        e.brigada_token AS brigada_autenticada, e.clasificacion,
        e.municipio, e.barrio
 FROM evaluacion_brigada e
-WHERE NOT e.matricula_verificada AND e.vigente
+WHERE (NOT e.matricula_verificada OR e.firma_tipo <> 'matricula') AND e.vigente
 ORDER BY e.clasificacion DESC, e.ts DESC;   -- los rojos primero
 
 -- Quién coordina una brigada. Distinto del administrador del sistema: el

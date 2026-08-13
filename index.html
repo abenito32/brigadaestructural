@@ -482,8 +482,16 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
     <label class="campo"><span>Nombre completo</span><input id="cNom" autocomplete="name"></label>
     <label class="campo"><span>Matrícula profesional (COPNIA)</span><input id="cMat" autocomplete="off"></label>
     <label class="campo"><span>Universidad o brigada</span><input id="cBri" autocomplete="off"></label>
-    <p class="nota">Queda en este teléfono y se estampa en cada evaluación. Solo debe firmar quien
-      tenga matrícula vigente: la clasificación tiene efectos legales.</p>
+    <p class="nota">Queda en este teléfono y se estampa en cada evaluación. La clasificación tiene
+      efectos legales: normalmente solo firma quien tiene matrícula vigente.</p>
+    <div id="sinMatricula" class="oculto">
+      <p class="nota"><strong>Su brigada admite firmar sin matrícula.</strong> Entonces hacen falta
+        el documento y la profesión: la evaluación queda igual de identificada, con otro papel, y
+        se marca como firmada sin matrícula en el consolidado.</p>
+      <label class="campo"><span>Documento de identidad</span><input id="cDoc" autocomplete="off"></label>
+      <label class="campo"><span>Profesión</span><input id="cProf" autocomplete="off"
+        placeholder="Ingeniero civil, arquitecto, técnico..."></label>
+    </div>
   </section>
   <section class="bloque">
     <h2 class="rotulo">Servidor</h2>
@@ -1480,7 +1488,12 @@ function correlativo(n){
 }
 document.getElementById("btnGuardar").onclick=function(){
   var mat=cfgGet("mat","");
-  if(!mat){alert("Registre su matrícula profesional en Ajustes antes de firmar.");return;}
+  var doc=cfgGet("doc",""), prof=cfgGet("prof","");
+  if(!mat && exigeMatricula()){
+    alert("Registre su matrícula profesional en Ajustes antes de firmar.");return;}
+  if(!mat && (!doc || !prof)){
+    alert("Su brigada admite firmar sin matrícula, pero hacen falta el documento y "+
+          "la profesión. Regístrelos en Ajustes.");return;}
   var sel=document.getElementById("final").value;
   if(sel!=="auto" && !document.getElementById("just").value.trim()){
     alert("Si cambia la clasificación calculada debe escribir el motivo.");return;}
@@ -1491,7 +1504,8 @@ document.getElementById("btnGuardar").onclick=function(){
   leerRegs().then(function(rs){
     var o={
       id:correlativo(rs.length), ts:new Date().toISOString(), estado:"pendiente",
-      inspector:{nombre:cfgGet("nom",""),matricula:mat,brigada:cfgGet("bri","")},
+      inspector:{nombre:cfgGet("nom",""),matricula:mat,brigada:cfgGet("bri",""),
+                 documento:doc,profesion:prof},
       lat:est.lat, lon:est.lon, precision_m:est.acc,
       origen_punto:est.origen_punto||null,
       departamento:est.mun?est.mun.dep:"", cod_dane:est.mun?est.mun.cod:"",
@@ -1723,20 +1737,36 @@ document.getElementById("btnSync").onclick=function(){
 };
 
 /* ---------------- ajustes ---------------- */
-["nom","mat","bri","url","tok"].forEach(function(k){
+["nom","mat","bri","url","tok","doc","prof"].forEach(function(k){
   document.getElementById("c"+k.charAt(0).toUpperCase()+k.slice(1)).value=cfgGet(k,"");
 });
 document.getElementById("btnGuardarConf").onclick=function(){
-  ["nom","mat","bri","url","tok"].forEach(function(k){
+  ["nom","mat","bri","url","tok","doc","prof"].forEach(function(k){
     cfgSet(k,document.getElementById("c"+k.charAt(0).toUpperCase()+k.slice(1)).value.trim());
   });
   pintarFirma(); alert("Ajustes guardados.");
 };
+/* Qué exige la brigada de este teléfono. Por defecto, matrícula: es el criterio
+   del sistema y el que corresponde si todavía no se ha podido preguntar. El
+   servidor lo dice en «Probar conexión» y queda guardado para trabajar sin
+   señal — si el teléfono no lo supiera, alguien sin matrícula no podría ni
+   guardar aunque el servidor fuera a aceptarlo. */
+function exigeMatricula(){ return cfgGet("exmat","1") !== "0"; }
+function pintarPoliticaFirma(){
+  document.getElementById("sinMatricula").classList.toggle("oculto", exigeMatricula());
+}
+
 function pintarFirma(){
-  var m=cfgGet("mat",""), n=cfgGet("nom","");
-  document.getElementById("firmaTxt").textContent = m
-    ? "Firma: "+(n||"—")+" · matrícula "+m
-    : "Falta registrar matrícula profesional en Ajustes. No podrá guardar.";
+  var m=cfgGet("mat",""), n=cfgGet("nom",""), d=cfgGet("doc",""), pr=cfgGet("prof","");
+  var t=document.getElementById("firmaTxt");
+  if(m) t.textContent = "Firma: "+(n||"—")+" · matrícula "+m;
+  else if(!exigeMatricula() && d && pr)
+    t.textContent = "Firma: "+(n||"—")+" · documento "+d+" · "+pr+
+                    " · sin matrícula profesional";
+  else if(!exigeMatricula())
+    t.textContent = "Falta registrar matrícula, o documento y profesión, en Ajustes. "+
+                    "No podrá guardar.";
+  else t.textContent = "Falta registrar matrícula profesional en Ajustes. No podrá guardar.";
 }
 
 /* ---------------- probar conexión ---------------- */
@@ -1783,8 +1813,25 @@ document.getElementById("btnProbar").onclick=function(){
     });
   })
   .then(function(res){
-    t.textContent="Todo correcto. El servidor responde y el token es válido."+
-      (typeof res.n==="number" ? " Tiene "+res.n+" evaluaciones recibidas." : "");
+    /* De paso se pregunta qué exige esta brigada, y se guarda: es lo único que
+       el teléfono no puede deducir solo y sin ello el bloqueo local sería el de
+       por defecto. */
+    return fetch(u.replace(/\/evaluaciones\/?$/, "/brigada"),
+                 {headers:{"X-Brigada-Token":k},cache:"no-store"})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .catch(function(){ return null; })
+      .then(function(pol){
+        var extra="";
+        if(pol){
+          cfgSet("exmat", pol.exige_matricula ? "1" : "0");
+          pintarPoliticaFirma(); pintarFirma();
+          extra = pol.exige_matricula
+            ? " Su brigada exige matrícula profesional."
+            : " Su brigada admite firmar sin matrícula, con documento y profesión.";
+        }
+        t.textContent="Todo correcto. El servidor responde y el token es válido."+
+          (typeof res.n==="number" ? " Tiene "+res.n+" evaluaciones recibidas." : "")+extra;
+      });
   })
   .catch(function(e){
     if(e && e.tipo==="token"){
@@ -1813,7 +1860,8 @@ window.addEventListener("offline",pintarRed);
 
 /* ---------------- arranque ---------------- */
 abrirDB().then(function(){
-  pintarRed(); pintarFirma(); pintarPlaca(); pintarFotos(); actualizarConteo();
+  pintarRed(); pintarPoliticaFirma(); pintarFirma(); pintarPlaca(); pintarFotos();
+  actualizarConteo();
   /* Si quedó una evaluación a medio llenar, se ofrece seguirla. No se restaura
      sola: quien abre la app puede estar empezando otra cosa, y aparecerle datos
      de otro edificio sin avisar es peor que perderlos. */

@@ -220,7 +220,7 @@ def guardar_fotos(eval_id: str, fotos: list[str]) -> list[str]:
 
 INSERT = """
 INSERT INTO evaluacion_brigada (
-  id, id_local, ts, matricula, inspector, brigada,
+  id, id_local, ts, matricula, documento, profesion, firma_tipo, inspector, brigada,
   geom, precision_m, direccion, municipio, barrio,
   sistema, uso, pisos, ocupantes, danos, banderas,
   clasificacion, clasificacion_auto, motivo_auto, justificacion,
@@ -235,7 +235,8 @@ INSERT INTO evaluacion_brigada (
   v2f_ocupacion, v2f_comision, dano_global,
   revision_estado, revision_vence
 ) VALUES (
-  %(id)s, %(id_local)s, %(ts)s, %(matricula)s, %(inspector)s, %(brigada)s,
+  %(id)s, %(id_local)s, %(ts)s, %(matricula)s, %(documento)s, %(profesion)s,
+  %(firma_tipo)s, %(inspector)s, %(brigada)s,
   -- Los ::float8 son obligatorios: sin ellos Postgres no infiere el tipo cuando
   -- la evaluacion viene sin GPS y falla con AmbiguousParameter. Guardar sin
   -- coordenadas es un caso normal en campo, no un error.
@@ -291,8 +292,10 @@ def sha(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def autenticar(token: str) -> str | None:
-    """Devuelve el nombre de la brigada, o None si el token es heredado del entorno.
+def autenticar(token: str) -> tuple[str | None, bool]:
+    """Devuelve (nombre de la brigada, si exige matrícula).
+
+    El nombre es None si el token es heredado del entorno.
 
     Levanta 401 si el token no sirve. Los tokens de BRIGADA_TOKENS se aceptan
     igual que siempre para no dejar afuera a un teléfono ya configurado, pero no
@@ -302,24 +305,48 @@ def autenticar(token: str) -> str | None:
         raise HTTPException(401, "Falta el token de brigada")
     try:
         with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
-            cur.execute("SELECT nombre FROM brigada WHERE token_hash=%s AND activa", (sha(token),))
+            cur.execute("SELECT nombre, exige_matricula FROM brigada "
+                        "WHERE token_hash=%s AND activa", (sha(token),))
             fila = cur.fetchone()
     except (psycopg.Error, PoolTimeout):
         raise HTTPException(503, "No se pudo validar el token: base de datos no disponible")
     if fila:
-        return fila[0]
+        return fila[0], fila[1]
     if token in TOKENS:
-        return None
+        # Token heredado del entorno: no tiene brigada y por tanto no tiene
+        # politica propia. Se le exige matricula, que es el criterio por defecto.
+        return None, True
     raise HTTPException(401, "Token de brigada inválido")
+
+
+@app.get("/api/brigada")
+def brigada_de(x_brigada_token: str = Header(default="")):
+    """Que sabe el servidor de esta credencial. Lo usa el boton «Probar conexion»
+    para que el telefono sepa si su brigada admite firmar sin matricula: si no lo
+    supiera, el bloqueo local seria el de por defecto y quien no tiene matricula
+    no podria ni guardar, aunque el servidor fuera a aceptarlo."""
+    nombre, exige = autenticar(x_brigada_token)
+    return {"brigada": nombre, "exige_matricula": exige}
 
 
 @app.post("/api/evaluaciones")
 def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
-    brigada_auth = autenticar(x_brigada_token)
+    brigada_auth, exige_matricula = autenticar(x_brigada_token)
 
     matricula = str(ev.inspector.get("matricula", "")).strip()
+    documento = str(ev.inspector.get("documento", "")).strip()
+    profesion = str(ev.inspector.get("profesion", "")).strip()
+    # Sin matricula solo se acepta si la brigada lo tiene habilitado, y entonces
+    # se exige documento Y profesion: quien firma queda identificado igual, con
+    # otro papel. Una evaluacion anonima no entra por ningun camino.
     if not matricula:
-        raise HTTPException(422, "Falta la matrícula profesional de quien firma")
+        if exige_matricula:
+            raise HTTPException(422, "Falta la matrícula profesional de quien firma. "
+                                     "Esta brigada exige matrícula.")
+        if not documento or not profesion:
+            raise HTTPException(422, "Sin matrícula hacen falta el número de documento "
+                                     "y la profesión de quien firma")
+    firma_tipo = "matricula" if matricula else "documento"
     escala = 4 if ev.escala == 4 else 3
     if ev.clasificacion not in range(1, escala + 1):
         raise HTTPException(422, "Clasificación fuera de rango")
@@ -361,7 +388,10 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
         "id": canonico,        # canonico, del servidor
         "id_local": ev.id,     # lo que numero el telefono; solo idempotencia
         "ts": ev.ts,
-        "matricula": matricula,
+        "matricula": matricula or None,
+        "documento": documento or None,
+        "profesion": profesion or None,
+        "firma_tipo": firma_tipo,
         "inspector": str(ev.inspector.get("nombre", "")).strip(),
         "brigada": str(ev.inspector.get("brigada", "")).strip(),
         "lat": ev.lat,

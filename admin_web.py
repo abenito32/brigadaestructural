@@ -398,8 +398,12 @@ MODAL_HTML = """
     if (marcadas) html += "<h4>Condiciones que obligan cierre</h4><ul>" + marcadas + "</ul>";
     html += "<h4>Quién firma</h4>" + filas([
       ["Inspector", esc(e.inspector)],
-      ["Matrícula", esc(e.matricula) + (e.matricula_verificada ? "" :
-        ' <span class="pastilla palerta">fuera del registro</span>')],
+      ["Matrícula", e.firma_tipo === "matricula"
+        ? esc(e.matricula) + (e.matricula_verificada ? "" :
+            ' <span class="pastilla palerta">fuera del registro</span>')
+        : '<span class="pastilla palerta">Firmada sin matrícula</span>'],
+      ["Documento", esc(e.documento)],
+      ["Profesión", esc(e.profesion)],
       ["Brigada", esc(e.brigada_token || e.brigada)],
       ["Evaluada", fecha(e.ts)], ["Recibida", fecha(e.recibido_en)],
     ]);
@@ -880,8 +884,9 @@ REPORTES = """
       {% if e.modificada %}<br><span class="pastilla pn" title="{{ e.justificacion }}">modificada</span>{% endif %}</td>
   <td>{{ e.direccion or "—" }}{% if e.geo %}<br><span class="nota">{{ e.geo }}</span>{% endif %}</td>
   <td>{{ e.municipio or "—" }}{{ " · " + e.barrio if e.barrio }}</td>
-  <td>{{ e.inspector or "—" }}<br><span class="pastilla {{ 'pi' if e.verificada else 'palerta' }}">
-      {{ e.matricula }}{{ "" if e.verificada else " · sin registrar" }}</span></td>
+  <td>{{ e.inspector or "—" }}<br><span class="pastilla {{ 'pi' if (e.verificada and e.firma_tipo == 'matricula') else 'palerta' }}">
+      {% if e.firma_tipo == 'matricula' %}{{ e.matricula }}{{ "" if e.verificada else " · sin registrar" }}
+      {% else %}doc. {{ e.documento }} · sin matrícula{% endif %}</span></td>
   <td>{{ e.brigada_token or "—" }}</td>
   <td class="num">{{ e.fotos }}</td>
 </tr>{% else %}<tr><td colspan="8" class="vacio">Nada que mostrar con esos filtros.</td></tr>{% endfor %}
@@ -930,7 +935,8 @@ def reportes(req: Request, brigada: str = "", clas: str = "", municipio: str = "
     pag = min(max(1, pag), paginas)
     crudas = consulta(f"""
         SELECT id, ts, clasificacion, clasificacion_auto, justificacion, direccion, municipio,
-               barrio, inspector, matricula, matricula_verificada, brigada_token,
+               barrio, inspector, matricula, matricula_verificada, firma_tipo,
+               documento, profesion, brigada_token,
                coalesce(jsonb_array_length(fotos),0), ST_Y(geom), ST_X(geom), id_local
           FROM evaluacion_brigada WHERE {w}
          ORDER BY ts DESC LIMIT %s OFFSET %s""",
@@ -939,9 +945,11 @@ def reportes(req: Request, brigada: str = "", clas: str = "", municipio: str = "
         "id": r[0], "ts": r[1], "clas": r[2], "nombre_clas": NOMBRE_CLAS.get(r[2], "?"),
         "modificada": r[3] is not None and r[2] != r[3], "justificacion": r[4] or "",
         "direccion": r[5], "municipio": r[6], "barrio": r[7], "inspector": r[8],
-        "matricula": r[9], "verificada": r[10], "brigada_token": r[11], "fotos": r[12],
-        "geo": (f"{r[13]:.5f}, {r[14]:.5f}" if r[13] is not None else ""),
-        "id_local": r[15],
+        "matricula": r[9], "verificada": r[10], "firma_tipo": r[11],
+        "documento": r[12], "profesion": r[13],
+        "brigada_token": r[14], "fotos": r[15],
+        "geo": (f"{r[16]:.5f}, {r[17]:.5f}" if r[16] is not None else ""),
+        "id_local": r[18],
     } for r in crudas]
     brigadas = ([b for (b,) in consulta("SELECT nombre FROM brigada ORDER BY nombre")]
                 if ses.rol == "admin" else [])
@@ -983,11 +991,22 @@ Entrégueselo ahora a quien coordina esa brigada. Si se pierde, hay que emitir u
 
 <div class="tarjeta">
 <div class="desplaza"><table>
-<thead><tr><th>Brigada</th><th>Estado</th><th>Contacto</th><th>Inspectores</th><th>Evaluaciones</th>
-  <th>Desde</th><th></th></tr></thead><tbody>
+<thead><tr><th>Brigada</th><th>Estado</th><th>Quién puede firmar</th><th>Contacto</th>
+  <th>Inspectores</th><th>Evaluaciones</th><th>Desde</th><th></th></tr></thead><tbody>
 {% for b in filas %}<tr>
   <td><strong>{{ b[0] }}</strong></td>
   <td><span class="pastilla {{ 'pi' if b[1] else 'pn' }}">{{ "Activa" if b[1] else "Revocada" }}</span></td>
+  <td>
+    <form method="post" action="/admin/brigadas/firma" style="display:flex;gap:8px;align-items:center"
+      onsubmit="return confirm({{ ('Permitir que en ' ~ b[0] ~ ' firme quien no tiene matrícula? Quedará registrado en cada evaluación con su documento y su profesión.') | tojson if b[6] else ('Exigir matrícula en ' ~ b[0] ~ '? Los teléfonos sin matrícula dejarán de poder guardar.') | tojson }})">
+      <input type="hidden" name="nombre" value="{{ b[0] }}">
+      <input type="hidden" name="exige" value="{{ '0' if b[6] else '1' }}">
+      <span class="pastilla {{ 'pi' if b[6] else 'palerta' }}">
+        {{ "Solo con matrícula" if b[6] else "También sin matrícula" }}</span>
+      <button class="btn btn-s">Cambiar</button>
+    </form>
+    {% if b[7] %}<span class="nota" style="margin:0">{{ b[7] }} firmadas sin matrícula</span>{% endif %}
+  </td>
   <td>{{ b[2] or "—" }}</td><td class="num">{{ b[3] }}</td><td class="num">{{ b[4] }}</td>
   <td class="num">{{ b[5] }}</td>
   <td>{% if b[1] %}<div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1001,7 +1020,7 @@ Entrégueselo ahora a quien coordina esa brigada. Si se pierde, hay que emitir u
         <input type="hidden" name="nombre" value="{{ b[0] }}">
         <button class="btn btn-r">Revocar token</button></form>
       </div>{% endif %}</td>
-</tr>{% else %}<tr><td colspan="7" class="vacio">No hay brigadas registradas.</td></tr>{% endfor %}
+</tr>{% else %}<tr><td colspan="8" class="vacio">No hay brigadas registradas.</td></tr>{% endfor %}
 </tbody></table></div>
 </div>
 
@@ -1060,7 +1079,9 @@ def _brigadas_filas():
         SELECT b.nombre, b.activa, b.contacto,
                (SELECT count(*) FROM inspector i WHERE i.brigada=b.nombre AND i.vigente),
                (SELECT count(*) FROM evaluacion_brigada e WHERE e.brigada_token=b.nombre),
-               b.creada_en::date
+               b.creada_en::date, b.exige_matricula,
+               (SELECT count(*) FROM evaluacion_brigada e
+                 WHERE e.brigada_token=b.nombre AND e.firma_tipo <> 'matricula')
           FROM brigada b ORDER BY b.activa DESC, b.nombre""")
 
 
@@ -1091,6 +1112,23 @@ def brigadas_alta(req: Request, nombre: str = Form(...), contacto: str = Form(""
     except Exception:
         token, error = None, f"Ya existe una brigada llamada «{nombre}»."
     return _pantalla_brigadas(ses, token=token, nombre=nombre, error=error)
+
+
+@router.post("/admin/brigadas/firma", response_class=HTMLResponse)
+def brigadas_firma(req: Request, nombre: str = Form(...), exige: str = Form(...)):
+    """Si esta brigada admite que firme quien no tiene matrícula.
+
+    Es una decisión de quien administra la brigada, no del sistema: las
+    comisiones reales no siempre son de ingenieros matriculados, y rechazar en el
+    servidor deja el trabajo de esa jornada encerrado en un teléfono. Lo que el
+    sistema sí garantiza es que quede registrado evaluación por evaluación —con
+    documento y profesión— y que la segunda revisión de un desalojo siga siendo
+    de alguien del registro.
+    """
+    ses = exigir_admin(req)
+    consulta("UPDATE brigada SET exige_matricula = %s WHERE nombre = %s",
+             (exige == "1", nombre))
+    return _pantalla_brigadas(ses)
 
 
 @router.post("/admin/brigadas/reemitir", response_class=HTMLResponse)
@@ -1897,7 +1935,8 @@ def _evaluacion(req: Request, ident: str):
     w, wa = filtro_alcance(req)
     filas = consulta(f"""
         SELECT id, id_local, ts, recibido_en, matricula, inspector, brigada,
-               brigada_token, matricula_verificada, direccion, municipio, barrio,
+               brigada_token, matricula_verificada, firma_tipo, documento, profesion,
+               direccion, municipio, barrio,
                sistema, uso, pisos, ocupantes, danos, banderas, clasificacion,
                clasificacion_auto, motivo_auto, justificacion, observaciones,
                coalesce(jsonb_array_length(fotos), 0), ST_Y(geom), ST_X(geom),
@@ -1920,7 +1959,8 @@ def _evaluacion(req: Request, ident: str):
     if not filas:
         return None
     campos = ["id", "id_local", "ts", "recibido_en", "matricula", "inspector",
-              "brigada", "brigada_token", "matricula_verificada", "direccion",
+              "brigada", "brigada_token", "matricula_verificada",
+              "firma_tipo", "documento", "profesion", "direccion",
               "municipio", "barrio", "sistema", "uso", "pisos", "ocupantes",
               "danos", "banderas", "clasificacion", "clasificacion_auto",
               "motivo_auto", "justificacion", "observaciones", "fotos", "lat",
@@ -2284,7 +2324,8 @@ def catastral_guardar(req: Request, id: str = Form(...), cod: str = Form(...),
 # es una credencial de máquina, ese bloque NO viaja.
 CAMPOS_EXPORTA = """
         SELECT id, id_local, ts, recibido_en, matricula, inspector, brigada,
-               brigada_token, matricula_verificada, direccion, municipio, barrio,
+               brigada_token, matricula_verificada, firma_tipo, documento, profesion,
+               direccion, municipio, barrio,
                localidad, cod_catastral, tipo_inspeccion, modo, escala,
                departamento, cod_dane, origen_punto,
                pisos, ocupantes, danos, banderas,
@@ -2299,7 +2340,8 @@ CAMPOS_EXPORTA = """
           FROM evaluacion_brigada"""
 NOMBRES_EXPORTA = [
     "id", "id_local", "ts", "recibido_en", "matricula", "inspector", "brigada",
-    "brigada_token", "matricula_verificada", "direccion", "municipio", "barrio",
+    "brigada_token", "matricula_verificada", "firma_tipo", "documento", "profesion",
+    "direccion", "municipio", "barrio",
     "localidad", "cod_catastral", "tipo_inspeccion", "modo", "escala",
     "departamento", "cod_dane", "origen_punto",
     "pisos", "ocupantes", "danos", "banderas",
