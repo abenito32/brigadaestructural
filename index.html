@@ -150,7 +150,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 .placa{border-radius:var(--r-l);overflow:hidden;border:1px solid var(--linea);
   margin-bottom:14px;box-shadow:var(--sombra)}
 .placa-cab{padding:20px 16px}
-.placa-cab h2{margin:0;font-size:32px;font-weight:800;letter-spacing:-.025em;line-height:1.1}
+.placa-t{margin:0;font-size:32px;font-weight:800;letter-spacing:-.025em;line-height:1.1}
 .placa-cab p{margin:5px 0 0;font-size:14px;font-weight:600;opacity:.9}
 .placa-pie{padding:13px 16px;font-size:13px;color:var(--tinta2);background:var(--carta);
   border-top:1px solid var(--linea);line-height:1.5}
@@ -162,6 +162,9 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 
 /* Las cinco parciales del V2F. Se muestran siempre: el número global sale de
    una de ellas, y quien firma tiene derecho a ver de cuál. */
+.aviso-borrador{border:1px solid var(--borde);border-left:4px solid var(--azul);
+  background:var(--azul-tinte);border-radius:var(--r);padding:14px;margin-bottom:14px}
+
 /* ---------- mapa para ajustar el punto ---------- */
 #dlgMapa{border:0;border-radius:var(--r-l);padding:0;width:96vw;max-width:640px}
 #dlgMapa::backdrop{background:rgba(15,23,42,.6)}
@@ -224,7 +227,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 .btn{width:100%;min-height:52px;border-radius:var(--r);border:1px solid var(--borde);
   background:var(--carta);color:var(--tinta);font:inherit;font-weight:600;font-size:15px;
   cursor:pointer;padding:14px;box-shadow:var(--sombra)}
-.btn:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
+.btn:focus-visible,summary:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
 .btn-p{background:var(--azul);color:#fff;border-color:var(--azul)}
 .btn-r{background:var(--rojo);color:#fff;border-color:var(--rojo)}
 .btn+.btn{margin-top:9px}
@@ -307,8 +310,16 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
     inclinación visible.
   </div>
 
+  <div class="aviso-borrador oculto" id="avisoBorrador" role="status">
+    <p id="borradorTxt" style="margin:0 0 10px;font-weight:600"></p>
+    <div class="fila2">
+      <button class="btn btn-p" type="button" id="borradorSeguir">Seguir con ella</button>
+      <button class="btn" type="button" id="borradorDescartar">Descartar</button>
+    </div>
+  </div>
+
   <section class="bloque">
-    <p class="rotulo"><b>01</b> Ubicación</p>
+    <h2 class="rotulo"><b>01</b> Ubicación</h2>
     <div class="fila2">
       <button class="btn" type="button" id="btnGps">Capturar coordenadas</button>
       <button class="btn" type="button" id="btnMapa">Ajustar en el mapa</button>
@@ -326,7 +337,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   </section>
 
   <section class="bloque">
-    <p class="rotulo"><b>02</b> Edificación</p>
+    <h2 class="rotulo"><b>02</b> Edificación</h2>
     <label class="campo"><span>Sistema constructivo</span>
       <select id="sis">
         <option value="">Seleccione</option>
@@ -353,17 +364,17 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   </section>
 
   <section class="bloque">
-    <p class="rotulo"><b>03</b> Nivel de daño observado</p>
+    <h2 class="rotulo"><b>03</b> Nivel de daño observado</h2>
     <div id="danos"></div>
   </section>
 
   <section class="bloque">
-    <p class="rotulo"><b>04</b> Condiciones que obligan cierre</p>
+    <h2 class="rotulo"><b>04</b> Condiciones que obligan cierre</h2>
     <div id="banderas"></div>
   </section>
 
   <section class="bloque" id="secV2F">
-    <p class="rotulo"><b>V2F</b> Formulario completo del IDIGER</p>
+    <h2 class="rotulo"><b>V2F</b> Formulario completo del IDIGER</h2>
     <label class="bandera" style="border-color:var(--azul);background:var(--azul-tinte)">
       <input type="checkbox" id="modoV2F">
       <span><strong>Llenar el formulario V2F completo</strong>
@@ -373,7 +384,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   </section>
 
   <section class="bloque">
-    <p class="rotulo"><b>05</b> Registro fotográfico</p>
+    <h2 class="rotulo"><b>05</b> Registro fotográfico</h2>
     <input type="file" id="fotoIn" accept="image/*" capture="environment" multiple class="oculto">
     <button class="btn" type="button" id="btnFoto">Agregar foto</button>
     <div class="fotos" id="fotos"></div>
@@ -381,10 +392,10 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   </section>
 
   <section class="bloque">
-    <p class="rotulo"><b>06</b> Clasificación y firma</p>
+    <h2 class="rotulo"><b>06</b> Clasificación y firma</h2>
     <div class="placa" id="placa">
-      <div class="placa-cab v-0" id="placaCab">
-        <h2 id="placaT">Sin evaluar</h2>
+      <div class="placa-cab v-0" id="placaCab" role="status" aria-live="polite">
+        <p id="placaT" class="placa-t">Sin evaluar</p>
         <p id="placaS">Complete el nivel de daño</p>
       </div>
       <div class="placa-pie" id="placaP">La clasificación se calcula sola y usted puede cambiarla.</div>
@@ -427,7 +438,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 <!-- ============ COLA ============ -->
 <main class="wrap oculto" id="p-cola" role="tabpanel" aria-labelledby="t-cola">
   <section class="bloque">
-    <p class="rotulo">Evaluaciones guardadas</p>
+    <h2 class="rotulo">Evaluaciones guardadas</h2>
     <div id="lista"></div>
   </section>
   <section class="bloque">
@@ -450,7 +461,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
       tenga matrícula vigente: la clasificación tiene efectos legales.</p>
   </section>
   <section class="bloque">
-    <p class="rotulo">Servidor</p>
+    <h2 class="rotulo">Servidor</h2>
     <label class="campo"><span>Endpoint de sincronización</span>
       <input id="cUrl" placeholder="https://su-servidor/api/evaluaciones" autocomplete="off"></label>
     <label class="campo"><span>Token de brigada</span><input id="cTok" autocomplete="off"></label>
@@ -516,11 +527,31 @@ function guardarReg(o){
     var t=DB.transaction("ev","readwrite");t.objectStore("ev").put(o);
     t.oncomplete=res;t.onerror=rej;});
 }
+/* El borrador vive en el mismo almacén con un id reservado, y se filtra ACÁ,
+   en el único sitio por donde se leen los registros. Un almacén nuevo obligaría
+   a subir la versión de la base y a migrar teléfonos que pueden estar en medio
+   de una jornada; esto no toca nada de lo que ya funciona. */
+var ID_BORRADOR = "__borrador__";
 function leerRegs(){
-  if(sinIDB||!DB) return Promise.resolve(memoria.slice());
+  if(sinIDB||!DB) return Promise.resolve(memoria.filter(noBorrador));
   return new Promise(function(res){
     var t=DB.transaction("ev","readonly"),q=t.objectStore("ev").getAll();
-    q.onsuccess=function(){res(q.result||[])};q.onerror=function(){res([])};});
+    q.onsuccess=function(){res((q.result||[]).filter(noBorrador))};
+    q.onerror=function(){res([])};});
+}
+function noBorrador(o){ return o && o.id !== ID_BORRADOR; }
+function leerBorrador(){
+  if(sinIDB||!DB) return Promise.resolve(memoria.filter(function(o){
+    return o.id===ID_BORRADOR; })[0] || null);
+  return new Promise(function(res){
+    var t=DB.transaction("ev","readonly"),q=t.objectStore("ev").get(ID_BORRADOR);
+    q.onsuccess=function(){res(q.result||null)};q.onerror=function(){res(null)};});
+}
+function borrarBorrador(){
+  if(sinIDB||!DB){ memoria=memoria.filter(noBorrador); return Promise.resolve(); }
+  return new Promise(function(res){
+    var t=DB.transaction("ev","readwrite");t.objectStore("ev").delete(ID_BORRADOR);
+    t.oncomplete=res;t.onerror=res;});
 }
 function cfgGet(k,d){try{var v=localStorage.getItem("brg_"+k);return v===null?d:v}catch(e){return (cfgMem[k]===undefined?d:cfgMem[k])}}
 var cfgMem={};
@@ -738,6 +769,7 @@ function pintarPlaca(){
   var chip=document.getElementById("chip");
   chip.className="chip v-"+v; chip.textContent=TIT[v];
   document.getElementById("wrapJust").style.display=(sel==="auto")?"none":"block";
+  apuntarBorrador();
   return v;
 }
 
@@ -758,6 +790,7 @@ function pintarParciales(c){
    Todo se pinta desde el catálogo generado: no hay una sola etiqueta del
    formulario escrita a mano acá. Cambiar v2f.py y correr el generador es lo
    único que hace falta para que cambie la app. */
+var nRotulo = 0;
 var v2fEst = {estructura:{}, estado:{}, geotecnicos:{}, no_estructurales:{},
               estructurales:{}, entorno:{}, preexistentes:{}, recomendaciones:{},
               ocupacion:{}, comision:{}};
@@ -768,7 +801,7 @@ function el(tag, cls, txt){
   if(txt!==undefined) d.textContent=txt; return d;
 }
 function seccion(padre, titulo, ayuda){
-  var s=el("div","v2f-sec"), h=el("p","v2f-tit",titulo); s.appendChild(h);
+  var s=el("div","v2f-sec"), h=el("h3","v2f-tit",titulo); s.appendChild(h);
   if(ayuda){ var a=el("p","nota",ayuda); a.style.marginTop="0"; s.appendChild(a); }
   padre.appendChild(s); return s;
 }
@@ -776,11 +809,16 @@ function seccion(padre, titulo, ayuda){
    campo con guantes. No se usa <select> porque abre una rueda del sistema y
    obliga a dos toques y a leer una lista sin ver la pregunta. */
 function opciones(padre, rotulo, mapa, destino, clave){
-  var w=el("div","item"), p=el("p"); p.textContent=rotulo; w.appendChild(p);
+  var w=el("div","item"), p=el("p"); p.textContent=rotulo;
+  p.id = "rot" + (++nRotulo); w.appendChild(p);
+  /* El grupo de botones se anuncia con su pregunta: sin esto un lector lee
+     "No, Sí, No se pudo determinar" sin decir de qué. */
   var g=el("div","escala v2f-ops");
+  g.setAttribute("role","group"); g.setAttribute("aria-labelledby", p.id);
+  g.dataset.k = clave; g.dataset.blq = nombreBloque(destino);
   var claves=Object.keys(mapa).sort(function(a,b){return a-b});
   claves.forEach(function(cod){
-    var b=el("button",null,mapa[cod]); b.type="button";
+    var b=el("button",null,mapa[cod]); b.type="button"; b.dataset.cod=cod;
     b.setAttribute("aria-pressed","false");
     b.onclick=function(){
       var ya = destino[clave]==parseInt(cod,10);
@@ -795,6 +833,7 @@ function opciones(padre, rotulo, mapa, destino, clave){
 }
 function campo(padre, rotulo, destino, clave, tipo){
   var l=el("label","campo"), sp=el("span",null,rotulo);
+  l.dataset.k = clave; l.dataset.blq = nombreBloque(destino);
   var i=document.createElement("input");
   i.type=tipo||"text"; if(tipo==="number"){ i.inputMode="numeric"; }
   i.oninput=function(){
@@ -806,11 +845,12 @@ function campo(padre, rotulo, destino, clave, tipo){
 }
 function catalogoAgrupado(padre, rotulo, grupos, catalogo, destino, clave){
   var w=el("div","item"), p=el("p"); p.textContent=rotulo; w.appendChild(p);
+  w.dataset.k = clave; w.dataset.blq = nombreBloque(destino);
   Object.keys(grupos).forEach(function(g){
     var t=el("p","v2f-grupo",g); w.appendChild(t);
     var fila=el("div","escala v2f-ops");
     grupos[g].forEach(function(cod){
-      var b=el("button",null,catalogo[cod]); b.type="button";
+      var b=el("button",null,catalogo[cod]); b.type="button"; b.dataset.cod=cod;
       b.setAttribute("aria-pressed","false");
       b.onclick=function(){
         Array.prototype.forEach.call(w.querySelectorAll("button"),function(x){
@@ -825,9 +865,12 @@ function catalogoAgrupado(padre, rotulo, grupos, catalogo, destino, clave){
 }
 function casillas(padre, rotulo, catalogo, destino){
   var w=el("div","item"), p=el("p"); p.textContent=rotulo; w.appendChild(p);
+  w.dataset.marca = "1";
   Object.keys(catalogo).sort(function(a,b){return a-b}).forEach(function(cod){
     var l=el("label","bandera"), i=document.createElement("input");
-    i.type="checkbox";
+    i.type="checkbox"; i.dataset.cod=cod;
+    i.dataset.grupo = (destino===v2fEst.recomendaciones.visita) ? "visita"
+      : (destino===v2fEst.recomendaciones.intervencion) ? "intervencion" : "medidas";
     i.onchange=function(){ if(i.checked) destino[cod]=true; else delete destino[cod]; };
     var sp=el("span",null,catalogo[cod]);
     l.appendChild(i); l.appendChild(sp); w.appendChild(l);
@@ -850,6 +893,7 @@ function grillaD(padre){
       var c=el("label","v2f-celda"), sp=el("span",null,V2F_GRADO_DANO[gr]);
       var i=document.createElement("input");
       i.type="number"; i.inputMode="numeric"; i.min=0; i.max=100; i.placeholder="0";
+      i.dataset.it = it; i.dataset.gr = gr;
       i.oninput=function(){
         var v=parseInt(i.value,10);
         if(isNaN(v)) delete v2fEst.estructurales[it][gr]; else v2fEst.estructurales[it][gr]=v;
@@ -864,6 +908,47 @@ function grillaD(padre){
     f.appendChild(celdas); f.appendChild(suma); w.appendChild(f);
   });
   padre.appendChild(w);
+}
+
+/* De qué bloque es un destino. Se resuelve por identidad y no por nombre para
+   que no haya una segunda lista que mantener sincronizada a mano. */
+function nombreBloque(destino){
+  for(var k in v2fEst) if(v2fEst[k] === destino) return k;
+  if(destino === reservado) return "reservado";
+  return "";
+}
+function valorDe(blq, clave){
+  var d = (blq === "reservado") ? reservado : v2fEst[blq];
+  return d ? d[clave] : undefined;
+}
+
+/* Repinta los controles del V2F desde los datos. Hace falta al restaurar un
+   borrador: sin esto el dato vuelve pero el botón no se ve pulsado, y como los
+   botones alternan, tocarlo otra vez APAGARÍA la respuesta sin que nadie note
+   que se perdió. */
+function repintarV2F(){
+  document.querySelectorAll("#v2fBloques [data-k]").forEach(function(cont){
+    var v = valorDe(cont.dataset.blq, cont.dataset.k);
+    cont.querySelectorAll("button").forEach(function(b){
+      b.setAttribute("aria-pressed", (v !== undefined && String(b.dataset.cod) === String(v))
+        ? "true" : "false");
+    });
+    var inp = cont.querySelector("input");
+    if(inp && v !== undefined && v !== null) inp.value = v;
+  });
+  document.querySelectorAll(".v2f-celda input").forEach(function(i){
+    var f = v2fEst.estructurales[i.dataset.it] || {};
+    if(f[i.dataset.gr] !== undefined){
+      i.value = f[i.dataset.gr];
+      /* Se dispara el manejador real en vez de repetir la suma acá: si el día de
+         mañana cambia la validación, cambia en un solo sitio. */
+      i.dispatchEvent(new Event("input"));
+    }
+  });
+  document.querySelectorAll('#v2fBloques [data-marca] input').forEach(function(i){
+    var d = v2fEst.recomendaciones[i.dataset.grupo] || {};
+    i.checked = !!d[i.dataset.cod];
+  });
 }
 
 function construirV2F(){
@@ -984,7 +1069,7 @@ var cd=document.getElementById("danos");
 DANOS.forEach(function(x){
   var w=document.createElement("div"); w.className="item";
   var p=document.createElement("p"); p.innerHTML=x.t+"<em>"+x.d+"</em>"; w.appendChild(p);
-  var g=document.createElement("div"); g.className="escala";
+  var g=document.createElement("div"); g.className="escala"; g.dataset.k=x.k;
   NIV.forEach(function(n,i){
     var b=document.createElement("button"); b.type="button"; b.dataset.v=i;
     b.textContent=n; b.setAttribute("aria-pressed", i===0?"true":"false");
@@ -1001,7 +1086,7 @@ DANOS.forEach(function(x){
 var cb=document.getElementById("banderas");
 BANDERAS.forEach(function(x){
   var l=document.createElement("label"); l.className="bandera";
-  var i=document.createElement("input"); i.type="checkbox";
+  var i=document.createElement("input"); i.type="checkbox"; i.dataset.k=x.k;
   i.onchange=function(){est.banderas[x.k]=i.checked;pintarPlaca()};
   var s=document.createElement("span"); s.textContent=x.t;
   l.appendChild(i); l.appendChild(s); cb.appendChild(l);
@@ -1295,6 +1380,89 @@ function limpiar(){
   document.querySelectorAll(".bandera input").forEach(function(i){i.checked=false});
   document.getElementById("gpsTxt").textContent="Sin coordenadas. Se puede guardar igual y georreferenciar después.";
   pintarFotos(); pintarPlaca(); window.scrollTo(0,0);
+  borrarBorrador();
+}
+
+/* ---------------- borrador ----------------
+   El formulario completo son veinte minutos de trabajo con el edificio delante.
+   Basta que el sistema operativo descarte la pestaña por memoria, que entre una
+   llamada, o que alguien toque «Cola» sin querer, para perderlo todo — y la
+   única forma de recuperarlo es volver a caminar hasta el predio.
+
+   Se guarda entero, fotos incluidas: retomarlas obliga a volver. Va a IndexedDB
+   y no a localStorage porque las fotos son megas y localStorage son cinco. */
+var guardarLuego = null;
+function tomarFormulario(){
+  var g = function(id){ return document.getElementById(id).value; };
+  return {
+    id: ID_BORRADOR, ts: new Date().toISOString(),
+    campos: {dir:g("dir"), mun:g("mun"), bar:g("bar"), sis:g("sis"), uso:g("uso"),
+             pisos:g("pisos"), ocu:g("ocu"), obs:g("obs"), just:g("just"),
+             final:g("final")},
+    est: {danos:est.danos, banderas:est.banderas, fotos:est.fotos, lat:est.lat,
+          lon:est.lon, acc:est.acc, origen_punto:est.origen_punto, mun:est.mun},
+    v2f: document.getElementById("modoV2F").checked ? v2fEst : null,
+    reservado: reservado
+  };
+}
+function hayAlgoQueGuardar(b){
+  var c = b.campos, k;
+  for(k in c) if(c[k] && c[k] !== "auto") return true;
+  for(k in b.est.danos) if(b.est.danos[k]) return true;
+  for(k in b.est.banderas) if(b.est.banderas[k]) return true;
+  return !!(b.est.fotos.length || b.est.lat != null || b.v2f);
+}
+function apuntarBorrador(){
+  /* Con retardo: escribir en cada tecla castiga a un teléfono viejo, que es
+     justo el que va a campo. */
+  clearTimeout(guardarLuego);
+  guardarLuego = setTimeout(function(){
+    var b = tomarFormulario();
+    /* Si no hay nada, NO se borra: al arrancar, el formulario está vacío y el
+       borrador que espera respuesta se destruiría antes de que nadie lo vea.
+       Solo lo borran guardar la evaluación y el botón «Descartar». */
+    if(hayAlgoQueGuardar(b)) guardarReg(b);
+  }, 1200);
+}
+document.addEventListener("input", apuntarBorrador, true);
+document.addEventListener("change", apuntarBorrador, true);
+/* Al irse al fondo, se guarda ya: puede no haber otra oportunidad. */
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState === "hidden"){
+    clearTimeout(guardarLuego);
+    var b = tomarFormulario();
+    if(hayAlgoQueGuardar(b)) guardarReg(b);
+  }
+});
+
+function restaurarBorrador(b){
+  var c = b.campos, k;
+  for(k in c){ var el = document.getElementById(k); if(el) el.value = c[k]; }
+  ["danos","banderas"].forEach(function(g){
+    for(var j in b.est[g]) est[g][j] = b.est[g][j];
+  });
+  est.fotos = b.est.fotos || []; est.lat = b.est.lat; est.lon = b.est.lon;
+  est.acc = b.est.acc; est.origen_punto = b.est.origen_punto; est.mun = b.est.mun;
+  document.querySelectorAll(".escala").forEach(function(g){
+    var clave = g.dataset.k;
+    if(clave === undefined) return;
+    Array.prototype.forEach.call(g.children, function(o, j){
+      o.setAttribute("aria-pressed", j === (est.danos[clave]||0) ? "true" : "false"); });
+  });
+  document.querySelectorAll(".bandera input").forEach(function(i){
+    if(i.dataset.k) i.checked = !!est.banderas[i.dataset.k]; });
+  if(b.v2f){
+    document.getElementById("modoV2F").checked = true;
+    document.getElementById("modoV2F").onchange();
+    for(k in b.v2f) v2fEst[k] = b.v2f[k];
+    repintarV2F();
+  }
+  for(k in (b.reservado||{})) reservado[k] = b.reservado[k];
+  if(b.est.lat != null)
+    document.getElementById("gpsTxt").textContent =
+      b.est.lat + ", " + b.est.lon + (b.est.origen_punto === "mapa"
+        ? " · señalado en el mapa" : " · precisión " + b.est.acc + " m");
+  pintarFotos(); pintarPlaca();
 }
 
 /* ---------------- cola ---------------- */
@@ -1484,6 +1652,26 @@ window.addEventListener("offline",pintarRed);
 /* ---------------- arranque ---------------- */
 abrirDB().then(function(){
   pintarRed(); pintarFirma(); pintarPlaca(); pintarFotos(); actualizarConteo();
+  /* Si quedó una evaluación a medio llenar, se ofrece seguirla. No se restaura
+     sola: quien abre la app puede estar empezando otra cosa, y aparecerle datos
+     de otro edificio sin avisar es peor que perderlos. */
+  leerBorrador().then(function(b){
+    if(!b || !hayAlgoQueGuardar(b)) return;
+    var aviso = document.getElementById("avisoBorrador");
+    var cuando = b.ts ? b.ts.replace("T"," ").slice(0,16) : "";
+    document.getElementById("borradorTxt").textContent =
+      "Quedó una evaluación a medio llenar (" + cuando + ")" +
+      (b.est.fotos && b.est.fotos.length ? " con " + b.est.fotos.length + " foto(s)" : "") + ".";
+    aviso.classList.remove("oculto");
+    document.getElementById("borradorSeguir").onclick=function(){
+      restaurarBorrador(b); aviso.classList.add("oculto");
+    };
+    document.getElementById("borradorDescartar").onclick=function(){
+      if(confirm("¿Descartar lo que quedó a medio llenar? No se puede recuperar.")){
+        borrarBorrador(); aviso.classList.add("oculto");
+      }
+    };
+  });
   if(sinIDB){
     document.getElementById("syncTxt").textContent=
       "Aviso: este navegador no guarda en disco. Las evaluaciones se pierden al cerrar. Instale la app desde el servidor.";
