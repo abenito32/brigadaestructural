@@ -307,8 +307,10 @@ MODAL_HTML = """
       <span id="f-chip" class="pastilla">—</span>
       <strong id="f-id" class="num"></strong>
       <span id="f-rev" class="pastilla pn oculto"></span>
+      <span id="f-vig" class="pastilla pn oculto">reemplazada</span>
     </div>
     <div style="margin-left:auto;display:flex;gap:8px">
+      <a class="btn btn-s" id="f-hist" href="#">Historia del predio</a>
       <button class="btn btn-s" id="f-html">Exportar HTML</button>
       <button class="btn btn-s" id="f-json">JSON con fotos</button>
       <button class="btn btn-s" id="f-cerrar" aria-label="Cerrar">Cerrar</button>
@@ -548,6 +550,9 @@ MODAL_HTML = """
         var rev = document.getElementById("f-rev");
         rev.classList.toggle("oculto", !e.revision_estado);
         rev.textContent = e.revision_estado || "";
+        // Una evaluación reemplazada sigue existiendo y sigue firmada; lo que no
+        // hace es contar. Quien la abre tiene que verlo de entrada.
+        document.getElementById("f-vig").classList.toggle("oculto", e.vigente !== false);
         var fotos = "";
         for (var i = 0; i < e.fotos; i++)
           fotos += '<figure class="foto-marco" style="margin:0">'
@@ -555,6 +560,8 @@ MODAL_HTML = """
                  + encodeURIComponent(e.id) + '/' + i + '">'
                  + '<figcaption class="foto-marca">' + marca(e, i) + '</figcaption></figure>';
         document.getElementById("f-cuerpo").innerHTML = cuerpo(e, fotos);
+        document.getElementById("f-hist").href = "/admin/historia/" +
+          encodeURIComponent(e.id);
         dlg.showModal();
       })
       .catch(function(){ alert("No se pudo abrir esa evaluación."); });
@@ -803,14 +810,14 @@ def inicio(req: Request):
                count(*) FILTER (WHERE revision_estado = 'pendiente'),
                count(*) FILTER (WHERE revision_estado = 'pendiente'
                                   AND revision_vence < now())
-          FROM evaluacion_brigada WHERE {w}""", tuple(wa))
+          FROM evaluacion_brigada WHERE {w} AND vigente""", tuple(wa))
     por_brigada = consulta(f"""
         SELECT brigada_token, count(*), count(*) FILTER (WHERE clasificacion_efectiva=4),
                count(*) FILTER (WHERE clasificacion_efectiva=3),
                count(*) FILTER (WHERE clasificacion_efectiva=2),
                count(*) FILTER (WHERE clasificacion_efectiva=1),
                count(*) FILTER (WHERE NOT matricula_verificada), max(recibido_en)
-          FROM evaluacion_brigada WHERE {w}
+          FROM evaluacion_brigada WHERE {w} AND vigente
          GROUP BY brigada_token ORDER BY count(*) DESC""", tuple(wa))
     # El consolidado por sector se recalcula con el alcance aplicado: la vista
     # consolidado_publico no distingue brigadas, y servirla tal cual le mostraria
@@ -1483,7 +1490,7 @@ def sectores(req: Request, brigada: str | None = None):
                ST_X(ST_Centroid(ST_Collect(geom))), ST_Y(ST_Centroid(ST_Collect(geom))),
                max(recibido_en)
           FROM evaluacion_brigada
-         WHERE {donde}
+         WHERE {donde} AND vigente
          GROUP BY municipio, barrio
         HAVING count(*) >= %s
          ORDER BY count(*) DESC""", tuple(args) + (K_ANONIMATO,))
@@ -1504,7 +1511,7 @@ def individual_geojson(req: Request, brigada: str = ""):
                revision_estado, coalesce(jsonb_array_length(fotos), 0),
                ST_X(geom), ST_Y(geom)
           FROM evaluacion_brigada
-         WHERE {w} AND geom IS NOT NULL
+         WHERE {w} AND geom IS NOT NULL AND vigente
          ORDER BY ts DESC LIMIT 2000""", tuple(args))
     return JSONResponse({"type": "FeatureCollection", "features": [
         {"type": "Feature",
@@ -1897,6 +1904,7 @@ def _evaluacion(req: Request, ident: str):
                precision_m, revision_estado, revision_matricula, revision_en,
                revision_clasificacion, revision_motivo, clasificacion_efectiva,
                escala, parciales, parcial_manda,
+               reemplazada_por, vigente, reemplazo_usuario, reemplazo_en,
                modo, tipo_inspeccion, cod_catastral, catastral_origen, localidad,
                nivel_mayor_dano, area_afectada_pct, bloques_faltantes,
                v2f_estructura, v2f_estado, v2f_geotecnicos, v2f_no_estructurales,
@@ -1917,6 +1925,7 @@ def _evaluacion(req: Request, ident: str):
               "lon", "precision_m", "revision_estado", "revision_matricula",
               "revision_en", "revision_clasificacion", "revision_motivo",
               "clasificacion_efectiva", "escala", "parciales", "parcial_manda",
+              "reemplazada_por", "vigente", "reemplazo_usuario", "reemplazo_en",
               "modo", "tipo_inspeccion", "cod_catastral", "catastral_origen",
               "localidad", "nivel_mayor_dano", "area_afectada_pct",
               "bloques_faltantes",
@@ -1934,7 +1943,7 @@ def evaluacion_json(req: Request, ident: str):
     e = _evaluacion(req, ident)
     if e is None:
         raise HTTPException(404, "No existe o no pertenece a su brigada")
-    for k in ("ts", "recibido_en", "revision_en"):
+    for k in ("ts", "recibido_en", "revision_en", "reemplazo_en"):
         e[k] = e[k].isoformat() if e[k] else None
     e["nombre_clas"] = NOMBRE_CLAS.get(e["clasificacion_efectiva"], "?")
     return JSONResponse(e, headers={"Cache-Control": "no-store"})
@@ -2118,7 +2127,7 @@ def evolucion(req: Request):
                count(*) FILTER (WHERE coalesce(jsonb_array_length(fotos), 0) = 0),
                round((avg(extract(epoch FROM (revision_en - recibido_en)) / 3600.0)
                       FILTER (WHERE revision_en IS NOT NULL))::numeric, 1)
-          FROM evaluacion_brigada WHERE {w}""", tuple(wa))
+          FROM evaluacion_brigada WHERE {w} AND vigente""", tuple(wa))
 
     crudas = consulta(f"""
         SELECT ts::date, count(*),
@@ -2126,7 +2135,7 @@ def evolucion(req: Request):
                count(*) FILTER (WHERE clasificacion_efectiva = 3),
                count(*) FILTER (WHERE clasificacion_efectiva = 2),
                count(*) FILTER (WHERE clasificacion_efectiva = 1)
-          FROM evaluacion_brigada WHERE {w}
+          FROM evaluacion_brigada WHERE {w} AND vigente
          GROUP BY 1 ORDER BY 1 DESC LIMIT 21""", tuple(wa))
     serie = [{"fecha": f[0].isoformat(), "etiqueta": f[0].strftime("%d/%m"),
               "total": f[1], "colapso": f[2], "no_hab": f[3], "restr": f[4], "hab": f[5]}
@@ -2143,7 +2152,7 @@ def evolucion(req: Request):
                count(*) FILTER (WHERE clasificacion_efectiva >= 3),
                max(recibido_en),
                extract(epoch FROM (now() - max(recibido_en))) / 3600.0
-          FROM evaluacion_brigada WHERE {w}
+          FROM evaluacion_brigada WHERE {w} AND vigente
          GROUP BY municipio, barrio ORDER BY max(recibido_en) DESC""", tuple(wa))]
 
     por_brigada = [{"nombre": f[0] or "— sin atribuir", "total": f[1], "sectores": f[2],
@@ -2154,7 +2163,7 @@ def evolucion(req: Request):
                count(DISTINCT matricula),
                count(*) FILTER (WHERE revision_estado = 'pendiente'),
                max(recibido_en)
-          FROM evaluacion_brigada WHERE {w}
+          FROM evaluacion_brigada WHERE {w} AND vigente
          GROUP BY brigada_token ORDER BY count(*) DESC""", tuple(wa))]
 
     t = {"total": total, "dias": dias, "sectores": sectores, "rojos_pend": rojos_pend,
@@ -2416,3 +2425,234 @@ def exportar(req: Request, desde: str = "", hasta: str = "", clas: str = ""):
         EXPORTA_HTML, f={"desde": desde, "hasta": hasta, "clas": clas},
         total=len(filas), completas=sum(1 for e in filas if e["modo"] == "completo"),
         n_columnas=len(v2f.columnas_v2f(True)), qs=qs, rol=ses.rol), "exportar", ses=ses)
+
+
+# ═══════════════════════════════════════════════════════ historia del predio
+#
+# Dos evaluaciones son «del mismo predio» si están cerca. No hay más señal: el
+# código catastral casi nunca llega desde el campo y el número del formulario
+# anterior tampoco.
+#
+# Por eso la cercanía SOLO AGRUPA PARA MOSTRAR. Declarar que una evaluación
+# reemplaza a otra exige señalar cuál, con la dirección y la foto de las dos a la
+# vista. Con precisión de ±18 m —normal en campo— en una manzana densa caben tres
+# o cuatro predios dentro del radio; enlazar solo retiraría del consolidado el
+# rojo del edificio de al lado.
+RADIO_CERCANIA = int(os.getenv("BRIGADA_RADIO_PREDIO", "25"))   # metros
+
+
+def _cercanas(req: Request, ident: str):
+    """Evaluaciones dentro del radio, sin contar la propia. Con el alcance puesto."""
+    w, wa = filtro_alcance(req)
+    return consulta(f"""
+        SELECT o.id, o.id_local, o.ts, o.direccion, o.barrio, o.municipio,
+               o.clasificacion_efectiva, o.matricula, o.inspector,
+               coalesce(jsonb_array_length(o.fotos), 0),
+               round(ST_Distance(o.geom::geography, e.geom::geography)::numeric, 1),
+               o.reemplazada_por, o.revision_estado, o.vigente
+          FROM evaluacion_brigada e
+          JOIN evaluacion_brigada o
+            ON o.id <> e.id
+           AND ST_DWithin(o.geom::geography, e.geom::geography, %s)
+         WHERE e.id = %s AND {w.replace('brigada_token', 'o.brigada_token')}
+         ORDER BY o.ts DESC LIMIT 20""", (RADIO_CERCANIA, ident, *wa))
+
+
+HISTORIA_HTML = """
+<h1>Historia de este predio</h1>
+<p class="sub">Evaluaciones a menos de {{ radio }} m. Están agrupadas por cercanía,
+no por identidad: el sistema no sabe si son el mismo edificio, y por eso no decide
+solo.</p>
+
+{% if aviso %}<div class="ok">{{ aviso }}</div>{% endif %}
+{% if error %}<div class="aviso">{{ error }}</div>{% endif %}
+
+<div class="tarjeta" style="border-color:var(--azul)">
+  <p class="rotulo">Esta evaluación</p>
+  {{ tarjeta(act, true) }}
+</div>
+
+{% if not filas %}
+<div class="tarjeta"><p class="vacio" style="margin:0">No hay otras evaluaciones
+  a menos de {{ radio }} m de esta.</p></div>
+{% else %}
+<p class="sub" style="margin-top:22px"><strong>{{ filas|length }}</strong>
+  {{ "evaluación" if filas|length == 1 else "evaluaciones" }} cerca. Compare la
+  dirección y la fotografía antes de declarar nada.</p>
+
+{% for r in filas %}
+<div class="tarjeta {{ 'reemplazada' if not r.vigente }}">
+  {{ tarjeta(r, false) }}
+  <div class="fila" style="margin-top:12px">
+    {% if r.reemplazada_por == act.id %}
+      <form method="post" action="/admin/historia/deshacer">
+        <input type="hidden" name="id" value="{{ act.id }}">
+        <input type="hidden" name="vieja" value="{{ r.id }}">
+        <button class="btn btn-r">Deshacer el reemplazo</button>
+      </form>
+      <p class="nota" style="margin:0">Esta evaluación la declaró reemplazada
+        {{ r.reemplazo_usuario or "—" }}{% if r.reemplazo_en %} el
+        {{ r.reemplazo_en.strftime("%Y-%m-%d %H:%M") }}{% endif %}.</p>
+    {% elif not r.vigente %}
+      <p class="nota" style="margin:0">Ya fue reemplazada por otra evaluación.</p>
+    {% elif r.ts > act.ts %}
+      <p class="nota" style="margin:0">Es <strong>posterior</strong> a la que está
+        mirando: si son el mismo predio, el reemplazo se declara desde aquella.</p>
+    {% else %}
+      <form method="post" action="/admin/historia/reemplazar"
+            onsubmit="return confirm('¿Son el mismo predio?\\n\\nLa evaluación anterior dejará de contar en el consolidado, el mapa y las colas. Se puede deshacer.')">
+        <input type="hidden" name="id" value="{{ act.id }}">
+        <input type="hidden" name="vieja" value="{{ r.id }}">
+        <button class="btn">Es el mismo predio: esta reemplaza a aquella</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<p class="nota">Declarar un reemplazo no borra nada: la evaluación anterior sigue
+en los listados y en la exportación, porque esa inspección ocurrió y está firmada.
+Lo que deja de hacer es contar dos veces el mismo predio.</p>
+{% if act.clas >= 3 %}
+<p class="nota">Una evaluación que ordenaba desalojo solo sale de la cola de segunda
+revisión si quien firmó la nueva es <strong>otra matrícula</strong>. Si es la misma
+persona, la segunda mirada sigue pendiente: volver al predio uno mismo no es que
+otro lo revise.</p>
+{% endif %}
+
+<style>
+.tarjeta.reemplazada{opacity:.7;border-style:dashed}
+.hist-cab{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:10px}
+.hist-fotos{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.hist-fotos img{width:120px;height:90px;object-fit:cover;border-radius:var(--r);
+  border:1px solid var(--linea)}
+</style>
+"""
+
+TARJETA_HIST = """
+{% macro tarjeta(r, actual) %}
+  <div class="hist-cab">
+    <span class="pastilla p{{ r.clas }}">{{ r.nombre_clas }}</span>
+    <strong>{{ r.id_local or r.id }}</strong>
+    <span class="nota" style="margin:0">{{ r.ts.strftime("%Y-%m-%d %H:%M") }}</span>
+    {% if not actual %}<span class="pastilla pi">a {{ r.metros }} m</span>{% endif %}
+    {% if not r.vigente %}<span class="pastilla pn">reemplazada</span>{% endif %}
+    {% if r.revision_estado == 'pendiente' %}
+      <span class="pastilla palerta">sin segunda revisión</span>{% endif %}
+  </div>
+  <table>
+    <tr><td style="width:22%"><strong>Dónde</strong></td>
+      <td>{{ r.direccion or "—" }}{% if r.barrio %} · {{ r.barrio }}{% endif %}</td></tr>
+    <tr><td><strong>Quién firmó</strong></td>
+      <td>{{ r.inspector or "—" }} · matrícula {{ r.matricula }}</td></tr>
+  </table>
+  {% if r.fotos %}
+  <div class="hist-fotos">
+    {% for i in range(r.fotos) %}
+      <img loading="lazy" src="/admin/foto/{{ r.id }}/{{ i }}"
+           alt="Fotografía {{ i + 1 }} de {{ r.id_local or r.id }}">
+    {% endfor %}
+  </div>
+  {% else %}<p class="nota">Sin fotografías.</p>{% endif %}
+{% endmacro %}
+"""
+
+
+def _fila_hist(f):
+    return {"id": f[0], "id_local": f[1], "ts": f[2], "direccion": f[3],
+            "barrio": f[4], "municipio": f[5], "clas": f[6],
+            "nombre_clas": NOMBRE_CLAS.get(f[6], "?"), "matricula": f[7],
+            "inspector": f[8], "fotos": f[9], "metros": f[10],
+            "reemplazada_por": f[11], "revision_estado": f[12], "vigente": f[13]}
+
+
+def _historia(req: Request, ident: str, aviso=None, error=None):
+    ses = exigir(req)
+    w, wa = filtro_alcance(req)
+    prop = consulta(f"""
+        SELECT id, id_local, ts, direccion, barrio, municipio,
+               clasificacion_efectiva, matricula, inspector,
+               coalesce(jsonb_array_length(fotos), 0), 0, reemplazada_por,
+               revision_estado, vigente, reemplazo_usuario, reemplazo_en
+          FROM evaluacion_brigada WHERE id = %s AND {w}""", (ident, *wa))
+    if not prop:
+        raise HTTPException(404, "No existe o no pertenece a su brigada")
+    act = _fila_hist(prop[0])
+    filas = []
+    for f in _cercanas(req, ident):
+        d = _fila_hist(f)
+        crudo = consulta("""SELECT reemplazo_usuario, reemplazo_en
+                              FROM evaluacion_brigada WHERE id = %s""", (d["id"],))
+        d["reemplazo_usuario"], d["reemplazo_en"] = crudo[0] if crudo else (None, None)
+        filas.append(d)
+    cuerpo = render(TARJETA_HIST + HISTORIA_HTML, act=act, filas=filas,
+                    radio=RADIO_CERCANIA, aviso=aviso, error=error)
+    return pagina("Historia del predio", cuerpo, "reportes", ses=ses)
+
+
+@router.get("/admin/historia/{ident}", response_class=HTMLResponse)
+def historia(req: Request, ident: str):
+    return _historia(req, ident)
+
+
+@router.post("/admin/historia/reemplazar", response_class=HTMLResponse)
+def historia_reemplazar(req: Request, id: str = Form(...), vieja: str = Form(...)):
+    ses = exigir(req)
+    w, wa = filtro_alcance(req)
+    aviso = error = None
+    # Las dos tienen que estar dentro del alcance de quien declara: sin esto, un
+    # coordinador podría retirar del consolidado el rojo de otra brigada mandando
+    # su id a mano.
+    par = consulta(f"""SELECT n.matricula, n.clasificacion_efectiva, n.ts,
+                              v.matricula, v.clasificacion_efectiva, v.ts,
+                              v.revision_estado, v.reemplazada_por
+                         FROM evaluacion_brigada n, evaluacion_brigada v
+                        WHERE n.id = %s AND v.id = %s
+                          AND {w.replace('brigada_token', 'n.brigada_token')}
+                          AND {w.replace('brigada_token', 'v.brigada_token')}""",
+                   (id, vieja, *wa, *wa))
+    if not par:
+        return _historia(req, id,
+                         error="Alguna de las dos evaluaciones no existe o no es "
+                               "de su brigada.")
+    mat_n, clas_n, ts_n, mat_v, clas_v, ts_v, rev_v, ya = par[0]
+
+    if ya:
+        error = "Esa evaluación ya figura reemplazada por otra."
+    elif ts_n <= ts_v:
+        error = ("La evaluación que reemplaza tiene que ser posterior. Declárelo "
+                 "desde la más reciente de las dos.")
+    # Quien firmó no puede revisar lo suyo, y volver al predio uno mismo tampoco
+    # es que otro lo revise. Si la misma matrícula rebaja su propio desalojo
+    # pendiente de segunda mirada, el reemplazo sería esa revisión por la puerta
+    # de atrás. Si la nueva es igual o más grave no hay tal atajo: entra en la
+    # cola por su cuenta.
+    elif (rev_v == "pendiente" and clas_v and clas_v >= 3
+          and mat_n == mat_v and (clas_n or 0) < clas_v):
+        error = ("No se puede: la anterior ordenaba desalojo, sigue esperando "
+                 "segunda revisión, y la nueva la firmó la misma matrícula con una "
+                 "clasificación menos grave. Eso sería revisar lo propio. Registre "
+                 "primero la segunda revisión, o que evalúe otro inspector.")
+    else:
+        consulta("""UPDATE evaluacion_brigada
+                       SET reemplazada_por = %s, reemplazo_en = now(),
+                           reemplazo_usuario = %s
+                     WHERE id = %s AND reemplazada_por IS NULL""",
+                 (id, ses.usuario, vieja))
+        aviso = ("Reemplazo declarado. La anterior sigue en los listados y en la "
+                 "exportación, pero deja de contar en el consolidado, el mapa y "
+                 "las colas.")
+    return _historia(req, id, aviso=aviso, error=error)
+
+
+@router.post("/admin/historia/deshacer", response_class=HTMLResponse)
+def historia_deshacer(req: Request, id: str = Form(...), vieja: str = Form(...)):
+    exigir(req)
+    w, wa = filtro_alcance(req)
+    consulta(f"""UPDATE evaluacion_brigada
+                    SET reemplazada_por = NULL, reemplazo_en = NULL,
+                        reemplazo_usuario = NULL
+                  WHERE id = %s AND reemplazada_por = %s AND {w}""",
+             (vieja, id, *wa))
+    return _historia(req, id, aviso="Reemplazo deshecho. Las dos vuelven a contar.")

@@ -133,6 +133,39 @@ ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS area_afectada_pct smalli
 ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS bloques_faltantes text[];
 
 -- ---------------------------------------------------------------------------
+-- Historia del predio
+-- ---------------------------------------------------------------------------
+--
+-- El V2F pregunta "¿existe una clasificacion previa? ¿cual?": contempla que un
+-- predio se vuelva a evaluar. Nosotros no teniamos forma de decir que dos
+-- evaluaciones son de la misma edificacion.
+--
+-- Se agrupan por cercania geografica, y el agrupamiento SOLO MUESTRA. Para
+-- declarar que una evaluacion reemplaza a otra hay que señalar cual, con su
+-- direccion y su foto a la vista. Nunca se enlaza solo: con precision de ±18 m
+-- —normal en campo— en una manzana densa caben tres o cuatro predios dentro del
+-- radio, y un enlace equivocado retiraria del consolidado el rojo del edificio
+-- de al lado.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS reemplazada_por text
+  REFERENCES evaluacion_brigada(id);
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS reemplazo_en timestamptz;
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS reemplazo_usuario text;
+
+-- Una evaluacion no puede reemplazarse a si misma.
+ALTER TABLE evaluacion_brigada DROP CONSTRAINT IF EXISTS evaluacion_brigada_reemplazo_check;
+ALTER TABLE evaluacion_brigada ADD CONSTRAINT evaluacion_brigada_reemplazo_check
+  CHECK (reemplazada_por IS DISTINCT FROM id);
+
+-- `vigente` es lo que se cuenta. Una evaluacion reemplazada NO se borra ni se
+-- oculta: sigue en los listados y en la exportacion, porque esa inspeccion
+-- ocurrio y esta firmada. Lo que deja de hacer es contar dos veces el mismo
+-- predio en el consolidado, en el mapa y en las colas.
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS vigente boolean
+  GENERATED ALWAYS AS (reemplazada_por IS NULL) STORED;
+CREATE INDEX IF NOT EXISTS evaluacion_brigada_vigente_idx
+  ON evaluacion_brigada (vigente) WHERE vigente;
+
+-- ---------------------------------------------------------------------------
 -- Compartimento reservado
 -- ---------------------------------------------------------------------------
 --
@@ -159,7 +192,7 @@ CREATE VIEW pendientes_de_catastral AS
 SELECT id, id_local, ts, recibido_en, brigada_token, direccion, municipio, barrio,
        clasificacion_efectiva, ST_Y(geom) AS lat, ST_X(geom) AS lon
   FROM evaluacion_brigada
- WHERE cod_catastral IS NULL
+ WHERE cod_catastral IS NULL AND vigente
  ORDER BY clasificacion_efectiva DESC, recibido_en DESC;
 
 -- ---------------------------------------------------------------------------
@@ -266,7 +299,7 @@ SELECT id, id_local, ts, recibido_en, matricula, inspector, brigada_token,
        (revision_vence < now())                       AS vencido,
        round(extract(epoch FROM (now() - revision_vence)) / 3600.0, 1) AS horas_de_atraso
   FROM evaluacion_brigada
- WHERE revision_estado = 'pendiente'
+ WHERE revision_estado = 'pendiente' AND vigente
  ORDER BY clasificacion DESC, revision_vence;
 
 -- Cola de revisión: quién firmó sin estar en el registro. No se rechaza en campo
@@ -278,7 +311,7 @@ SELECT e.id, e.ts, e.matricula, e.inspector, e.brigada AS brigada_declarada,
        e.brigada_token AS brigada_autenticada, e.clasificacion,
        e.municipio, e.barrio
 FROM evaluacion_brigada e
-WHERE NOT e.matricula_verificada
+WHERE NOT e.matricula_verificada AND e.vigente
 ORDER BY e.clasificacion DESC, e.ts DESC;   -- los rojos primero
 
 -- Quién coordina una brigada. Distinto del administrador del sistema: el
@@ -353,5 +386,6 @@ SELECT municipio, barrio,
        count(*) FILTER (WHERE revision_estado = 'pendiente') AS sin_segunda_revision,
        ST_Centroid(ST_Collect(geom))             AS centro
 FROM evaluacion_brigada
+WHERE vigente          -- un predio reevaluado cuenta una vez, no dos
 GROUP BY municipio, barrio
 HAVING count(*) >= 5;   -- k-anonimato: no publicar sectores con muy pocos registros

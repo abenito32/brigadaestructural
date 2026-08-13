@@ -121,7 +121,7 @@ SELECT municipio, barrio, count(*) AS evaluadas,
        ST_X(ST_Centroid(ST_Collect(geom))) AS lon,
        ST_Y(ST_Centroid(ST_Collect(geom))) AS lat
   FROM evaluacion_brigada
- WHERE {donde}
+ WHERE {donde} AND vigente
  GROUP BY municipio, barrio
 HAVING count(*) >= %s
  ORDER BY count(*) DESC
@@ -206,9 +206,9 @@ def _detalle(cred, municipio, barrio, desde, hasta, clasificacion, pagina, por_p
             403, "Su credencial es de alcance 'consolidado'. El detalle incluye "
                  "direcciones y coordenadas, que son dato personal.")
     donde, args = filtros(cred[2], municipio, barrio, desde, hasta, clasificacion)
-    (total,), = consultar(f"SELECT count(*) FROM evaluacion_brigada WHERE {donde}", tuple(args))
+    (total,), = consultar(f"SELECT count(*) FROM evaluacion_brigada WHERE {donde} AND vigente", tuple(args))
     filas = consultar(
-        f"SELECT {SELECT_DETALLE} FROM evaluacion_brigada WHERE {donde} "
+        f"SELECT {SELECT_DETALLE} FROM evaluacion_brigada WHERE {donde} AND vigente "
         "ORDER BY ts DESC LIMIT %s OFFSET %s",
         tuple(args) + (por_pagina, (pagina - 1) * por_pagina))
     salida = []
@@ -288,11 +288,11 @@ def v2f_plano(x_api_token: str = Header(default=""),
             403, "Su credencial es de alcance 'consolidado'. El V2F incluye la "
                  "dirección del predio, que es dato personal.")
     donde, args = filtros(cred[2], municipio, barrio, desde, hasta, clasificacion)
-    (total,), = consultar(f"SELECT count(*) FROM evaluacion_brigada WHERE {donde}",
+    (total,), = consultar(f"SELECT count(*) FROM evaluacion_brigada WHERE {donde} AND vigente",
                           tuple(args))
     filas = consultar(
         f"SELECT {', '.join(e for e, _ in CAMPOS_V2F)} FROM evaluacion_brigada "
-        f"WHERE {donde} ORDER BY ts DESC LIMIT %s OFFSET %s",
+        f"WHERE {donde} AND vigente ORDER BY ts DESC LIMIT %s OFFSET %s",
         tuple(args) + (por_pagina, (pagina - 1) * por_pagina))
     nombres = [n for _, n in CAMPOS_V2F]
     datos = [cat.fila_v2f(dict(zip(nombres, f, strict=True))) for f in filas]
