@@ -223,7 +223,8 @@ def que_es(prs):
     texto(dia, izq, Inches(2.3), Inches(6.4), Inches(3.1), [
         ("Se instala en el teléfono y funciona completa sin conexión.",
          {"tam": 16, "negrita": True, "color": TINTA}),
-        ("Todo se guarda en el equipo y se sincroniza cuando vuelve la señal. La cola "
+        ("Todo se guarda en el equipo con almacenamiento duradero —el navegador no lo "
+         "desaloja para hacer espacio— y se sincroniza cuando vuelve la señal. La cola "
          "sobrevive al cierre de la aplicación y al reinicio del teléfono.",
          {"tam": 13, "color": TINTA2, "espacio_antes": 9}),
         ("Aplica el semáforo ATC-20 adaptado a la NSR-10: se calcula solo a partir del "
@@ -254,12 +255,14 @@ def como_funciona(prs):
         ("1", "Se prepara una vez", "Con señal, el inspector abre la dirección, instala la "
          "aplicación en su teléfono y registra su nombre, matrícula y brigada. Cinco minutos, "
          "una sola vez por equipo."),
+        # Cabe en cinco líneas dentro de la tarjeta. Al agregar la ruta hubo que soltar
+        # «en cuatro categorías»: con seis líneas el texto se salía del recuadro.
         ("2", "Se evalúa sin conexión", "En terreno: ubicación, tipo de edificación, nivel de "
-         "daño en cuatro categorías, condiciones que obligan cierre, y hasta cuatro fotos. "
+         "daño, condiciones de cierre y fotos. Con ruta asignada, parada por parada. "
          "El semáforo se calcula solo."),
-        ("3", "Se sincroniza al volver", "Con señal, un botón envía todo lo pendiente. El envío "
-         "es idempotente: reintentar nunca duplica, y si el servidor no puede grabar, la "
-         "evaluación permanece en el teléfono."),
+        ("3", "Se sincroniza al volver", "Un botón sube todo lo pendiente y baja la ruta del "
+         "día. El envío es idempotente: reintentar nunca duplica, y el servidor devuelve un "
+         "acuse que queda guardado en el teléfono."),
     ]
     x0, w, gap = Inches(0.9), Inches(3.65), Inches(0.28)
     for i, (n, titulo, cuerpo) in enumerate(pasos):
@@ -407,9 +410,12 @@ def ventajas(prs):
         ("Protección de datos",
          "Lo que sale hacia autoridades va agregado por sector, con umbral mínimo. El predio "
          "nunca se expone (Ley 1581 de 2012)."),
-        ("Respaldo diario cifrado",
-         "Copia automática a otro servidor, con la credencial restringida a escribir. "
-         "Probada restaurando, no solo corriendo."),
+        # La respuesta directa a «el papel se pierde», que es el problema que plantea la
+        # lámina 2 y que hasta ahora ninguna ventaja contestaba. El respaldo diario se
+        # mudó a la lámina de despliegue, que es donde una entidad pregunta por eso.
+        ("El trabajo no se pierde",
+         "Guardado duradero en el teléfono, acuse del servidor por cada evaluación, y "
+         "nada se borra del equipo al enviarlo."),
     ])
     pie_contacto(dia)
     return dia
@@ -423,7 +429,8 @@ def despliegue(prs):
          ["Nosotros alojamos el receptor y la base de datos.",
           "La entidad recibe accesos y empieza a operar el mismo día.",
           "Sin infraestructura, sin personal de sistemas, sin licencias.",
-          "Cada evaluación queda atribuida a la brigada que la envió."],
+          "Cada evaluación queda atribuida a la brigada que la envió.",
+          "Respaldo diario cifrado a otro servidor, probado restaurando."],
          "Recomendado para empezar, o para una emergencia en curso."),
         (AZUL_OSC, "Sobre servidor propio",
          ["La entidad instala el sistema en su propia infraestructura.",
@@ -553,8 +560,10 @@ def empezar(prs):
          "consolidado que ustedes ya producen."),
         ("Una prueba real", "Una brigada, un sector, una jornada. Sin compromiso y sin "
          "instalar nada en su infraestructura."),
-        ("Ajuste y capacitación", "Adaptar lo que haga falta y formar a los inspectores. "
-         "El manual de campo se lee en veinte minutos."),
+        # Estas tarjetas son angostas: cuatro líneas y se sale. Enumerar los tres manuales
+        # no cabía, así que va la idea —uno por rol— y el detalle queda para la landing.
+        ("Ajuste y capacitación", "Adaptar lo que haga falta y formar a los inspectores, "
+         "con un manual para cada rol."),
         ("Decidir dónde viven los datos", "Seguir en nuestro servidor o migrar a "
          "infraestructura propia. La decisión no es irreversible."),
     ]
