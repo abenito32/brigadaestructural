@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<!--
+  «Su trabajo no se pierde» · Pieza para ingenieros que vienen del papel
+  Copyright (C) 2026 Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez
+  Software libre bajo GNU AGPL v3. Vea <https://www.gnu.org/licenses/>.
+
+  Se compila con:  python3 docs/build_manual.py no-se-pierde
+
+  Cuatro páginas, para mandar por WhatsApp antes de la primera jornada. No explica
+  cómo se usa la app —para eso está la guía de campo— sino por qué el trabajo no
+  se pierde, y cómo se hace la transición sin apostar nada.
+-->
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<title>Su trabajo no se pierde · Brigada</title>
+<style>
+@page { size: A4; margin: 16mm 15mm 14mm; }
+@page :first { margin: 0; }
+
+:root{
+  --tinta:#0F172A; --tinta2:#334155; --tenue:#5E6E82;
+  --linea:#D9E0E8; --papel:#F4F7FA;
+  --azul:#0369A1; --azul-osc:#075985; --azul-tinte:#E8F4FB;
+  --verde:#15803D; --verde-tinte:#F0FDF4;
+  --ambar:#B45309; --ambar-fondo:#EAB308;
+  --naranja:#C2410C; --rojo:#7F1D1D; --rojo-tinte:#FDF1F1;
+}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;color:var(--tinta);
+  font:10.5pt/1.55 "Helvetica Neue",Helvetica,Arial,sans-serif;hyphens:auto}
+h1,h2,h3{line-height:1.2;letter-spacing:-.015em;break-after:avoid}
+h2{font-size:16pt;margin:0 0 4mm;padding-bottom:2mm;border-bottom:2px solid var(--azul)}
+h3{font-size:11.5pt;margin:6mm 0 2mm;color:var(--azul-osc)}
+p{margin:0 0 3mm}
+ul,ol{margin:0 0 3mm;padding-left:5.5mm}
+li{margin-bottom:1.8mm}
+strong{color:var(--tinta)}
+
+/* ---------- portada ---------- */
+.portada{height:297mm;padding:38mm 20mm 18mm;display:flex;flex-direction:column;
+  break-after:page;background:var(--papel)}
+.portada .marca{font-size:9pt;letter-spacing:.22em;text-transform:uppercase;
+  font-weight:700;color:var(--azul);margin-bottom:7mm}
+.portada h1{font-size:36pt;line-height:1.05;letter-spacing:-.03em;margin:0 0 6mm}
+.portada .bajada{font-size:13.5pt;color:var(--tinta2);line-height:1.45;max-width:125mm;margin:0 0 11mm}
+.semaforo{display:flex;gap:3mm;margin:0 0 12mm}
+.semaforo div{height:9mm;border-radius:1.5mm}
+.semaforo .v{flex:1;background:var(--verde)}
+.semaforo .a{flex:1.5;background:var(--ambar-fondo)}
+.semaforo .o{flex:1.8;background:var(--naranja)}
+.semaforo .r{flex:2.2;background:var(--rojo)}
+.portada .pie{margin-top:auto;font-size:9.5pt;color:var(--tinta2);line-height:1.65}
+.portada .pie strong{color:var(--tinta)}
+.portada .quien{background:#fff;border:1px solid var(--linea);border-left:4px solid var(--azul);
+  border-radius:2mm;padding:5mm 6mm;font-size:10.5pt;line-height:1.55;margin-bottom:8mm}
+
+/* ---------- secciones ---------- */
+section{break-before:page;padding-top:2mm}
+
+.par{display:grid;grid-template-columns:1fr 1fr;gap:5mm;margin:0 0 5mm;break-inside:avoid}
+.col{border:1px solid var(--linea);border-radius:2mm;padding:5mm;background:#fff}
+.col.papel{background:var(--papel)}
+.col.app{border-color:#BBE0F2;background:var(--azul-tinte)}
+.col h3{margin:0 0 3mm;font-size:11pt}
+.col.papel h3{color:var(--tenue)}
+.col ul{margin:0;padding-left:5mm}
+.col li{font-size:9.5pt;color:var(--tinta2);margin-bottom:2mm}
+
+.punto{display:flex;gap:4mm;margin:0 0 5mm;break-inside:avoid}
+.punto .n{flex:none;width:8mm;height:8mm;border-radius:50%;background:var(--verde);
+  color:#fff;font-weight:700;font-size:10pt;display:flex;align-items:center;
+  justify-content:center}
+.punto .tx{flex:1}
+.punto .tx h3{margin:0 0 1.5mm;color:var(--tinta)}
+.punto .tx p{margin:0;font-size:10pt;color:var(--tinta2);line-height:1.5}
+
+.franco{background:var(--rojo-tinte);border:1px solid #F3C9C9;border-left:3.5px solid var(--rojo);
+  border-radius:2mm;padding:4.5mm 5mm;margin:0 0 4mm;break-inside:avoid}
+.bueno{background:var(--verde-tinte);border:1px solid #BBF7D0;border-left:3.5px solid var(--verde);
+  border-radius:2mm;padding:4.5mm 5mm;margin:0 0 4mm;break-inside:avoid}
+.etq{display:block;font-size:8pt;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:700;margin-bottom:1.5mm}
+.franco .etq{color:var(--rojo)} .bueno .etq{color:var(--verde)}
+.franco p,.bueno p{margin:0 0 2mm;font-size:9.5pt;line-height:1.5}
+.franco p:last-child,.bueno p:last-child{margin-bottom:0}
+
+table{width:100%;border-collapse:collapse;font-size:9.5pt;margin:0 0 4mm;break-inside:avoid}
+th{text-align:left;background:var(--papel);border-bottom:1.5px solid var(--tinta2);
+  padding:2.5mm 3mm;font-size:8.5pt;letter-spacing:.06em;text-transform:uppercase}
+td{padding:3mm;border-bottom:1px solid var(--linea);vertical-align:top}
+tr:last-child td{border-bottom:0}
+
+.dia{border-left:2.5px solid var(--azul);padding-left:6mm;margin:0 0 5mm;break-inside:avoid}
+.dia h3{margin:0 0 1.5mm}
+.dia p{margin:0;font-size:10pt;color:var(--tinta2);line-height:1.5}
+
+.cierre{background:var(--tinta);color:#fff;border-radius:2mm;padding:6mm 7mm;margin:6mm 0 0}
+.cierre p{margin:0;font-size:11.5pt;line-height:1.5}
+.cierre strong{color:#7DD3FC}
+.nota-fina{font-size:9.5pt;color:var(--tinta2);margin-top:3mm}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ PORTADA ═══════════════════════════ -->
+<div class="portada">
+  <div class="marca">Para el ingeniero que evalúa en campo</div>
+  <h1>Su trabajo<br>no se pierde</h1>
+  <p class="bajada">Cómo la aplicación cuida una evaluación mejor de lo que la cuida el
+    papel, dicho sin exagerar y con lo que falla incluido.</p>
+  <div class="semaforo"><div class="v"></div><div class="a"></div>
+    <div class="o"></div><div class="r"></div></div>
+  <div class="quien">
+    Si usted lleva años evaluando con formulario en mano y desconfía de meter eso en un
+    celular, <strong>tiene razón en desconfiar</strong>. Un papel firmado no se apaga, no
+    se actualiza y no se queda sin batería. Este documento no le pide fe: le muestra qué
+    pasa exactamente con cada evaluación, y qué hacer si algo sale mal.
+  </div>
+  <div class="pie">
+    <strong>Brigada · Evaluación estructural en campo</strong><br>
+    Agosto de 2026 · Software libre bajo GNU AGPL v3
+  </div>
+</div>
+
+<!-- ═══════════════════════════ 1 ═══════════════════════════ -->
+<section style="break-before:auto">
+<h2>Lo que le pasa a una evaluación</h2>
+
+<p>Desde que usted toca <strong>Guardar</strong> hasta que llega al coordinador, la
+evaluación pasa por cinco puntos. En cada uno hay algo que la protege.</p>
+
+<div class="punto">
+  <div class="n">1</div>
+  <div class="tx">
+    <h3>Mientras la está llenando</h3>
+    <p>El formulario <strong>se guarda solo cada segundo y medio</strong>, y también cuando
+      usted sale de la app. Si el teléfono se apaga a mitad de un formulario largo, al
+      volver a abrir le ofrece continuarlo donde iba. Con fotos y todo.</p>
+  </div>
+</div>
+
+<div class="punto">
+  <div class="n">2</div>
+  <div class="tx">
+    <h3>Al guardar</h3>
+    <p>Queda escrita en el disco del teléfono, no en la memoria. <strong>No necesita
+      señal.</strong> Arriba, en la pantalla de evaluar, siempre dice cuántas tiene
+      guardadas y cuántas faltan por enviar.</p>
+  </div>
+</div>
+
+<div class="punto">
+  <div class="n">3</div>
+  <div class="tx">
+    <h3>Sin señal, esperando</h3>
+    <p>Puede acumular la jornada entera. Nada caduca. Si intenta enviar y no hay red, el
+      registro <strong>sigue pendiente</strong> y se reintenta después; no se marca como
+      enviado por error.</p>
+  </div>
+</div>
+
+<div class="punto">
+  <div class="n">4</div>
+  <div class="tx">
+    <h3>Al enviar</h3>
+    <p>El servidor <strong>nunca responde «recibido» sin haberla grabado</strong>. Si la
+      base de datos falla, contesta error y su evaluación sigue pendiente en el teléfono.
+      Cuando sí la graba, le devuelve un número de recibo que queda escrito en su lista:
+      es el equivalente al sello en la copia.</p>
+  </div>
+</div>
+
+<div class="punto">
+  <div class="n">5</div>
+  <div class="tx">
+    <h3>Después de enviada</h3>
+    <p><strong>No se borra de su teléfono.</strong> Queda marcada como enviada y usted la
+      puede volver a ver o descargar cuando quiera. Y ya está además en el panel del
+      coordinador y en el respaldo cifrado que corre todos los días.</p>
+  </div>
+</div>
+
+<div class="bueno">
+  <span class="etq">Dos detalles que quitan miedo</span>
+  <p><strong>Puede tocar «Enviar» todas las veces que quiera.</strong> Enviar dos veces la
+    misma evaluación no la duplica: el servidor la reconoce y la cuenta una sola vez.</p>
+  <p><strong>Nada de lo que usted haga borra una evaluación.</strong> No hay botón de
+    eliminar. Ni el coordinador puede borrarla desde el panel.</p>
+</div>
+</section>
+
+<!-- ═══════════════════════════ 2 ═══════════════════════════ -->
+<section>
+<h2>Papel y aplicación, sin adornos</h2>
+
+<p>El papel tiene ventajas reales. Conviene decirlas, porque son las que están detrás de
+la desconfianza.</p>
+
+<div class="par">
+  <div class="col papel">
+    <h3>Lo que el papel hace bien</h3>
+    <ul>
+      <li>No se apaga ni se queda sin batería.</li>
+      <li>Usted lo ve y lo tiene en la mano.</li>
+      <li>No depende de que nadie haya programado bien nada.</li>
+      <li>Se firma y ya está.</li>
+    </ul>
+  </div>
+  <div class="col app">
+    <h3>Lo que el papel no puede</h3>
+    <ul>
+      <li>Estar en tres lugares a la vez.</li>
+      <li>Sobrevivir a la lluvia, al barro o a un bolso perdido.</li>
+      <li>Avisarle al coordinador esa misma tarde.</li>
+      <li>Recuperarse solo si se interrumpe a la mitad.</li>
+      <li>Evitar que dos personas evalúen el mismo predio.</li>
+    </ul>
+  </div>
+</div>
+
+<h3>Dónde queda cada uno si algo sale mal</h3>
+
+<table>
+  <thead><tr><th>Si pasa esto…</th><th>Con papel</th><th>Con la aplicación</th></tr></thead>
+  <tbody>
+    <tr><td>Se moja el formulario</td>
+      <td>Se perdió, y muchas veces no se sabe cuál era</td>
+      <td>No aplica</td></tr>
+    <tr><td>Se apaga el teléfono a mitad</td>
+      <td>No aplica</td>
+      <td>Al abrir, ofrece continuar donde iba</td></tr>
+    <tr><td>Se pierde el teléfono / la carpeta</td>
+      <td>Se perdió todo lo del día</td>
+      <td>Se perdió solo lo que no alcanzó a enviar</td></tr>
+    <tr><td>Nunca hubo señal en la zona</td>
+      <td>Igual, se entrega al volver</td>
+      <td>Igual: se acumula y se envía al volver</td></tr>
+    <tr><td>Hay que buscar una evaluación de hace tres días</td>
+      <td>Revisar la carpeta a mano</td>
+      <td>Está en la lista y en el panel</td></tr>
+  </tbody>
+</table>
+
+<div class="franco">
+  <span class="etq">Dicho de frente</span>
+  <p>La aplicación no elimina el riesgo: lo <strong>cambia de sitio y lo hace más
+    pequeño</strong>. Con papel, perder la carpeta es perder la jornada completa. Con la
+    app, perder el teléfono es perder únicamente lo que todavía no había enviado.</p>
+  <p>Por eso la única disciplina que de verdad importa es <strong>enviar apenas haya
+    señal</strong>. No al final del día: cada vez que aparezca una raya.</p>
+</div>
+</section>
+
+<!-- ═══════════════════════════ 3 ═══════════════════════════ -->
+<section>
+<h2>Lo que sí puede fallar, y qué hacer</h2>
+
+<p>Ningún sistema es infalible. Estos son los tres modos de falla reales, con lo que la
+app hace para avisarle.</p>
+
+<h3>1 · Que el teléfono no esté guardando en disco</h3>
+<p>Pasa en <strong>navegación privada</strong> o si el navegador tiene el almacenamiento
+bloqueado. En ese caso lo que evalúe se pierde al cerrar la app.</p>
+<p><strong>Cómo se entera:</strong> aparece un aviso rojo permanente arriba de la pantalla
+de evaluar, y no se quita hasta que se resuelva. Si lo ve, salga de navegación privada y
+vuelva a abrir.</p>
+
+<h3>2 · Que el teléfono se quede sin espacio</h3>
+<p>Cuando el disco se llena, el navegador empieza a botar datos guardados para hacer
+espacio.</p>
+<p><strong>Cómo se entera:</strong> la app revisa el espacio disponible y avisa
+<em>antes</em> de que sea un problema, no después. Y hay una forma de blindarse, que es la
+de la página siguiente.</p>
+
+<h3>3 · Que se pierda el teléfono</h3>
+<p>Se pierde lo que no se había enviado. Nada más.</p>
+<p><strong>Cómo se protege:</strong> enviando seguido. Y si va a estar días sin señal,
+desde la pestaña Envíos puede descargar una copia de todo —en un archivo— y pasarla a un
+computador.</p>
+
+<div class="bueno">
+  <span class="etq">Blíndese en un toque: instálela en la pantalla de inicio</span>
+  <p>Si abre la app como una página del navegador, el teléfono la trata como una pestaña
+    más y sus datos son de los primeros que borra cuando necesita espacio.</p>
+  <p><strong>Instalada en la pantalla de inicio, el navegador se compromete a no borrar
+    sus evaluaciones.</strong> La propia app se lo ofrece al abrirla, y en Ajustes le dice
+    en texto claro si esa garantía está activa o no. Es un toque, y es la mejor decisión
+    que puede tomar el primer día.</p>
+</div>
+
+<p class="nota-fina">En un iPhone: toque <strong>Compartir</strong> abajo, y luego
+<strong>«Agregar a pantalla de inicio»</strong>. En Android, la app le muestra un botón
+<strong>Instalar</strong>.</p>
+</section>
+
+<!-- ═══════════════════════════ 4 ═══════════════════════════ -->
+<section>
+<h2>La transición, sin apostar nada</h2>
+
+<p>Nadie le está pidiendo que deje el papel mañana. La forma en que esto ha funcionado es
+la contraria: <strong>que usted compruebe primero, y decida después.</strong></p>
+
+<div class="dia">
+  <h3>Antes de la primera jornada · 10 minutos</h3>
+  <p>Instale la app en la pantalla de inicio, escriba su nombre y su matrícula, pegue el
+    token que le entregue quien coordina, y toque <strong>«Probar conexión»</strong> con
+    señal. Si dice «Todo correcto», está listo.</p>
+</div>
+
+<div class="dia">
+  <h3>Primera jornada · en paralelo</h3>
+  <p>Llene el papel como siempre <strong>y</strong> la app. Sí, es trabajo doble ese día.
+    Es el precio de no apostar nada: si la app fallara, usted tiene el papel intacto.</p>
+</div>
+
+<div class="dia">
+  <h3>Esa misma tarde · la comprobación</h3>
+  <p>Siéntese con quien coordina frente al panel. Ahí van a estar sus evaluaciones del día,
+    con su nombre, sus fotos y su clasificación. Compárelas con sus papeles, una por una.
+    <strong>Eso es lo que quita el miedo</strong>, no un documento como este.</p>
+</div>
+
+<div class="dia">
+  <h3>Segunda jornada · solo app, con el papel en el bolso</h3>
+  <p>Sin llenarlo. Solo por si acaso. La mayoría no vuelve a sacarlo.</p>
+</div>
+
+<div class="dia">
+  <h3>De ahí en adelante</h3>
+  <p>Envíe apenas haya señal. Es la única costumbre nueva que hay que adquirir, y es la
+    que hace que todo lo demás de este documento sea cierto.</p>
+</div>
+
+<h3>Lo que no cambia</h3>
+<ul>
+  <li><strong>La clasificación la decide usted.</strong> La app calcula un resultado con
+    las tablas de la guía, pero si usted no está de acuerdo lo cambia; solo le pide
+    escribir por qué, y se guardan los dos valores.</li>
+  <li><strong>Su matrícula es su firma.</strong> No es un usuario ni una clave: es el
+    registro de que usted respondió por esa evaluación, igual que en el papel.</li>
+  <li><strong>Sigue siendo triaje preliminar.</strong> La habilitación definitiva es
+    competencia de UNGRD, Defensa Civil, bomberos y alcaldías. Eso no lo cambia ningún
+    programa.</li>
+</ul>
+
+<div class="cierre">
+  <p>El papel protege una evaluación mientras usted lo tenga en la mano.<br>
+  Esto la protege <strong>después</strong>: cuando llueve, cuando el bolso se pierde, y
+  cuando alguien tiene que encontrarla tres semanas más tarde.</p>
+</div>
+
+<p class="nota-fina">¿Dudas, o algo no funcionó como dice acá? Dígaselo a quien coordina su
+brigada. Un problema reportado se arregla; uno que nadie cuenta se repite.</p>
+</section>
+
+</body>
+</html>

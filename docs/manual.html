@@ -116,7 +116,10 @@ tr:last-child td{border-bottom:0}
 .pasos > li::before{content:counter(paso);position:absolute;left:0;top:0;
   width:6.5mm;height:6.5mm;border-radius:50%;background:var(--azul);color:#fff;
   font-size:9pt;font-weight:700;display:flex;align-items:center;justify-content:center}
-.pasos > li strong{display:block;margin-bottom:.8mm}
+/* Solo el PRIMER strong es el titulo del paso. Sin el `:first-child`,
+   cualquier enfasis dentro del texto se vuelve un bloque y parte la frase
+   en pedazos sueltos. Mismo caso que el aviso de la tarjeta de credencial. */
+.pasos > li > strong:first-child{display:block;margin-bottom:.8mm}
 
 .dos{display:grid;grid-template-columns:1fr 1fr;gap:5mm;break-inside:avoid}
 .ficha{border:1px solid var(--linea);border-radius:2mm;padding:4mm;background:#fff}
@@ -147,7 +150,7 @@ tr:last-child td{border-bottom:0}
     tras un sismo, y el sistema que recibe y consolida lo levantado.</p>
   <div class="semaforo-portada"><div class="v"></div><div class="a"></div><div class="o"></div><div class="r"></div></div>
   <div class="pie">
-    <strong>Versión 2.1</strong> · Agosto de 2026<br>
+    <strong>Versión 2.2</strong> · Agosto de 2026<br>
     Formulario V2F y Guía Técnica IDIGER–AIS 2018 · Colombia<br><br>
     Desarrollada con Amor por <strong>Andrés Benito Revollo Vélez</strong><br>
     Rollout Comercio e Servicios Limitada<br><br>
@@ -169,40 +172,42 @@ tr:last-child td{border-bottom:0}
       <li><span class="num">3</span> Evaluar una edificación, paso a paso</li>
       <li><span class="num">4</span> Cómo se calcula la habitabilidad</li>
       <li><span class="num">5</span> Cuándo cambiar la clasificación, y cómo</li>
-      <li><span class="num">6</span> Sincronizar al volver la señal</li>
-      <li><span class="num">7</span> Si algo sale mal</li>
-      <li><span class="num">8</span> Seguridad personal y límites legales</li>
+      <li><span class="num">6</span> Trabajar con una ruta asignada</li>
+      <li><span class="num">7</span> Sincronizar al volver la señal</li>
+      <li><span class="num">8</span> Si algo sale mal</li>
+      <li><span class="num">9</span> Seguridad personal y límites legales</li>
     </ol>
   </li>
   <li>
     <div class="grupo">Parte II · Para quien coordina la brigada</div>
     <ol>
-      <li><span class="num">9</span> El panel de administración</li>
-      <li><span class="num">10</span> Los dos accesos: administrador y coordinador</li>
-      <li><span class="num">11</span> Registrar brigadas y entregar tokens</li>
-      <li><span class="num">12</span> Registrar inspectores</li>
-      <li><span class="num">13</span> Revisar las firmas fuera del registro</li>
-      <li><span class="num">14</span> La ficha de un reporte y sus fotos</li>
-      <li><span class="num">15</span> La segunda revisión de los desalojos</li>
-      <li><span class="num">16</span> El mapa</li>
-      <li><span class="num">17</span> Evolución de la operación</li>
-      <li><span class="num">18</span> Exportar al formulario V2F</li>
-      <li><span class="num">19</span> Predios sin código catastral</li>
-      <li><span class="num">20</span> La historia de un predio</li>
-      <li><span class="num">21</span> El consolidado: qué se entrega y qué no</li>
+      <li><span class="num">10</span> El panel de administración</li>
+      <li><span class="num">11</span> Los dos accesos: administrador y coordinador</li>
+      <li><span class="num">12</span> Registrar brigadas y entregar tokens</li>
+      <li><span class="num">13</span> Registrar inspectores</li>
+      <li><span class="num">14</span> Despachar rutas a los ingenieros</li>
+      <li><span class="num">15</span> Revisar las firmas fuera del registro</li>
+      <li><span class="num">16</span> La ficha de un reporte y sus fotos</li>
+      <li><span class="num">17</span> La segunda revisión de los desalojos</li>
+      <li><span class="num">18</span> El mapa</li>
+      <li><span class="num">19</span> Evolución de la operación</li>
+      <li><span class="num">20</span> Exportar al formulario V2F</li>
+      <li><span class="num">21</span> Predios sin código catastral</li>
+      <li><span class="num">22</span> La historia de un predio</li>
+      <li><span class="num">23</span> El consolidado: qué se entrega y qué no</li>
     </ol>
   </li>
   <li>
     <div class="grupo">Parte III · Para quien administra el servidor</div>
     <ol>
-      <li><span class="num">22</span> Cómo está armado el sistema</li>
-      <li><span class="num">23</span> Instalación desde cero</li>
-      <li><span class="num">24</span> Variables de configuración</li>
-      <li><span class="num">25</span> Operación diaria</li>
-      <li><span class="num">26</span> Diagnóstico de problemas</li>
-      <li><span class="num">27</span> Actualizar la aplicación</li>
-      <li><span class="num">28</span> Respaldo y recuperación</li>
-      <li><span class="num">29</span> La API de consulta</li>
+      <li><span class="num">24</span> Cómo está armado el sistema</li>
+      <li><span class="num">25</span> Instalación desde cero</li>
+      <li><span class="num">26</span> Variables de configuración</li>
+      <li><span class="num">27</span> Operación diaria</li>
+      <li><span class="num">28</span> Diagnóstico de problemas</li>
+      <li><span class="num">29</span> Actualizar la aplicación</li>
+      <li><span class="num">30</span> Respaldo y recuperación</li>
+      <li><span class="num">31</span> La API de consulta</li>
     </ol>
   </li>
   <li>
@@ -291,7 +296,7 @@ de salir. Toma cinco minutos.</p>
 
   <li><strong>Tocar «Probar conexión»</strong>
     Comprueba que el servidor responde y que el token sirve, sin enviar ninguna
-    evaluación. Si dice «Todo correcto», está listo. Si no, vea la sección 7.</li>
+    evaluación. Si dice «Todo correcto», está listo. Si no, vea la sección 8.</li>
 
   <li><strong>Cargar la batería y salir</strong>
     Con GPS y cámara en uso, un levantamiento largo consume batería rápido. Lleve
@@ -619,7 +624,50 @@ alguien revise por qué ese edificio quedó en uso restringido, es lo único que
 </section>
 
 <section>
-<h2>6 · Sincronizar al volver la señal</h2>
+<h2>6 · Trabajar con una ruta asignada</h2>
+
+<p>Si quien coordina le asignó una ruta, aparece una pestaña más: <strong>Ruta</strong>. Si no
+le asignaron ninguna, esa pestaña no existe y la app funciona igual que siempre.</p>
+
+<h3>Cómo llega</h3>
+<p>La ruta <strong>se descarga con señal</strong> y después se trabaja sin ella. Se baja sola
+cuando usted toca <em>Enviar pendientes</em> o <em>Probar conexión</em>, y también con el botón
+<em>Actualizar ruta</em> de esa pestaña. Hágalo <strong>antes de salir</strong>: en terreno puede
+no haber cobertura, y sin ella la ruta no baja.</p>
+
+<h3>Qué se ve</h3>
+<p>Una tarjeta por predio, las pendientes primero, con la dirección y una referencia para
+encontrarlo («portón azul, al lado de la panadería»). Dos botones:</p>
+<ul>
+  <li><strong>Evaluar aquí</strong> — abre el formulario con la dirección, el barrio y el
+    municipio ya puestos. Arriba queda un aviso azul con la visita a la que pertenece.
+    <strong>La coordenada no se copia</strong>: el punto lo toma usted con el GPS en el sitio,
+    porque lo que vale es dónde estuvo usted, no dónde decía el plan.</li>
+  <li><strong>No se pudo</strong> — para cuando no se pudo evaluar. Se elige entre cuatro
+    razones: nadie atendió, no existe la dirección, se negaron a la inspección, no se pudo
+    acceder. Se puede deshacer mientras no se haya reportado.</li>
+</ul>
+
+<div class="aviso">
+  <p><strong>Si llega y termina evaluando el predio de al lado, toque «Desvincular».</strong>
+  El aviso azul dice a qué visita se va a atribuir esta evaluación. Si no es esa, quítelo:
+  la evaluación se guarda igual, solo que sin cerrar una visita que no era.</p>
+</div>
+
+<h3>Qué pasa al sincronizar</h3>
+<p>La evaluación viaja con el número de la visita, y el servidor la marca como hecha sola.
+Lo que no produjo evaluación —«no se pudo»— viaja por separado. Si envía días después, o si
+quien coordina ya canceló esa visita, <strong>la evaluación se graba igual</strong>: nunca se
+pierde trabajo de campo por un asunto de la ruta.</p>
+
+<h3>La ruta se borra sola</h3>
+<p>Una ruta es una lista de direcciones de casas que todavía no visitó nadie, y eso es dato
+personal de terceros. Por eso <strong>se borra sola de su teléfono</strong> al terminar la
+jornada, por el reloj del propio aparato, sin necesidad de señal. También se borra si cambia
+su matrícula en Ajustes, porque entonces era la ruta de otra persona. <strong>Las evaluaciones
+que ya hizo no se pierden</strong>: quedan en Envíos hasta que sincronice.</p>
+
+<h2>7 · Sincronizar al volver la señal</h2>
 
 <p>La pestaña <strong>Envíos</strong> muestra todo lo levantado y cuántas evaluaciones
 siguen pendientes de enviar. El número entre paréntesis en la pestaña es esa cuenta.</p>
@@ -647,7 +695,7 @@ cambiar de manos.</p>
 </section>
 
 <section>
-<h2>7 · Si algo sale mal</h2>
+<h2>8 · Si algo sale mal</h2>
 
 <table class="tabla-chica">
   <tr><th style="width:33%">Síntoma</th><th>Qué significa y qué hacer</th></tr>
@@ -691,7 +739,7 @@ cambiar de manos.</p>
 </section>
 
 <section>
-<h2>8 · Seguridad personal y límites legales</h2>
+<h2>9 · Seguridad personal y límites legales</h2>
 
 <h3>Antes de entrar a una edificación</h3>
 <div class="aviso">
@@ -739,12 +787,12 @@ que no ingrese <em>ni siquiera a sacar cosas</em> hasta que la autoridad lo dete
   </div>
 
 <section class="seguido">
-<h2>9 · El panel de administración</h2>
+<h2>10 · El panel de administración</h2>
 
 <p>Está en <code>https://admin.brigadaestructural.co</code> —un subdominio propio, no
 el mismo sitio que usa la brigada— y tiene <strong>dos accesos</strong>: la clave del
 administrador, que ve todo, y la de cada coordinador, que ve solo su brigada
-(sección 10).</p>
+(sección 11).</p>
 
 <div class="nota-caja">
   <span class="etq">Por qué en otra dirección</span>
@@ -765,14 +813,14 @@ administrador, que ve todo, y la de cada coordinador, que ve solo su brigada
   <div class="ficha"><h4>Resumen</h4><p>Totales, desglose por color, firmas fuera del
     registro, actividad por brigada y el consolidado por sector.</p></div>
   <div class="ficha"><h4>Mapa</h4><p>El consolidado sobre callejero, satélite o híbrida,
-    y una capa opcional con los reportes uno a uno (sección 16).</p></div>
+    y una capa opcional con los reportes uno a uno (sección 18).</p></div>
   <div class="ficha"><h4>Evolución</h4><p>Ritmo por día, cobertura por sector y lo que
-    queda por resolver (sección 17).</p></div>
+    queda por resolver (sección 19).</p></div>
   <div class="ficha"><h4>Reportes</h4><p>Listado completo con filtros por brigada,
     clasificación, municipio y estado de firma. Al tocar una fila se abre la ficha
-    con sus fotos (sección 14).</p></div>
+    con sus fotos (sección 16).</p></div>
   <div class="ficha"><h4>Revisión</h4><p>La cola de segunda revisión, con los atrasados
-    primero (sección 15).</p></div>
+    primero (sección 17).</p></div>
   <div class="ficha"><h4>Brigadas</h4><p>Alta con generación de token, revocación,
     reemisión, y las claves de los coordinadores.</p></div>
   <div class="ficha"><h4>Inspectores</h4><p>Alta y baja de quienes pueden firmar.</p></div>
@@ -786,7 +834,7 @@ administrador, que ve todo, y la de cada coordinador, que ve solo su brigada
 <p>Si el panel responde <strong>503 con una explicación</strong>, es porque no hay clave
 configurada: sin ella no se registra ninguna ruta, tampoco la entrada de coordinadores
 —hace falta un administrador para crearlos—. Es deliberado: no hay clave por defecto ni
-pantalla de acceso esperando. Vea la sección 24 para activarlo.</p>
+pantalla de acceso esperando. Vea la sección 26 para activarlo.</p>
 
 <div class="nota-caja">
   <span class="etq">Por qué 503 y no 404</span>
@@ -796,7 +844,7 @@ pantalla de acceso esperando. Vea la sección 24 para activarlo.</p>
 </section>
 
 <section>
-<h2>10 · Los dos accesos: administrador y coordinador</h2>
+<h2>11 · Los dos accesos: administrador y coordinador</h2>
 
 <p>Hay <strong>dos roles</strong>, y ninguno de los dos es el inspector.</p>
 
@@ -855,7 +903,7 @@ sin esa comprobación, alguien dado de baja seguiría dentro hasta ocho horas.</
 </section>
 
 <section>
-<h2>11 · Registrar brigadas y entregar tokens</h2>
+<h2>12 · Registrar brigadas y entregar tokens</h2>
 
 <p>Una brigada es una credencial. El <strong>token</strong> es lo que autentica al
 teléfono contra el servidor, y lo que atribuye cada evaluación a quien la envió.</p>
@@ -890,7 +938,7 @@ atribución es el nombre, no el token.</p>
 </section>
 
 <section>
-<h2>12 · Registrar inspectores</h2>
+<h2>13 · Registrar inspectores</h2>
 
 <p>El registro de inspectores es lo que permite responder, meses después, quién firmó
 qué. Se llena desde <strong>Panel → Inspectores</strong>: matrícula, nombre, brigada, y
@@ -912,7 +960,50 @@ firmó: su matrícula es parte del registro legal de esas evaluaciones.</p>
 </section>
 
 <section>
-<h2>13 · Revisar las firmas fuera del registro</h2>
+<h2>14 · Despachar rutas a los ingenieros</h2>
+
+<p>Hasta acá el panel sabía qué <em>se evaluó</em>. Con el despacho sabe además qué
+<strong>había que evaluar</strong>, que es lo único que permite decir «faltan doce».</p>
+
+<h3>Armar una ruta</h3>
+<ol>
+  <li>En <strong>Despacho</strong>, escriba un nombre, elija al ingeniero y la jornada.
+    Solo aparecen las matrículas <strong>vigentes de su brigada</strong>.</li>
+  <li>La ruta nace en <strong>borrador</strong>: no baja a ningún teléfono todavía.</li>
+  <li>Pegue las direcciones, <strong>una por línea</strong>. Lo que va después de la primera
+    coma se guarda como referencia para encontrar el predio.</li>
+  <li>Revise la lista y toque <strong>Despachar</strong>. El ingeniero la verá en su próxima
+    sincronización con señal.</li>
+</ol>
+
+<h3>Seguirla</h3>
+<p>Cada visita queda en uno de cuatro estados: <strong>pendiente</strong>,
+<strong>hecha</strong> (con enlace a la evaluación que la cerró), <strong>no realizada</strong>
+(con el motivo que reportó el ingeniero) o <strong>cancelada</strong> por usted. La barra de
+avance del listado es la respuesta a «cómo vamos».</p>
+
+<p>Una evaluación cierra <strong>una sola</strong> visita. Si el mismo predio se despachó dos
+veces por error, la segunda queda pendiente y se ve como lo que es —trabajo duplicado— en vez
+de contarse dos veces como cobertura.</p>
+
+<h3>Cerrar y anular</h3>
+<p><strong>Cerrar</strong> una ruta termina la jornada, pero <strong>las visitas pendientes
+siguen pendientes</strong>: se pueden reasignar en una ruta nueva. <strong>Anular</strong> la
+saca de circulación. Ninguna de las dos borra nada: lo evaluado queda.</p>
+
+<div class="aviso">
+  <p><strong>Si da de baja a un ingeniero que tiene una ruta despachada, la ruta se le sigue
+  sirviendo.</strong> Quitarle la lista de direcciones a alguien que está parado en la calle
+  es peor que el problema. El panel se lo señala y usted decide si la reasigna.</p>
+</div>
+
+<h3>Lo que la ruta no lleva</h3>
+<p>Dirección, barrio, municipio y una referencia. <strong>Nunca</strong> nombres de
+propietarios, teléfonos ni documentos. El token es de la brigada y lo comparten todos sus
+teléfonos: lo que viaje ahí lo puede ver cualquiera de la brigada, y por eso solo viaja lo
+mínimo para llegar al predio.</p>
+
+<h2>15 · Revisar las firmas fuera del registro</h2>
 
 <p>En el Resumen aparece el contador, resaltado si hay alguna. El listado está en
 <strong>Reportes → filtro «Fuera del registro»</strong>, y viene ordenado con
@@ -941,7 +1032,7 @@ token que realmente envió. Si no coinciden, hay algo que entender.</p>
 </section>
 
 <section>
-<h2>14 · La ficha de un reporte y sus fotos</h2>
+<h2>16 · La ficha de un reporte y sus fotos</h2>
 
 <p>En <strong>Reportes</strong>, tocar una fila abre la ficha de esa evaluación: dónde
 está, qué se observó, quién firmó, si alguien la revisó después, y el registro
@@ -974,7 +1065,7 @@ evaluación.</p>
 </section>
 
 <section>
-<h2>15 · La segunda revisión de los desalojos</h2>
+<h2>17 · La segunda revisión de los desalojos</h2>
 
 <p>Una clasificación de <strong>no habitable</strong> o de <strong>peligro de
 colapso</strong> ordena vaciar una edificación. Que eso dependa del criterio de una
@@ -1012,7 +1103,7 @@ clasificación, o revocarla a un nivel menor. Revocar exige motivo escrito.</p>
 </section>
 
 <section>
-<h2>16 · El mapa</h2>
+<h2>18 · El mapa</h2>
 
 <p>El mapa dibuja el consolidado: <strong>un círculo por sector</strong>, donde el área
 —no el radio— es proporcional a cuántas evaluaciones tiene, y el color es qué
@@ -1030,7 +1121,7 @@ revisión. Nunca es solo el color: los mismos datos están en la tabla de abajo.
 </div>
 <p class="nota-fina">La elección se recuerda en ese navegador. Las tres fuentes se
 pueden cambiar por variables de entorno, si la entidad prefiere su propio geoportal
-(sección 24).</p>
+(sección 26).</p>
 
 <h3>Ver los reportes uno a uno</h3>
 <p>La casilla <em>«Ver los reportes individuales»</em> cambia los círculos por un punto
@@ -1040,14 +1131,14 @@ porque eso es exactamente lo que hay en pantalla.</p>
 
 <div class="ojo">
   <span class="etq">Esa capa no sale del panel</span>
-  La API de consulta (sección 29) nunca entrega el predio: ahí sigue mandando el
+  La API de consulta (sección 31) nunca entrega el predio: ahí sigue mandando el
   umbral de anonimato. Los puntos individuales existen para quien coordina la
   operación y responde por esos datos, y solo dentro de su brigada.
 </div>
 </section>
 
 <section>
-<h2>17 · Evolución de la operación</h2>
+<h2>19 · Evolución de la operación</h2>
 
 <p>Responde tres preguntas: a qué ritmo entra el trabajo, dónde se ha trabajado, y qué
 queda por resolver.</p>
@@ -1080,7 +1171,7 @@ queda por resolver.</p>
 </section>
 
 <section>
-<h2>18 · Exportar al formulario V2F</h2>
+<h2>20 · Exportar al formulario V2F</h2>
 
 <p>En <strong>Exportar</strong> se descarga lo evaluado con una columna por casilla del
 formulario del IDIGER y con <em>sus</em> códigos: el sistema estructural sale como
@@ -1116,7 +1207,7 @@ lo de su brigada; el administrador, todo.</p>
 </section>
 
 <section>
-<h2>19 · Predios sin código catastral</h2>
+<h2>21 · Predios sin código catastral</h2>
 
 <p>El código catastral es la llave con la que el distrito cruza contra su catastro, y
 en campo casi nadie lo sabe de memoria. Por eso es opcional en el teléfono y se
@@ -1129,7 +1220,7 @@ en la puerta que deducirlo cruzando una dirección.</p>
 </section>
 
 <section>
-<h2>20 · La historia de un predio</h2>
+<h2>22 · La historia de un predio</h2>
 
 <p>El V2F pregunta si existe una clasificación previa. Desde la ficha de cualquier
 evaluación, <strong>Historia del predio</strong> muestra lo que hay a menos de 25 m,
@@ -1159,7 +1250,7 @@ no se cuente dos veces. Se puede deshacer.</p>
 </section>
 
 <section>
-<h2>21 · El consolidado: qué se entrega y qué no</h2>
+<h2>23 · El consolidado: qué se entrega y qué no</h2>
 
 <p>Al final del Resumen está la tabla <strong>por sector</strong>. Esa tabla —y solo
 esa— es lo que se entrega a las autoridades.</p>
@@ -1196,7 +1287,7 @@ No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
   </div>
 
 <section class="seguido">
-<h2>22 · Cómo está armado el sistema</h2>
+<h2>24 · Cómo está armado el sistema</h2>
 
 <p>Las piezas, deliberadamente pocas:</p>
 
@@ -1231,7 +1322,7 @@ No exporte esa pantalla ni la comparta fuera del equipo de coordinación.</p>
     el almacenamiento del navegador es <strong>por origen</strong>: cambiarlo dejaría
     huérfanas las evaluaciones pendientes de los teléfonos ya instalados.</td></tr>
   <tr><td><code>/api/</code></td><td>Recepción de evaluaciones.</td></tr>
-  <tr><td><code>/api/v1/</code></td><td>API de consulta, solo lectura (sección 29).</td></tr>
+  <tr><td><code>/api/v1/</code></td><td>API de consulta, solo lectura (sección 31).</td></tr>
   <tr><td><code>/sw.js</code></td><td>Desactiva el service worker viejo que quedó con
     alcance <code>/</code>. <strong>No borrar</strong> mientras exista un teléfono con
     ese registro.</td></tr>
@@ -1259,7 +1350,7 @@ se repite entre brigadas, la segunda brigada pisaba la foto de la primera.</p>
 </section>
 
 <section>
-<h2>23 · Instalación desde cero</h2>
+<h2>25 · Instalación desde cero</h2>
 
 <h4>1. Los estáticos</h4>
 <pre>rsync -av index.html sw.js manifest.json icono-*.png \
@@ -1313,7 +1404,7 @@ certbot renew --dry-run</pre>
 </section>
 
 <section>
-<h2>24 · Variables de configuración</h2>
+<h2>26 · Variables de configuración</h2>
 
 <p>Todas viven en <code>/etc/brigadas.env</code>, con permisos <code>0600 root:root</code>,
 y las lee el servicio por <code>EnvironmentFile</code>. <strong>Nunca en el unit de
@@ -1365,7 +1456,7 @@ shell y en la lista de procesos. Cambiar la clave cierra todas las sesiones abie
 </section>
 
 <section>
-<h2>25 · Operación diaria</h2>
+<h2>27 · Operación diaria</h2>
 
 <pre># estado
 systemctl status brigadas-api
@@ -1400,7 +1491,7 @@ SELECT brigada_token, count(*), max(recibido_en)
 </section>
 
 <section>
-<h2>26 · Diagnóstico de problemas</h2>
+<h2>28 · Diagnóstico de problemas</h2>
 
 <table class="tabla-chica">
   <tr><th style="width:30%">Síntoma</th><th>Causa probable y solución</th></tr>
@@ -1422,7 +1513,7 @@ SELECT brigada_token, count(*), max(recibido_en)
       cancela el envío en el preflight y el fallo no se ve por ningún lado.</td></tr>
 
   <tr><td><strong>Los teléfonos siguen con la versión vieja</strong></td>
-    <td>No se subió <code>CACHE</code> en <code>sw.js</code>. Vea la sección 27.</td></tr>
+    <td>No se subió <code>CACHE</code> en <code>sw.js</code>. Vea la sección 29.</td></tr>
 
   <tr><td><strong>Un error viejo quedó pegado en un teléfono</strong></td>
     <td>El service worker cachea respuestas. Desde la versión actual solo cachea
@@ -1436,7 +1527,7 @@ SELECT brigada_token, count(*), max(recibido_en)
 </section>
 
 <section>
-<h2>27 · Actualizar la aplicación</h2>
+<h2>29 · Actualizar la aplicación</h2>
 
 <div class="aviso">
   <span class="etq">La regla que no se puede olvidar</span>
@@ -1469,7 +1560,7 @@ y trae los <code>ADD COLUMN IF NOT EXISTS</code> de las columnas nuevas.</p>
 </section>
 
 <section>
-<h2>28 · Respaldo y recuperación</h2>
+<h2>30 · Respaldo y recuperación</h2>
 
 <p>Corre solo, todos los días a las 03:15 UTC, con <code>brigadas-respaldo.timer</code>.
 Vuelca la base y las fotos, comprueba que el archivo descomprime, lo cifra con AES-256 y
@@ -1516,7 +1607,7 @@ tar xzf fotos-2026-08-11.tar.gz -C /var/lib/brigadas</pre>
 
 
 <section>
-<h2>29 · La API de consulta</h2>
+<h2>31 · La API de consulta</h2>
 
 <p>Sirve para que los reportes lleguen a los sistemas que la entidad ya usa —un tablero
 de gestión del riesgo, un geoportal municipal— sin exportar planillas a mano. Es de
@@ -1696,7 +1787,7 @@ colapso por sí solo. En los valores de frontera, el nivel más grave.</p>
 
 <h3>Otras rutas</h3>
 <table class="tabla-chica">
-  <tr><td><code>GET /api/v1/…</code></td><td>API de consulta, solo lectura. Vea la sección 29.</td></tr>
+  <tr><td><code>GET /api/v1/…</code></td><td>API de consulta, solo lectura. Vea la sección 31.</td></tr>
   <tr><td><code>GET /api/v1/v2f</code></td><td>Cada evaluación aplanada a las casillas
     del V2F, con sus códigos. Sin el bloque reservado.</td></tr>
   <tr><td><code>GET /api/salud</code></td><td>Estado del receptor, la base, el respaldo y el disco.</td></tr>
@@ -1793,7 +1884,7 @@ Niveles de daño: <code>0</code> N/A, <code>1</code> leve, <code>2</code> modera
 <div class="pie-doc">
   <div class="barra"><div class="v"></div><div class="a"></div><div class="o"></div><div class="r"></div></div>
   <strong>Brigada · Evaluación estructural en campo</strong><br>
-  Manual v2.1 · Agosto de 2026<br><br>
+  Manual v2.2 · Agosto de 2026<br><br>
   Desarrollada con Amor por Andrés Benito Revollo Vélez · Rollout Comercio e Servicios Limitada<br>
   Software libre bajo GNU AGPL v3 · github.com/abenito32/brigadaestructural<br>
   Este manual se distribuye bajo la misma licencia que el programa.

@@ -359,6 +359,35 @@ def panel(prs):
     return dia
 
 
+def despacho(prs):
+    """Lo que convierte «se hicieron 40 evaluaciones» en «faltan 12»."""
+    dia = nueva(prs)
+    cabecera(dia, "DESPACHO", "El sistema sabe qué había que evaluar, no solo qué se evaluó",
+             "Sin un plan cargado, ningún tablero puede decir qué falta. Una ruta es ese plan.")
+    tarjetas(dia, [
+        ("Se arma en el panel",
+         "El coordinador escribe las direcciones y se las asigna a un ingeniero. "
+         "Solo aparecen las matrículas vigentes de su brigada."),
+        ("Baja al teléfono y funciona sin señal",
+         "Se descarga al sincronizar y se trabaja con el aparato desconectado, que es "
+         "como se trabaja en terreno después de un sismo."),
+        ("La visita se cierra sola",
+         "Al enviar la evaluación, el servidor marca esa parada como hecha. Nadie "
+         "transcribe una lista de cumplimiento al final del día."),
+        ("Lo que no se pudo, también cuenta",
+         "Nadie atendió, la dirección no existe, se negaron, no se pudo acceder. "
+         "Cuatro botones grandes, sin escribir, sin señal."),
+        ("Cobertura real, sin inflarla",
+         "El avance se mide contra lo planeado. Lo levantado fuera de ruta se cuenta "
+         "aparte: sumarlo daría 100 % a quien evaluó los predios equivocados."),
+        ("La lista de direcciones se borra sola",
+         "Es dato personal de gente que todavía no ha sido visitada. Vence en el "
+         "teléfono por su propio reloj, sin depender de que haya señal."),
+    ])
+    pie_contacto(dia)
+    return dia
+
+
 def ventajas(prs):
     dia = nueva(prs)
     cabecera(dia, "VENTAJAS", "Por qué esta herramienta y no una planilla")
@@ -587,7 +616,7 @@ def contacto(prs):
 def main() -> None:
     prs = Presentation()
     prs.slide_width, prs.slide_height = ANCHO, ALTO
-    for constructor in (portada, problema, que_es, como_funciona, semaforo, panel, ventajas,
+    for constructor in (portada, problema, que_es, como_funciona, semaforo, panel, despacho, ventajas,
                         despliegue, integracion, libre, para_quien, empezar, contacto):
         constructor(prs)
     prs.save(SALIDA)

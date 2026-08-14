@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<!--
+  Guía del coordinador · Brigada · Evaluación estructural en campo
+  Copyright (C) 2026 Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez
+  Software libre bajo GNU AGPL v3. Vea <https://www.gnu.org/licenses/>.
+
+  Se compila con:  python3 docs/build_manual.py guia-coordinador
+
+  Es la versión corta del manual, solo para quien coordina una brigada. El manual
+  completo (manual.html) cubre además el uso del teléfono y la administración del
+  servidor; acá está lo que un coordinador decide, y nada más.
+-->
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<title>Guía del coordinador · Brigada</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 16mm; }
+@page :first { margin: 0; }
+
+:root{
+  --tinta:#0F172A; --tinta2:#334155; --tenue:#5E6E82;
+  --linea:#D9E0E8; --papel:#F4F7FA;
+  --azul:#0369A1; --azul-osc:#075985; --azul-tinte:#E8F4FB;
+  --verde:#15803D; --ambar:#B45309; --ambar-fondo:#EAB308; --ambar-tinta:#422006;
+  --naranja:#C2410C; --rojo:#7F1D1D; --rojo-tinte:#FDF1F1;
+}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+body{margin:0;color:var(--tinta);
+  font:10.5pt/1.55 "Helvetica Neue",Helvetica,Arial,sans-serif;hyphens:auto}
+h1,h2,h3,h4{line-height:1.2;letter-spacing:-.01em;break-after:avoid}
+h1{font-size:20pt;margin:0 0 4mm}
+h2{font-size:15pt;margin:0 0 3mm;padding-bottom:2mm;border-bottom:2px solid var(--azul)}
+h3{font-size:12pt;margin:7mm 0 2mm;color:var(--azul-osc)}
+h4{font-size:10.5pt;margin:5mm 0 1.5mm}
+p{margin:0 0 3mm}
+ul,ol{margin:0 0 3mm;padding-left:5.5mm}
+li{margin-bottom:1.5mm}
+code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:9pt;
+  background:var(--papel);padding:.5mm 1.2mm;border-radius:1mm;border:1px solid var(--linea)}
+a{color:var(--azul-osc)}
+
+.portada{height:297mm;padding:40mm 22mm 20mm;display:flex;flex-direction:column;
+  break-after:page;background:var(--papel)}
+.portada .marca{font-size:9pt;letter-spacing:.22em;text-transform:uppercase;
+  font-weight:700;color:var(--azul);margin-bottom:6mm}
+.portada h1{font-size:32pt;line-height:1.08;letter-spacing:-.025em;margin:0 0 5mm}
+.portada .bajada{font-size:13pt;color:var(--tinta2);line-height:1.45;max-width:120mm;margin:0 0 10mm}
+.semaforo-portada{display:flex;gap:3mm;margin:0 0 12mm}
+.semaforo-portada div{height:9mm;border-radius:1.5mm}
+.semaforo-portada .v{flex:1;background:var(--verde)}
+.semaforo-portada .a{flex:1.5;background:var(--ambar-fondo)}
+.semaforo-portada .o{flex:1.8;background:var(--naranja)}
+.semaforo-portada .r{flex:2.2;background:var(--rojo)}
+.portada .pie{margin-top:auto;font-size:9.5pt;color:var(--tinta2);line-height:1.65}
+.portada .pie strong{color:var(--tinta)}
+
+section{break-before:page;padding-top:2mm}
+section.seguida{break-before:auto;margin-top:9mm}
+
+.aviso,.ojo,.nota-caja{border-radius:2mm;padding:4mm 5mm;margin:0 0 4mm;
+  font-size:9.5pt;line-height:1.5;break-inside:avoid}
+.aviso{background:var(--rojo-tinte);border:1px solid #F3C9C9;border-left:3.5px solid var(--rojo)}
+.ojo{background:#FFFBEB;border:1px solid #F5E4B0;border-left:3.5px solid var(--ambar)}
+.nota-caja{background:var(--azul-tinte);border:1px solid #C9E4F3;border-left:3.5px solid var(--azul)}
+.etq{display:block;font-size:8pt;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:700;margin-bottom:1.5mm}
+.aviso .etq{color:var(--rojo)} .ojo .etq{color:var(--ambar)} .nota-caja .etq{color:var(--azul-osc)}
+
+table{width:100%;border-collapse:collapse;font-size:9.5pt;margin:0 0 4mm;break-inside:avoid}
+th{text-align:left;background:var(--papel);border-bottom:1.5px solid var(--tinta2);
+  padding:2.5mm 3mm;font-size:8.5pt;letter-spacing:.06em;text-transform:uppercase}
+td{padding:2.5mm 3mm;border-bottom:1px solid var(--linea);vertical-align:top}
+tr:last-child td{border-bottom:0}
+
+.chip{display:inline-block;padding:.6mm 2.5mm;border-radius:6mm;font-size:8.5pt;
+  font-weight:700;white-space:nowrap}
+.c-v{background:#DCFCE7;color:#14532D}
+.c-a{background:#FEF3C7;color:var(--ambar-tinta)}
+.c-o{background:#FFEDD5;color:#7C2D12}
+.c-r{background:#FEE2E2;color:#7F1D1D}
+.c-n{background:#EEF2F6;color:var(--tinta2)}
+
+.pasos{counter-reset:paso;list-style:none;padding:0}
+.pasos > li{counter-increment:paso;position:relative;padding-left:10mm;margin-bottom:4mm;
+  break-inside:avoid}
+.pasos > li::before{content:counter(paso);position:absolute;left:0;top:0;
+  width:6.5mm;height:6.5mm;border-radius:50%;background:var(--azul);color:#fff;
+  font-size:9pt;font-weight:700;display:flex;align-items:center;justify-content:center}
+/* Solo el PRIMER strong es el titulo del paso. Sin el `:first-child`,
+   cualquier enfasis dentro del texto se vuelve un bloque y parte la frase
+   en pedazos sueltos. Mismo caso que el aviso de la tarjeta de credencial. */
+.pasos > li > strong:first-child{display:block;margin-bottom:.8mm}
+
+.dos{display:grid;grid-template-columns:1fr 1fr;gap:5mm;break-inside:avoid}
+.ficha{border:1px solid var(--linea);border-radius:2mm;padding:4mm;background:#fff}
+.ficha h4{margin:0 0 1.5mm}
+.ficha p{margin:0;font-size:9.5pt;color:var(--tinta2)}
+.nota-fina{font-size:9.5pt;color:var(--tinta2);margin-top:3mm}
+
+/* Índice compacto: cabe con el resumen en la misma hoja. */
+.indice{background:var(--papel);border:1px solid var(--linea);border-radius:2mm;
+  padding:5mm 6mm;margin:0 0 6mm}
+.indice ol{list-style:none;padding:0;margin:0;columns:2;column-gap:8mm}
+.indice li{font-size:10pt;color:var(--tinta2);margin-bottom:1.6mm;break-inside:avoid}
+.indice .num{display:inline-block;width:7mm;color:var(--tenue);font-weight:700}
+
+.pie-doc{break-before:page;height:250mm;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+  font-size:9pt;color:var(--tinta2);line-height:1.7}
+.pie-doc .barra{display:flex;gap:2mm;width:70mm;margin-bottom:8mm}
+.pie-doc .barra div{height:4mm;border-radius:1mm}
+.pie-doc .barra .v{flex:1;background:var(--verde)}
+.pie-doc .barra .a{flex:1.5;background:var(--ambar-fondo)}
+.pie-doc .barra .o{flex:1.8;background:var(--naranja)}
+.pie-doc .barra .r{flex:2.2;background:var(--rojo)}
+.pie-doc strong{color:var(--tinta)}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ PORTADA ═══════════════════════════ -->
+<div class="portada">
+  <div class="marca">Guía breve · Para quien coordina</div>
+  <h1>Coordinar<br>una brigada</h1>
+  <p class="bajada">Lo que usted decide desde el panel: a quién le toca qué, qué se
+    revisa dos veces, y qué sale hacia las autoridades.</p>
+  <div class="semaforo-portada"><div class="v"></div><div class="a"></div>
+    <div class="o"></div><div class="r"></div></div>
+  <div class="pie">
+    <strong>Brigada · Evaluación estructural en campo</strong><br>
+    Guía del coordinador v1.0 · Agosto de 2026<br><br>
+    Esta es la versión corta. El manual completo incluye además el uso del teléfono
+    en campo y la operación del servidor.<br><br>
+    Software libre bajo GNU AGPL v3.
+  </div>
+</div>
+
+<!-- ═══════════════════════════ 1 ═══════════════════════════ -->
+<section style="break-before:auto">
+<h2>1 · Qué decide usted</h2>
+
+<div class="indice">
+  <ol>
+    <li><span class="num">1</span> Qué decide usted</li>
+    <li><span class="num">2</span> Entrar y leer el resumen</li>
+    <li><span class="num">3</span> Preparar la brigada</li>
+    <li><span class="num">4</span> Despachar rutas</li>
+    <li><span class="num">5</span> Las tres colas de trabajo</li>
+    <li><span class="num">6</span> Mapa y evolución</li>
+    <li><span class="num">7</span> Entregar resultados</li>
+    <li><span class="num">8</span> Lo que no puede hacer</li>
+    <li><span class="num">9</span> La rutina de un día</li>
+  </ol>
+</div>
+
+<p>El sistema tiene dos mitades. En el teléfono, un ingeniero con matrícula evalúa
+edificaciones y firma. En el panel, usted <strong>reparte el trabajo, vigila lo urgente
+y entrega los resultados</strong>. Esta guía es solo la segunda mitad.</p>
+
+<p>Hay tres cosas que conviene tener claras desde el principio, porque explican casi
+todas las decisiones de diseño que se va a encontrar.</p>
+
+<h3>Los inspectores no tienen cuenta</h3>
+<p>No hay usuario ni clave para ellos. La matrícula profesional que escriben en el
+teléfono <strong>es una firma, no un acceso</strong>. Lo que autoriza a un teléfono a
+enviar es el <strong>token de la brigada</strong>, que es uno solo y lo comparten todos
+sus aparatos.</p>
+
+<div class="nota-caja">
+  <span class="etq">Consecuencia práctica</span>
+  El token identifica a la brigada, <strong>no a la persona</strong>. Entréguelo por un
+  canal que usted controle y no en un grupo. Si se filtra, se reemite desde el panel y el
+  anterior deja de servir en el acto. Quien firma cada evaluación es quien puso su
+  matrícula, y eso queda registrado pase lo que pase con el token.
+</div>
+
+<h3>Usted ve su brigada, y nada más</h3>
+<p>Si entra como coordinador, todo lo que ve —reportes, mapa, rutas, exportaciones— está
+filtrado a su brigada. No es que el menú esconda cosas: el servidor no se las entrega.
+Un administrador del sistema, con la clave maestra, sí ve todas las brigadas.</p>
+
+<h3>Esto es triaje preliminar</h3>
+<p>La clasificación que sale de acá orienta decisiones urgentes. <strong>La habilitación
+definitiva de una edificación es competencia de la UNGRD, la Defensa Civil, los bomberos
+y las alcaldías.</strong> Cualquier informe que usted genere debe decirlo.</p>
+</section>
+
+<!-- ═══════════════════════════ 2 ═══════════════════════════ -->
+<section>
+<h2>2 · Entrar y leer el resumen</h2>
+
+<p>Se entra por la dirección del panel con <strong>su usuario y su clave</strong>. La
+casilla de usuario vacía es para la administración del sistema, no para usted.</p>
+
+<p>La primera pantalla, <strong>Resumen</strong>, es la foto del momento. Las cifras
+grandes son el estado de la operación, y varias son enlaces: si algo tiene un número
+distinto de cero y una flecha, se puede tocar.</p>
+
+<table>
+  <thead><tr><th>Cifra</th><th>Qué significa y qué hacer</th></tr></thead>
+  <tbody>
+    <tr><td><span class="chip c-r">Peligro de colapso</span></td>
+      <td>Evacuación y acordonamiento del entorno. Entran en cola de segunda revisión
+        con el plazo más corto.</td></tr>
+    <tr><td><span class="chip c-o">No habitables</span></td>
+      <td>Evacuación de la edificación. También entran en cola de revisión.</td></tr>
+    <tr><td><span class="chip c-a">Uso restringido</span></td>
+      <td>Se puede usar una parte, con condiciones que anotó quien evaluó.</td></tr>
+    <tr><td><span class="chip c-v">Habitables</span></td>
+      <td>Sin daño que impida el uso. No requieren nada suyo.</td></tr>
+    <tr><td><strong>Firmas fuera del registro</strong></td>
+      <td>Alguien firmó con una matrícula que usted no ha registrado. Ver la sección 5.</td></tr>
+    <tr><td><strong>Sin código catastral</strong></td>
+      <td>Faltan datos para cruzar con el catastro. Ver la sección 5.</td></tr>
+    <tr><td><strong>Visitas pendientes</strong></td>
+      <td>Paradas despachadas que nadie ha cerrado. Solo aparece si usted usa rutas.</td></tr>
+  </tbody>
+</table>
+
+<div class="ojo">
+  <span class="etq">Las horas son de Colombia</span>
+  Todas las fechas del panel se muestran en hora local colombiana. Si administra el
+  servidor desde otro huso, esto no cambia: el panel siempre habla en la hora del terreno.
+</div>
+</section>
+
+<!-- ═══════════════════════════ 3 ═══════════════════════════ -->
+<section>
+<h2>3 · Preparar la brigada</h2>
+
+<p>Antes de que salga el primer teléfono hay tres cosas que hacer, y una decisión que
+tomar.</p>
+
+<h3>Registrar a los inspectores</h3>
+<p>En <strong>Inspectores</strong>, dé de alta a cada persona con su matrícula y su
+nombre. Sirve para dos cosas: que sus evaluaciones entren ya verificadas, y que aparezca
+en la lista al despachar una ruta.</p>
+
+<div class="nota-caja">
+  <span class="etq">No es un requisito para trabajar</span>
+  Una evaluación firmada por alguien que no está en el registro <strong>no se rechaza</strong>:
+  entra marcada y queda en la cola de revisión. Perder trabajo de campo en una emergencia
+  es peor que aceptarlo pendiente. Cuando registre a esa persona, sus evaluaciones
+  anteriores se reconcilian solas.
+</div>
+
+<h3>Decidir la política de firma</h3>
+<p>Por defecto, <strong>solo firma quien tiene matrícula profesional vigente</strong>
+(Ley 400 de 1997, NSR-10). Es lo que corresponde y lo que hace defendible el consolidado.</p>
+
+<p>Su brigada puede cambiarlo desde el Resumen si su operación lo exige —por ejemplo,
+estudiantes de último semestre acompañados, o profesionales de otra disciplina. Si lo
+activa, quien no tenga matrícula deberá poner <strong>documento y profesión</strong>: la
+persona queda identificada igual, y sus evaluaciones aparecen marcadas para que nadie las
+confunda con una firma profesional.</p>
+
+<div class="ojo">
+  <span class="etq">Piénselo dos veces</span>
+  Esta decisión afecta el valor legal de lo que su brigada produce. Actívela solo si sabe
+  por qué, y desactívela cuando deje de hacer falta.
+</div>
+
+<h3>Entregar el token</h3>
+<p>Cada teléfono se configura una vez: nombre, matrícula y el token de la brigada. El
+servidor ya viene puesto. Hay una <strong>tarjeta de credencial en PDF</strong> con los
+dos códigos QR —uno abre la app, el otro copia el token— para no teclear cuarenta y ocho
+caracteres en un teléfono, que es donde se equivoca cualquiera.</p>
+
+<p>Dígale a su gente que toque <strong>«Probar conexión» con señal, antes de salir</strong>.
+Es el momento en que el teléfono confirma el token, aprende la política de firma y baja la
+ruta del día.</p>
+</section>
+
+<!-- ═══════════════════════════ 4 ═══════════════════════════ -->
+<section>
+<h2>4 · Despachar rutas</h2>
+
+<p>Sin un plan cargado, ningún tablero puede decir qué falta: solo puede contar lo que
+llegó. Una ruta es ese plan. Es opcional —se puede operar sin rutas, como antes— pero es
+lo único que convierte «se hicieron cuarenta evaluaciones» en «faltan doce».</p>
+
+<h3>Armarla</h3>
+<ol class="pasos">
+  <li><strong>Cree la ruta</strong>
+    En <strong>Despacho</strong>: un nombre, el ingeniero y la jornada. Solo aparecen las
+    matrículas vigentes de su brigada. Nace en <strong>borrador</strong> y no baja a
+    ningún teléfono todavía.</li>
+  <li><strong>Cargue las direcciones</strong>
+    Una por línea. Lo que va después de la primera coma se guarda como referencia para
+    encontrar el predio: <code>Cra 7 # 12-34, portón azul al lado de la panadería</code>.
+    El punto en el mapa se deja en blanco; lo toma el ingeniero con el GPS cuando llega,
+    que es donde vale.</li>
+  <li><strong>Despáchela</strong>
+    Revise la lista y toque <strong>Despachar</strong>. El ingeniero la verá en su próxima
+    sincronización con señal, en una pestaña nueva de su teléfono llamada <strong>Ruta</strong>.</li>
+</ol>
+
+<h3>Seguirla</h3>
+<p>Cada parada queda en uno de cuatro estados:</p>
+
+<table>
+  <thead><tr><th>Estado</th><th>Qué pasó</th></tr></thead>
+  <tbody>
+    <tr><td><span class="chip c-n">Pendiente</span></td><td>Todavía nadie fue.</td></tr>
+    <tr><td><span class="chip c-v">Hecha</span></td>
+      <td>Se cerró sola al llegar la evaluación. La fila enlaza a la ficha completa.</td></tr>
+    <tr><td><span class="chip c-n">No realizada</span></td>
+      <td>El ingeniero reportó por qué: nadie atendió, no existe la dirección, se negaron
+        a la inspección, o no se pudo acceder.</td></tr>
+    <tr><td><span class="chip c-n">Cancelada</span></td><td>Usted la quitó del plan.</td></tr>
+  </tbody>
+</table>
+
+<p>La barra de avance del listado es la respuesta a «cómo vamos». En <strong>Evolución</strong>
+aparece además la cobertura del plan completo.</p>
+
+<div class="nota-caja">
+  <span class="etq">Una evaluación cierra una sola visita</span>
+  Si el mismo predio se despachó dos veces por error, la segunda queda pendiente y se ve
+  como lo que es —trabajo duplicado— en vez de contarse dos veces como cobertura.
+</div>
+
+<h3>Cerrar, anular y reasignar</h3>
+<p><strong>Cerrar</strong> una ruta termina la jornada, pero las visitas pendientes
+<strong>siguen pendientes</strong>: aparecen en el listado y se pueden poner en una ruta
+nueva. <strong>Anular</strong> la saca de circulación. Ninguna de las dos borra nada: lo
+que ya se evaluó queda.</p>
+
+<div class="ojo">
+  <span class="etq">Si da de baja a alguien que está en la calle</span>
+  La ruta se le <strong>sigue sirviendo</strong> al teléfono. Quitarle la lista de
+  direcciones a quien está trabajando es peor que el problema. El panel se lo señala y
+  usted decide si la reasigna.
+</div>
+
+<h3>La ruta se borra sola del teléfono</h3>
+<p>Una ruta es una lista de direcciones de casas que todavía no ha visitado nadie: es dato
+personal de terceros, y el más caducable del sistema. Por eso <strong>vence sola en el
+teléfono al terminar la jornada</strong>, por el reloj del propio aparato y sin depender de
+que haya señal. También se borra si el ingeniero cambia su matrícula en Ajustes.</p>
+
+<p>Lo que viaja en la ruta es lo mínimo para llegar al predio: dirección, barrio,
+municipio y una referencia. <strong>Nunca</strong> nombres de propietarios, teléfonos ni
+documentos.</p>
+</section>
+
+<!-- ═══════════════════════════ 5 ═══════════════════════════ -->
+<section>
+<h2>5 · Las tres colas de trabajo</h2>
+
+<p>El panel no le manda notificaciones. Lo que hace es mantener tres listas que deberían
+estar en cero, y marcar en rojo lo que se atrasó.</p>
+
+<h3>Segunda revisión de los desalojos</h3>
+<p>Sacar gente de su casa es una decisión grave. Por eso <strong>no habitable</strong> y
+<strong>peligro de colapso</strong> entran automáticamente en una cola para que un segundo
+profesional los mire. El peligro de colapso va primero y con menos horas de plazo, porque
+además compromete la vía y a los vecinos.</p>
+
+<p>En <strong>Revisión</strong>, quien revisa confirma o revoca, y si revoca debe escribir
+el motivo. Tres reglas que no se pueden saltar:</p>
+<ul>
+  <li><strong>Quien firmó no puede revisar lo suyo.</strong> Se valida en el servidor.</li>
+  <li><strong>El vencimiento del plazo no degrada nada.</strong> Un rojo vencido sigue
+    siendo rojo; solo se marca como atrasado. Un temporizador no rebaja un desalojo.</li>
+  <li><strong>La revisión no borra la firma original.</strong> Se conservan las dos: lo que
+    firmó quien evaluó y lo que resolvió quien revisó. Son dos actos profesionales
+    distintos.</li>
+</ul>
+
+<h3>Firmas fuera del registro</h3>
+<p>Evaluaciones firmadas con una matrícula que no está en su lista de inspectores.
+Regístrela si la persona es de su brigada —las evaluaciones anteriores se reconcilian
+solas— o averigüe de dónde salió si no la reconoce.</p>
+
+<h3>Predios sin código catastral</h3>
+<p>Sin ese código, la exportación no se puede cruzar contra el catastro. Se completa desde
+el panel, buscando el predio por dirección. Los desalojos van primero.</p>
+</section>
+
+<!-- ═══════════════════════════ 6 ═══════════════════════════ -->
+<section>
+<h2>6 · Mapa y evolución</h2>
+
+<h3>El mapa</h3>
+<p>Un círculo por sector sobre callejero, satélite o híbrida. El <strong>área</strong> del
+círculo es cuántas evaluaciones tiene ese sector; el <strong>color</strong>, qué proporción
+quedó sin poder habitarse. Un anillo azul marca los sectores con desalojos que esperan
+segunda revisión.</p>
+
+<p>Hay una capa opcional que muestra los reportes <strong>uno a uno</strong>. Esa capa
+lleva direcciones y coordenadas: es dato personal, el panel se lo advierte, y no sale de
+ahí.</p>
+
+<h3>Evolución</h3>
+<p>El ritmo por día, qué sectores llevan horas sin actividad, y qué queda por resolver.
+Si usted despacha rutas, aparece además la <strong>cobertura del plan</strong>: cuántas
+visitas se planearon, cuántas se hicieron y cuántas faltan.</p>
+
+<div class="nota-caja">
+  <span class="etq">Dos números, nunca uno mezclado</span>
+  Lo que se evaluó sin estar en ninguna ruta se cuenta <strong>aparte</strong>. En una
+  emergencia se evalúa lo que aparece en el camino y eso es trabajo bueno, pero sumarlo al
+  avance haría que una brigada que evaluó cien predios equivocados apareciera al 100 % de
+  cobertura.
+</div>
+
+<p>No hay conteo por persona, y es deliberado. Un tablero que compara inspectores premia
+la velocidad, y acá la prisa es exactamente el riesgo.</p>
+</section>
+
+<!-- ═══════════════════════════ 7 ═══════════════════════════ -->
+<section>
+<h2>7 · Entregar resultados</h2>
+
+<p>Hay tres salidas, y cada una es para algo distinto. Elegir la equivocada es el error
+más caro que se puede cometer desde este panel.</p>
+
+<div class="dos">
+  <div class="ficha">
+    <h4>La ficha de un reporte</h4>
+    <p>Una evaluación completa con sus fotos, para adjuntar a un oficio sobre un predio
+      concreto. Lleva la dirección: va a quien tiene competencia sobre ese predio.</p>
+  </div>
+  <div class="ficha">
+    <h4>Exportación al formulario V2F</h4>
+    <p>Una columna por casilla del formulario del IDIGER, con sus códigos, en CSV o JSON.
+      Es para que la entidad lo cargue en su sistema sin transcribir nada a mano.</p>
+  </div>
+</div>
+
+<h3>El consolidado público</h3>
+<p>Es lo único que se entrega abiertamente. Va <strong>agregado por municipio y barrio</strong>,
+y solo incluye sectores con <strong>cinco o más evaluaciones</strong>. Con menos, el dato
+no se publica: en un barrio con dos casas evaluadas, decir «una no habitable» señala una
+casa concreta.</p>
+
+<div class="aviso">
+  <span class="etq">Ley 1581 de 2012</span>
+  Dirección y coordenada son dato personal. <strong>Nunca exponga el predio en una salida
+  pública</strong>: ni en un informe abierto, ni en una presentación, ni en un mapa que se
+  comparta fuera de las autoridades competentes. Lo que sale hacia afuera sale del
+  consolidado.
+</div>
+
+<p class="nota-fina">Si una entidad necesita el detalle de forma sostenida, existe una API
+de consulta con credenciales propias y alcance limitado. Eso lo configura quien administra
+el servidor, no el coordinador.</p>
+</section>
+
+<!-- ═══════════════════════════ 8 ═══════════════════════════ -->
+<section>
+<h2>8 · Lo que no puede hacer</h2>
+
+<p>Varias cosas que uno esperaría poder hacer están deliberadamente cerradas. No son
+limitaciones pendientes de resolver: son el diseño.</p>
+
+<table>
+  <thead><tr><th>No se puede</th><th>Por qué</th></tr></thead>
+  <tbody>
+    <tr><td>Borrar una evaluación</td>
+      <td>Es el registro de un acto profesional firmado. Si un predio se reevaluó, se
+        registra la evaluación nueva y la anterior queda en el historial del predio.</td></tr>
+    <tr><td>Cambiar la clasificación que firmó otro</td>
+      <td>Solo se puede <strong>revisar</strong>, y eso queda registrado como un segundo
+        acto, con su autor y su motivo. La firma original nunca se toca.</td></tr>
+    <tr><td>Revisar su propia evaluación</td>
+      <td>Es el punto entero de la segunda revisión.</td></tr>
+    <tr><td>Ver otra brigada</td>
+      <td>Su alcance se decide en el servidor. Ni siquiera escribiendo la dirección a mano.</td></tr>
+    <tr><td>Crear brigadas o coordinadores</td>
+      <td>Eso administra el sistema, no una brigada. Lo hace quien tiene la clave maestra.</td></tr>
+    <tr><td>Recuperar un token filtrado</td>
+      <td>No se recupera: se <strong>reemite</strong>, y el anterior muere en el acto. Habrá
+        que reconfigurar los teléfonos.</td></tr>
+  </tbody>
+</table>
+
+<div class="ojo">
+  <span class="etq">Y una que sí puede, con cuidado</span>
+  Cambiar la política de firma de su brigada. Es la única decisión de este panel con
+  consecuencias sobre el valor legal de lo que produce su gente.
+</div>
+</section>
+
+<!-- ═══════════════════════════ 9 ═══════════════════════════ -->
+<section>
+<h2>9 · La rutina de un día</h2>
+
+<h3>Antes de que salgan</h3>
+<ul>
+  <li>Despache las rutas de la jornada, si trabaja con plan.</li>
+  <li>Confirme que cada teléfono tocó <strong>«Probar conexión» con señal</strong>. Es
+    cuando baja la ruta y confirma el token.</li>
+  <li>Recuerde que la app funciona sin señal: lo que no funciona sin señal es
+    <em>empezar</em> sin haberla configurado.</li>
+</ul>
+
+<h3>Durante</h3>
+<ul>
+  <li>Mire <strong>Revisión</strong>: los desalojos con plazo vencido salen marcados.</li>
+  <li>Mire el avance de las rutas. Una ruta parada a media mañana suele ser un problema de
+    señal, no de ritmo.</li>
+</ul>
+
+<h3>Al cerrar la jornada</h3>
+<ul>
+  <li>Que todos sincronicen. Una evaluación que no se envió sigue viva en el teléfono, pero
+    solo ahí.</li>
+  <li>Cierre las rutas del día. Las visitas que quedaron pendientes se reasignan mañana.</li>
+  <li>Complete los códigos catastrales pendientes, empezando por los desalojos.</li>
+  <li>Registre a los inspectores que aparecieron fuera del registro.</li>
+</ul>
+
+<div class="nota-caja">
+  <span class="etq">Lo único que de verdad no puede fallar</span>
+  Que las evaluaciones lleguen al servidor. Todo lo demás —códigos catastrales, revisiones,
+  cobertura— se puede completar después. Un teléfono que se pierde con veinte evaluaciones
+  sin sincronizar es trabajo de campo perdido, y eso no se recupera.
+</div>
+</section>
+
+<div class="pie-doc">
+  <div class="barra"><div class="v"></div><div class="a"></div><div class="o"></div><div class="r"></div></div>
+  <p><strong>Brigada · Evaluación estructural en campo</strong><br>
+  Guía del coordinador v1.0 · Agosto de 2026</p>
+  <p>Triaje estructural preliminar. La habilitación definitiva es competencia de<br>
+  UNGRD, Defensa Civil, bomberos y alcaldías.</p>
+  <p>Desarrollada con Amor por Andrés Benito Revollo Vélez<br>
+  Rollout Comercio e Servicios Limitada</p>
+  <p>Software libre bajo GNU AGPL v3.</p>
+</div>
+
+</body>
+</html>
