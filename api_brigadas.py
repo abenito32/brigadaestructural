@@ -179,6 +179,11 @@ class Evaluacion(BaseModel):
     justificacion: str = ""
     observaciones: str = ""
     fotos: list[str] = []
+    # Que visita de la ruta dice el telefono estar cerrando. Se graba tal cual en
+    # `visita_declarada` —sin foreign key— y el enlace validado lo hace el
+    # servidor aparte. Si viene un id vencido, ajeno o inventado, la evaluacion
+    # se graba igual: nunca un 4xx que deje trabajo de campo en un telefono.
+    visita: str | None = None
 
 
 def entero(v: Any) -> int | None:
@@ -232,7 +237,7 @@ INSERT INTO evaluacion_brigada (
   v2f_estructura, v2f_estado, v2f_geotecnicos, v2f_no_estructurales,
   v2f_no_estructurales_pct,
   v2f_estructurales, v2f_entorno, v2f_preexistentes, v2f_recomendaciones,
-  v2f_ocupacion, v2f_comision, dano_global,
+  v2f_ocupacion, v2f_comision, dano_global, visita_declarada,
   revision_estado, revision_vence
 ) VALUES (
   %(id)s, %(id_local)s, %(ts)s, %(matricula)s, %(documento)s, %(profesion)s,
@@ -256,7 +261,7 @@ INSERT INTO evaluacion_brigada (
   %(v2f_estructura)s, %(v2f_estado)s, %(v2f_geotecnicos)s, %(v2f_no_estructurales)s,
   %(v2f_no_estructurales_pct)s,
   %(v2f_estructurales)s, %(v2f_entorno)s, %(v2f_preexistentes)s, %(v2f_recomendaciones)s,
-  %(v2f_ocupacion)s, %(v2f_comision)s, %(dano_global)s,
+  %(v2f_ocupacion)s, %(v2f_comision)s, %(dano_global)s, %(visita_declarada)s,
   -- Entran en cola los dos niveles que ordenan desalojo. Un verde no necesita
   -- que dos personas confirmen que la casa sigue en pie.
   CASE WHEN %(clasificacion)s >= 3 THEN 'pendiente' END,
@@ -327,6 +332,151 @@ def brigada_de(x_brigada_token: str = Header(default="")):
     no podria ni guardar, aunque el servidor fuera a aceptarlo."""
     nombre, exige = autenticar(x_brigada_token)
     return {"brigada": nombre, "exige_matricula": exige}
+
+
+# ------------------------------------------------------------------- despacho
+#
+# El primer canal de BAJADA del sistema: hasta aca los datos solo subian del
+# telefono al servidor. Lo que baja es una lista de direcciones de predios
+# todavia no visitados, o sea dato personal (Ley 1581 de 2012), y por eso:
+#   - no se sirve sin token,
+#   - no lleva nombres, telefonos ni cedulas de nadie,
+#   - viaja con `vence_en`, que es la orden de borrado que obedece el telefono.
+
+def sello_ruta(rutas) -> str:
+    """Huella corta del conjunto (id, version) que se esta sirviendo.
+
+    Va en el CUERPO y no en un ETag a proposito: un ETag depende de que nginx y
+    los proxies de los operadores moviles conserven el encabezado, y en senal de
+    campo eso no se sostiene. Ademas `version` es dato del dominio —se ve en el
+    panel— y un ETag opaco no dice nada."""
+    crudo = "|".join(f"{r[0]}:{r[1]}" for r in rutas)
+    return hashlib.sha256(crudo.encode()).hexdigest()[:16]
+
+
+@app.get("/api/ruta")
+def ruta_asignada(matricula: str = "", sello: str = "",
+                  x_brigada_token: str = Header(default="")):
+    """La ruta que le toca hoy a esa matricula, para que el telefono la trabaje
+    sin senal.
+
+    OJO con `matricula`: NO es un control de acceso. Quien autoriza es el token,
+    que es de la BRIGADA y lo comparten todos sus telefonos; cualquiera de ellos
+    podria pedir la ruta de un companero escribiendo otra matricula en Ajustes.
+    Eso se acepta —no hay cuenta de inspector y no la va a haber— y lo que lo
+    contiene es el CONTENIDO: aca no viaja nada que un companero de la misma
+    brigada no pueda ver. Lo que si es imposible es cruzar brigadas: el nombre de
+    la brigada sale de autenticar(), nunca de un parametro.
+    """
+    brigada_auth, _ = autenticar(x_brigada_token)
+    matricula = matricula.strip()
+    if not matricula:
+        raise HTTPException(422, "Falta la matrícula")
+    # Token heredado del entorno: no tiene brigada, asi que no puede tener rutas.
+    # Lista vacia y NO un error: es un telefono ya configurado que solo pregunta.
+    if brigada_auth is None:
+        return {"sello": "", "rutas": [], "brigada": None,
+                "servidor_ts": datetime.now(timezone.utc).isoformat()}
+    try:
+        with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
+            cur.execute("""SELECT id, version, nombre, jornada, vence_en, notas
+                             FROM ruta
+                            WHERE brigada = %s AND matricula = %s
+                              AND estado = 'despachada' AND vence_en > now()
+                            ORDER BY jornada, nombre""",
+                        (brigada_auth, matricula))
+            cabeceras = cur.fetchall()
+            actual = sello_ruta(cabeceras)
+            # Sin novedad: no se vuelven a mandar direcciones que ya estan en el
+            # telefono. Ahorra datos en una red de campo y, sobre todo, evita
+            # reescribir la lista y perder el estado local de lo ya trabajado.
+            if sello and sello == actual:
+                return {"sin_cambios": True, "sello": actual,
+                        "servidor_ts": datetime.now(timezone.utc).isoformat()}
+            rutas = []
+            for rid, ver, nombre, jornada, vence, notas in cabeceras:
+                cur.execute("""SELECT v.id, v.orden, v.direccion, v.municipio, v.barrio,
+                                      v.cod_dane, v.referencia, v.estado, v.motivo,
+                                      ST_Y(v.geom), ST_X(v.geom), e.clasificacion_efectiva
+                                 FROM visita v
+                                 LEFT JOIN evaluacion_brigada e ON e.id = v.evaluacion_previa
+                                WHERE v.ruta = %s AND v.estado <> 'cancelada'
+                                ORDER BY v.orden""", (rid,))
+                rutas.append({
+                    "id": rid, "version": ver, "nombre": nombre,
+                    "jornada": jornada.isoformat(), "vence_en": vence.isoformat(),
+                    "notas": notas,
+                    "visitas": [{"id": f[0], "orden": f[1], "direccion": f[2],
+                                 "municipio": f[3], "barrio": f[4], "cod_dane": f[5],
+                                 "referencia": f[6], "estado": f[7], "motivo": f[8],
+                                 "lat": f[9], "lon": f[10], "clasificacion_previa": f[11]}
+                                for f in cur.fetchall()]})
+            # Se anota que un telefono ya la bajo. Sirve para que el panel pueda
+            # decir "todavia no la ha descargado nadie", que es la diferencia
+            # entre una ruta que no se trabajo y una que nunca llego.
+            if cabeceras:
+                cur.execute("""UPDATE ruta SET descargada_en = coalesce(descargada_en, now())
+                                WHERE id = ANY(%s)""", ([r[0] for r in cabeceras],))
+    except (psycopg.Error, PoolTimeout) as e:
+        print(f"[ruta] {e.__class__.__name__} para {matricula}: {e}", flush=True)
+        raise HTTPException(503, "No se pudo consultar la ruta")
+    return {"sello": actual, "rutas": rutas, "brigada": brigada_auth,
+            "matricula": matricula,
+            "servidor_ts": datetime.now(timezone.utc).isoformat()}
+
+
+MOTIVOS_VALIDOS = {"nadie", "no_existe", "rechazo", "inaccesible", "otra"}
+
+
+class Cierre(BaseModel):
+    visita: str
+    motivo: str = "otra"
+    nota: str = ""
+    ts: str | None = None
+
+
+class Cierres(BaseModel):
+    cierres: list[Cierre] = []
+
+
+@app.post("/api/visitas/cierre")
+def cerrar_visitas(c: Cierres, x_brigada_token: str = Header(default="")):
+    """Las visitas que NO produjeron evaluacion: nadie atendio, la direccion no
+    existe, se negaron, no se pudo acceder.
+
+    Solo 'no_realizada'. Una visita HECHA se cierra con la evaluacion firmada y
+    no por aca: admitirlo seria una forma de inflar la cobertura sin firmar nada.
+
+    Nunca devuelve 4xx por una visita desconocida, ajena o ya cerrada. El
+    telefono tiene que poder tachar la parada y dejar de reintentar para
+    siempre, y aca no hay trabajo de campo que perder: no va evaluacion adjunta.
+    """
+    brigada_auth, _ = autenticar(x_brigada_token)
+    if brigada_auth is None:
+        return {"ok": True, "resultados": [{"visita": x.visita, "aplicado": False,
+                                            "motivo": "sin_brigada"} for x in c.cierres]}
+    salida = []
+    try:
+        with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
+            for x in c.cierres:
+                motivo = x.motivo if x.motivo in MOTIVOS_VALIDOS else "otra"
+                # El alcance va en el WHERE, no comprobado en Python: una visita
+                # de otra brigada simplemente no encuentra fila.
+                cur.execute("""UPDATE visita v
+                                  SET estado = 'no_realizada', motivo_cierre = %s,
+                                      nota_cierre = nullif(%s,''), cerrada_en = now()
+                                 FROM ruta r
+                                WHERE v.id = %s AND v.ruta = r.id AND r.brigada = %s
+                                  AND v.estado = 'pendiente'
+                            RETURNING v.id""",
+                            (motivo, x.nota.strip()[:500], x.visita, brigada_auth))
+                hecho = cur.fetchone() is not None
+                salida.append({"visita": x.visita, "aplicado": hecho,
+                               "motivo": None if hecho else "desconocida_o_ya_cerrada"})
+    except (psycopg.Error, PoolTimeout) as e:
+        print(f"[cierre] {e.__class__.__name__}: {e}", flush=True)
+        raise HTTPException(503, "No se pudieron registrar los cierres")
+    return {"ok": True, "resultados": salida}
 
 
 @app.post("/api/evaluaciones")
@@ -423,6 +573,9 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
         # afectada, no de las parciales. Se calcula aca para que el V2F
         # exportado lleve esa casilla llena.
         "dano_global": v2f.dano_global(entero(ev.area_afectada_pct)),
+        # Lo DECLARADO por el telefono, sin validar y sin foreign key. El enlace
+        # bueno lo hace el servidor abajo; este campo permite ver la diferencia.
+        "visita_declarada": (ev.visita or "").strip() or None,
         "reservado": Jsonb(ev.reservado) if ev.reservado else None,
         "v2f_estructura": Jsonb(bloques["estructura"]) if bloques.get("estructura") else None,
         "v2f_estado": Jsonb(bloques["estado"]) if bloques.get("estado") else None,
@@ -449,6 +602,7 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
         "horas_revision_colapso": HORAS_REVISION_COLAPSO,
     }
 
+    visita_cerrada = False
     try:
         with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
             cur.execute(INSERT, datos)
@@ -465,6 +619,33 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
                 previa = cur.fetchone()
                 if previa:
                     verificada = previa[1]
+
+            # ---- cierre de la visita despachada ----
+            # Va en un SAVEPOINT propio y NO en la transaccion principal. Es la
+            # trampa mas grave de todo el modulo: `with pool.connection()` es UNA
+            # transaccion, asi que un fallo aca —un id raro, un constraint, lo que
+            # sea— tumbaria tambien el INSERT de la evaluacion y saldria un 503.
+            # Se perderia una evaluacion firmada por un problema del despacho.
+            # Con el SAVEPOINT se pierde el ENLACE, nunca la evaluacion.
+            eval_id = fila[0] if fila else (previa[0] if previa else None)
+            if ev.visita and eval_id and brigada_auth:
+                try:
+                    with con.transaction():
+                        cur.execute("""UPDATE visita v
+                                          SET estado = 'hecha', evaluacion = %s,
+                                              cerrada_en = now()
+                                         FROM ruta r
+                                        WHERE v.id = %s AND v.ruta = r.id
+                                          AND r.brigada = %s
+                                          AND v.estado = 'pendiente'""",
+                                    (eval_id, ev.visita.strip(), brigada_auth))
+                        # rowcount 0 = visita ajena, vencida, cancelada o ya
+                        # cerrada. No es un error: la evaluacion vale igual y el
+                        # panel la muestra despues como "fuera de plan".
+                        visita_cerrada = cur.rowcount == 1
+                except psycopg.Error as e:
+                    print(f"[visita] {e.__class__.__name__} al cerrar {ev.visita}: {e}",
+                          flush=True)
     except (psycopg.Error, PoolTimeout) as e:
         # El detalle va al log del servidor, no a la respuesta: el mensaje de
         # psycopg puede llevar fragmentos del dato. Sin esta linea, un 503
@@ -484,6 +665,8 @@ def recibir(ev: Evaluacion, x_brigada_token: str = Header(default="")):
             "id_servidor": (fila[0] if fila else (previa[0] if previa else None)),
             "duplicado": fila is None,
             "brigada": brigada_auth, "matricula_verificada": verificada,
+            # Para que el telefono pueda tachar la parada de su lista local.
+            "visita_cerrada": visita_cerrada,
             "recibido_en": datetime.now(timezone.utc).isoformat()}
 
 

@@ -214,15 +214,12 @@ COMMENT ON COLUMN evaluacion_brigada.reservado IS
   'Datos personales de terceros (Ley 1581/2012). No exponer fuera de la ficha '
   'individual ni del V2F exportado. Ver el bloque "Compartimento reservado" en esquema.sql.';
 
--- Cola de trabajo del panel: lo que llego sin codigo catastral. Sin el, la
--- exportacion no se puede cruzar contra el catastro distrital.
-DROP VIEW IF EXISTS pendientes_de_catastral;
-CREATE VIEW pendientes_de_catastral AS
-SELECT id, id_local, ts, recibido_en, brigada_token, direccion, municipio, barrio,
-       clasificacion_efectiva, ST_Y(geom) AS lat, ST_X(geom) AS lon
-  FROM evaluacion_brigada
- WHERE cod_catastral IS NULL AND vigente
- ORDER BY clasificacion_efectiva DESC, recibido_en DESC;
+-- La vista `pendientes_de_catastral` vivia aca, y no podia: usa `id_local` y
+-- `clasificacion_efectiva`, dos columnas que se agregan mas abajo con ALTER.
+-- En una base ya existente daba igual —las columnas ya estaban— pero crear una
+-- base DESDE CERO fallaba en esta linea, que es justo lo que hace el comando de
+-- instalacion documentado. Las vistas van todas juntas, despues de la ultima
+-- columna de la que dependen.
 
 -- ---------------------------------------------------------------------------
 -- Registro de brigadas e inspectores
@@ -353,6 +350,16 @@ CREATE INDEX IF NOT EXISTS evaluacion_brigada_revision_idx
 -- Lo que ordena desalojo y todavia no tiene segunda mirada. Entran 3 y 4: los
 -- dos vacian un edificio. El 4 va primero porque ademas compromete la via y a
 -- los vecinos, y trae su propio plazo, mas corto.
+-- Cola de trabajo del panel: lo que llego sin codigo catastral. Sin el, la
+-- exportacion no se puede cruzar contra el catastro distrital.
+DROP VIEW IF EXISTS pendientes_de_catastral;
+CREATE VIEW pendientes_de_catastral AS
+SELECT id, id_local, ts, recibido_en, brigada_token, direccion, municipio, barrio,
+       clasificacion_efectiva, ST_Y(geom) AS lat, ST_X(geom) AS lon
+  FROM evaluacion_brigada
+ WHERE cod_catastral IS NULL AND vigente
+ ORDER BY clasificacion_efectiva DESC, recibido_en DESC;
+
 DROP VIEW IF EXISTS rojos_pendientes;
 CREATE VIEW rojos_pendientes AS
 SELECT id, id_local, ts, recibido_en, matricula, inspector, brigada_token,
@@ -451,3 +458,216 @@ FROM evaluacion_brigada
 WHERE vigente          -- un predio reevaluado cuenta una vez, no dos
 GROUP BY municipio, barrio
 HAVING count(*) >= 5;   -- k-anonimato: no publicar sectores con muy pocos registros
+
+
+-- ===========================================================================
+-- Despacho: rutas de inspección
+-- ===========================================================================
+--
+-- Hasta acá el sistema sabía qué SE EVALUÓ, pero no qué HABÍA QUE EVALUAR, así
+-- que no podía decir qué faltaba: la pantalla de evolución lo confesaba por
+-- escrito. Una ruta es ese plan.
+--
+-- Se asigna a UNA matrícula y no a la brigada entera. La matrícula sigue sin ser
+-- una credencial —no hay cuenta de inspector— y por eso no autoriza nada: quien
+-- autoriza es el token de brigada. La matrícula solo delimita a quién le toca
+-- qué, dentro de una organización que ya comparte el token.
+--
+-- Una ruta es una LISTA DE DIRECCIONES de predios TODAVÍA NO VISITADOS: es el
+-- dato personal más caducable del sistema (Ley 1581 de 2012). Por eso `vence_en`
+-- no es decoración: es la orden de borrado que viaja al teléfono, y el teléfono
+-- la obedece por su propio reloj, sin esperar confirmación del servidor. Si
+-- dependiera del servidor, un teléfono sin señal se quedaría con la lista para
+-- siempre, que es justo el escenario del que hay que protegerse.
+
+CREATE TABLE IF NOT EXISTS ruta (
+  id            text PRIMARY KEY,                 -- ULID del servidor, como evaluacion_brigada
+  nombre        text NOT NULL,
+  brigada       text NOT NULL REFERENCES brigada(nombre),
+  matricula     text NOT NULL REFERENCES inspector(matricula),
+  -- Cómo se armó. No cambia la forma de las visitas: cambia de dónde salieron,
+  -- que es lo que hay que poder defender seis meses después.
+  armado        text NOT NULL DEFAULT 'manual'
+                CHECK (armado IN ('manual','area','revisita','csv')),
+  -- El sector dibujado en el mapa (modo 'area'). MultiPolygon y no Polygon
+  -- porque un sector real se dibuja en dos pedazos, con una quebrada en medio,
+  -- más veces de las que uno quisiera.
+  area          geometry(MultiPolygon,4326),
+  jornada       date NOT NULL DEFAULT current_date,
+  estado        text NOT NULL DEFAULT 'borrador'
+                CHECK (estado IN ('borrador','despachada','cerrada','anulada')),
+  -- Sube en CADA cambio de la ruta o de sus visitas. El teléfono compara para
+  -- no volver a bajar direcciones que ya tiene.
+  version       int  NOT NULL DEFAULT 1,
+  notas         text,
+  creada_en     timestamptz NOT NULL DEFAULT now(),
+  creada_por    text NOT NULL,                    -- coordinador.usuario, o 'admin'
+  despachada_en timestamptz,
+  descargada_en timestamptz,                      -- primera bajada de un teléfono
+  cerrada_en    timestamptz,
+  vence_en      timestamptz NOT NULL
+);
+
+ALTER TABLE ruta ADD COLUMN IF NOT EXISTS version int NOT NULL DEFAULT 1;
+
+ALTER TABLE ruta DROP CONSTRAINT IF EXISTS ruta_area_check;
+ALTER TABLE ruta ADD CONSTRAINT ruta_area_check
+  CHECK (armado <> 'area' OR area IS NOT NULL);
+
+ALTER TABLE ruta DROP CONSTRAINT IF EXISTS ruta_vence_check;
+ALTER TABLE ruta ADD CONSTRAINT ruta_vence_check
+  CHECK (vence_en > creada_en);
+
+CREATE INDEX IF NOT EXISTS ruta_brigada_idx ON ruta (brigada, estado, jornada DESC);
+CREATE INDEX IF NOT EXISTS ruta_bajada_idx  ON ruta (brigada, matricula, estado);
+CREATE INDEX IF NOT EXISTS ruta_area_idx    ON ruta USING gist (area);
+
+
+-- Una parada. Lo que el teléfono muestra como "siguiente predio" y lo que el
+-- panel cuenta como pendiente o hecha.
+CREATE TABLE IF NOT EXISTS visita (
+  id                text PRIMARY KEY,             -- ULID del servidor
+  -- Sin ON DELETE CASCADE a propósito: las rutas NO se borran, se anulan. Un
+  -- DELETE de mantenimiento debe fallar ruidosamente y no llevarse por delante
+  -- visitas cerradas, que son el rastro de auditoría de un despacho.
+  ruta              text NOT NULL REFERENCES ruta(id),
+  -- Sin UNIQUE (ruta, orden): reordenar con un único obliga a pasar por estados
+  -- intermedios en colisión, y el orden de una ruta es una sugerencia de
+  -- recorrido, no una llave.
+  orden             int  NOT NULL DEFAULT 0,
+  direccion         text,
+  municipio         text,
+  barrio            text,
+  localidad         text,
+  cod_dane          text,                         -- llave estable del municipio
+  cod_catastral     text,
+  geom              geometry(Point,4326),
+  referencia        text,                         -- "portón azul, al lado de la panadería"
+  -- Modo revisita: qué evaluación se va a volver a mirar.
+  evaluacion_previa text REFERENCES evaluacion_brigada(id),
+  motivo            text CHECK (motivo IN
+                      ('nueva','rojo_pendiente','sin_catastral','sin_coordenada','otra')),
+  estado            text NOT NULL DEFAULT 'pendiente'
+                    CHECK (estado IN ('pendiente','hecha','no_realizada','cancelada')),
+  motivo_cierre     text CHECK (motivo_cierre IN
+                      ('nadie','no_existe','rechazo','inaccesible','otra')),
+  -- La evaluación que la cerró. La llena el SERVIDOR tras validar que la visita
+  -- es de esta brigada; nunca es lo que afirmó el teléfono sin comprobar.
+  evaluacion        text REFERENCES evaluacion_brigada(id),
+  cerrada_en        timestamptz,
+  nota_cierre       text,
+  creada_en         timestamptz NOT NULL DEFAULT now()
+);
+
+-- Una visita tiene que poder encontrarse. Sin dirección, sin punto y sin
+-- evaluación previa es un renglón en blanco que alguien va a tener que ir a
+-- buscar a la calle.
+ALTER TABLE visita DROP CONSTRAINT IF EXISTS visita_ubicable_check;
+ALTER TABLE visita ADD CONSTRAINT visita_ubicable_check
+  CHECK (direccion IS NOT NULL OR geom IS NOT NULL OR evaluacion_previa IS NOT NULL);
+
+-- Tener evaluación implica hecha. Al revés NO: un coordinador puede marcar una
+-- visita como hecha porque el inspector se lo reportó, y eso vale menos que una
+-- evaluación firmada pero no es mentira.
+ALTER TABLE visita DROP CONSTRAINT IF EXISTS visita_evaluacion_check;
+ALTER TABLE visita ADD CONSTRAINT visita_evaluacion_check
+  CHECK (evaluacion IS NULL OR estado = 'hecha');
+
+ALTER TABLE visita DROP CONSTRAINT IF EXISTS visita_cierre_check;
+ALTER TABLE visita ADD CONSTRAINT visita_cierre_check
+  CHECK (estado = 'pendiente' OR cerrada_en IS NOT NULL);
+
+ALTER TABLE visita DROP CONSTRAINT IF EXISTS visita_motivo_check;
+ALTER TABLE visita ADD CONSTRAINT visita_motivo_check
+  CHECK (estado = 'no_realizada' OR motivo_cierre IS NULL);
+
+-- Una evaluación cierra UNA visita. Si el mismo predio se despachó dos veces por
+-- error, la segunda queda pendiente y sale en el panel como lo que es —trabajo
+-- duplicado— en vez de contarse dos veces como cobertura.
+CREATE UNIQUE INDEX IF NOT EXISTS visita_evaluacion_idx
+  ON visita (evaluacion) WHERE evaluacion IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS visita_ruta_idx   ON visita (ruta, orden);
+CREATE INDEX IF NOT EXISTS visita_estado_idx ON visita (estado) WHERE estado = 'pendiente';
+CREATE INDEX IF NOT EXISTS visita_geom_idx   ON visita USING gist (geom);
+CREATE INDEX IF NOT EXISTS visita_previa_idx ON visita (evaluacion_previa)
+  WHERE evaluacion_previa IS NOT NULL;
+
+
+-- Lo que el teléfono AFIRMÓ estar cerrando. Deliberadamente SIN foreign key.
+--
+-- Con FK, un id de visita vencido, anulado o de otra brigada convertiría una
+-- evaluación perfectamente válida en un error de inserción, o sea en un 503, o
+-- sea en una jornada atrapada en un teléfono. Es el mismo criterio que ya rige
+-- para la matrícula fuera del registro: se acepta y se marca.
+--
+-- El enlace de verdad, el validado, vive en visita.evaluacion. Acá queda lo
+-- declarado, para poder ver la diferencia. Es el mismo par que ya existe entre
+-- `brigada` (declarada) y `brigada_token` (autenticada).
+ALTER TABLE evaluacion_brigada ADD COLUMN IF NOT EXISTS visita_declarada text;
+CREATE INDEX IF NOT EXISTS evaluacion_brigada_visita_idx
+  ON evaluacion_brigada (visita_declarada) WHERE visita_declarada IS NOT NULL;
+
+
+-- Cobertura por ruta: lo único que convierte "se hicieron 40 evaluaciones" en
+-- "faltan 12". Se calcula acá y no en Python para que el panel, la exportación y
+-- cualquier consulta futura cuenten lo mismo.
+DROP VIEW IF EXISTS cobertura_ruta;
+CREATE VIEW cobertura_ruta AS
+SELECT r.id, r.nombre, r.brigada, r.matricula,
+       i.nombre  AS inspector,
+       i.vigente AS matricula_vigente,
+       r.armado, r.estado, r.jornada, r.version, r.notas,
+       r.creada_en, r.creada_por, r.despachada_en, r.descargada_en,
+       r.cerrada_en, r.vence_en,
+       (r.area IS NOT NULL) AS con_area,
+       (r.estado = 'despachada' AND r.vence_en < now()) AS vencida,
+       -- count(v.id) y NO count(*): con LEFT JOIN, una ruta sin visitas produce
+       -- una fila con v.* en NULL y count(*) contaría 1. Una ruta recién creada
+       -- diría que tiene una visita que no existe.
+       count(v.id)                                        AS visitas,
+       count(*) FILTER (WHERE v.estado = 'pendiente')     AS pendientes,
+       count(*) FILTER (WHERE v.estado = 'hecha')         AS hechas,
+       count(*) FILTER (WHERE v.estado = 'no_realizada')  AS no_realizadas,
+       count(*) FILTER (WHERE v.estado = 'cancelada')     AS canceladas,
+       count(*) FILTER (WHERE v.evaluacion IS NOT NULL)   AS con_evaluacion,
+       round(100.0 * count(*) FILTER (WHERE v.estado <> 'pendiente')
+             / nullif(count(v.id), 0))                    AS avance_pct,
+       max(v.cerrada_en)                                  AS ultimo_cierre
+FROM ruta r
+LEFT JOIN visita v    ON v.ruta = r.id
+LEFT JOIN inspector i ON i.matricula = r.matricula
+GROUP BY r.id, i.nombre, i.vigente;
+
+-- Lo que se levantó sin estar en ninguna ruta. NO es un reproche: en una
+-- emergencia se evalúa lo que aparece en el camino, y eso es trabajo bueno. Es
+-- una cifra APARTE para que el avance del plan no se infle con predios que el
+-- plan nunca pidió.
+--
+-- OJO al consultarla: incluye TODO lo histórico anterior al despacho. Sin acotar
+-- por fecha es un número enorme y sin significado.
+DROP VIEW IF EXISTS evaluaciones_fuera_de_plan;
+CREATE VIEW evaluaciones_fuera_de_plan AS
+SELECT e.id, e.id_local, e.ts, e.recibido_en, e.brigada_token, e.matricula,
+       e.municipio, e.barrio, e.direccion, e.clasificacion_efectiva,
+       -- Si viene llena, el teléfono creyó estar cerrando una visita y el
+       -- servidor no la aceptó: id vencido, de otra brigada, o ya cerrada.
+       e.visita_declarada
+FROM evaluacion_brigada e
+WHERE e.vigente
+  AND NOT EXISTS (SELECT 1 FROM visita v WHERE v.evaluacion = e.id);
+
+-- Visitas de rutas ya vencidas que nadie cerró. La cola de trabajo del
+-- coordinador al día siguiente: o se reasignan, o se cancelan con motivo.
+DROP VIEW IF EXISTS visitas_vencidas;
+CREATE VIEW visitas_vencidas AS
+SELECT v.id, v.ruta, r.nombre AS ruta_nombre, r.brigada, r.matricula, r.jornada,
+       v.orden, v.direccion, v.municipio, v.barrio, v.motivo,
+       v.evaluacion_previa, r.vence_en,
+       round(extract(epoch FROM (now() - r.vence_en)) / 3600.0, 1) AS horas_vencida
+FROM visita v
+JOIN ruta r ON r.id = v.ruta
+WHERE v.estado = 'pendiente'
+  AND r.estado = 'despachada'
+  AND r.vence_en < now()
+ORDER BY r.vence_en;

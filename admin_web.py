@@ -25,6 +25,7 @@ import hmac
 import os
 import secrets
 import time
+from zoneinfo import ZoneInfo
 
 import v2f   # nombres y escala de la habitabilidad
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -45,6 +46,23 @@ VENTANA_INTENTOS = 600
 
 router = APIRouter()
 env = Environment(autoescape=True)  # autoescape: los datos vienen de campo
+
+# La base guarda timestamptz y la devuelve en la zona de la SESIÓN, que en el
+# contenedor es UTC. Pintar eso directo con strftime mostraba las horas cinco
+# adelantadas: un rojo con plazo hasta las 6 de la tarde se leía "23:00", y una
+# ruta que vence a las 6 de la mañana se leía "11:00". Nadie en campo trabaja en
+# UTC. Todo lo que se le muestre a una persona pasa por este filtro.
+ZONA = ZoneInfo(os.getenv("BRIGADA_ZONA", "America/Bogota"))
+
+
+def hora(dt, formato: str = "%Y-%m-%d %H:%M"):
+    """Fecha en hora local para mostrar. Devuelve '—' si no hay nada."""
+    if dt is None:
+        return "—"
+    return (dt.astimezone(ZONA) if dt.tzinfo else dt).strftime(formato)
+
+
+env.filters["hora"] = hora
 # Leaflet se sirve desde el propio servidor: el panel tiene que funcionar sin
 # depender de un CDN, igual que la aplicacion de campo.
 VENDOR = pathlib.Path(os.getenv("BRIGADA_VENDOR", "/opt/brigadas/vendor"))
@@ -255,6 +273,7 @@ label.acepto>span{display:inline;font-weight:400;font-size:14px;margin:0;color:v
   <nav class="nav">
     <a href="/admin" class="{{ 'on' if pag=='inicio' }}">Resumen</a>
     <a href="/admin/mapa" class="{{ 'on' if pag=='mapa' }}">Mapa</a>
+    <a href="/admin/despacho" class="{{ 'on' if pag=='despacho' }}">Despacho</a>
     <a href="/admin/evolucion" class="{{ 'on' if pag=='evolucion' }}">Evolución</a>
     <a href="/admin/reportes" class="{{ 'on' if pag=='reportes' }}">Reportes</a>
     <a href="/admin/exportar" class="{{ 'on' if pag=='exportar' }}">Exportar</a>
@@ -780,6 +799,11 @@ INICIO = """
     <span>Firmas fuera del registro</span></div>
   <a class="cifra" href="/admin/catastral" style="text-decoration:none;color:inherit">
     <b class="num">{{ t.sin_catastral }}</b><span>Sin código catastral →</span></a>
+  {% if t.visitas_pend %}
+  <a class="cifra {{ 'alerta' if t.visitas_vencidas }}" href="/admin/despacho"
+     style="text-decoration:none;color:inherit">
+    <b class="num">{{ t.visitas_pend }}</b><span>Visitas pendientes →</span></a>
+  {% endif %}
 </div>
 {% if rol == 'coordinador' %}
 <div class="tarjeta">
@@ -841,7 +865,7 @@ consolidar. <a href="/admin/reportes?verificada=no">Verlas</a>.</div>
     <td class="num">{{ f[1] }}</td><td class="num">{{ f[2] }}</td><td class="num">{{ f[3] }}</td>
     <td class="num">{{ f[4] }}</td><td class="num">{{ f[5] }}</td>
     <td class="num">{% if f[6] %}<span class="pastilla palerta">{{ f[6] }}</span>{% else %}0{% endif %}</td>
-    <td class="num">{{ f[7].strftime("%Y-%m-%d %H:%M") if f[7] else "—" }}</td>
+    <td class="num">{{ f[7]|hora }}</td>
   </tr>{% else %}<tr><td colspan="8" class="vacio">Todavía no hay evaluaciones.</td></tr>{% endfor %}
   </tbody></table></div>
 </div>
@@ -907,6 +931,14 @@ def inicio(req: Request):
          "sin_verificar": sinv, "sin_catastral": sincat,
          "exige_matricula": exige, "sin_matricula": sin_mat,
          "rojos_pendientes": rpend, "rojos_vencidos": rvenc}
+    # Solo aparece si hay despacho en marcha: quien no usa rutas no ve una cifra
+    # más que siempre diría cero.
+    wr, wra = filtro_ruta(req)
+    (vp, vv), = consulta(f"""SELECT coalesce(sum(r.pendientes), 0),
+                                    coalesce(sum(r.pendientes) FILTER (WHERE r.vencida), 0)
+                               FROM cobertura_ruta r
+                              WHERE {wr} AND r.estado = 'despachada'""", tuple(wra))
+    t["visitas_pend"], t["visitas_vencidas"] = vp, vv
     import api_brigadas
     # El estado del servidor es cosa de quien lo administra, no de una brigada.
     salud = ({"r": api_brigadas.estado_respaldo(), "d": api_brigadas.estado_disco()}
@@ -956,7 +988,7 @@ REPORTES = """
    title="Abrir la evaluación completa">
   <td class="num">{{ e.id_local or "—" }}<br>
       <span class="nota" title="Identificador canónico del servidor">{{ e.id[:10] }}…</span></td>
-  <td class="num">{{ e.ts.strftime("%Y-%m-%d %H:%M") }}</td>
+  <td class="num">{{ e.ts|hora }}</td>
   <td><span class="pastilla p{{ e.clas }}">{{ e.nombre_clas }}</span>
       {% if e.modificada %}<br><span class="pastilla pn" title="{{ e.justificacion }}">modificada</span>{% endif %}</td>
   <td>{{ e.direccion or "—" }}{% if e.geo %}<br><span class="nota">{{ e.geo }}</span>{% endif %}</td>
@@ -1354,7 +1386,7 @@ SOLICITUDES = """
 <thead><tr><th>Recibida</th><th>Quién</th><th>Entidad</th><th>Contacto</th>
   <th>Mensaje</th><th></th></tr></thead><tbody>
 {% for s in filas %}<tr>
-  <td class="num">{{ s[1].strftime("%Y-%m-%d %H:%M") }}</td>
+  <td class="num">{{ s[1]|hora }}</td>
   <td>{{ s[2] }}</td><td>{{ s[3] }}</td>
   <td><a href="mailto:{{ s[4] }}">{{ s[4] }}</a>{% if s[5] %}<br>{{ s[5] }}{% endif %}</td>
   <td>{{ s[6] or "—" }}</td>
@@ -1408,7 +1440,7 @@ revise. Registre al menos uno en <a href="/admin/inspectores">Inspectores</a>.</
   <div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap">
     <span class="pastilla p{{ r.clas }}">{{ r.nombre_clas|upper }}</span>
     <strong>{{ r.id_local or r.id }}</strong>
-    <span class="nota" style="margin:0">{{ r.ts.strftime("%Y-%m-%d %H:%M") }}</span>
+    <span class="nota" style="margin:0">{{ r.ts|hora }}</span>
     {% if r.vencido %}
       <span class="pastilla palerta">Atrasado {{ r.horas }} h</span>
     {% else %}
@@ -1597,6 +1629,16 @@ def filtro_alcance(req: Request, columna: str = "brigada_token"):
     return (f"{columna} = %s", [b]) if b else ("1=1", [])
 
 
+def filtro_ruta(req: Request, alias: str = "r"):
+    """El alcance sobre `ruta`, que tiene columna `brigada` y no `brigada_token`.
+
+    Existe para que nadie escriba `filtro_alcance(req)` con la columna por
+    defecto sobre una consulta de rutas: en un JOIN con evaluacion_brigada eso
+    NO falla, resuelve contra la columna equivocada y devuelve —o deja tocar—
+    las rutas de todas las brigadas."""
+    return filtro_alcance(req, f"{alias}.brigada")
+
+
 def sectores(req: Request, brigada: str | None = None):
     """Agregado por sector, con el mismo umbral de anonimato del consolidado."""
     alcance = alcance_brigada(req) or brigada
@@ -1666,7 +1708,7 @@ def mapa_geojson(req: Request, brigada: str = ""):
                            "uso_restringido": restr, "habitables": hab,
                            "desalojos": colapso + nohab,
                            "sin_revisar": sinrev,
-                           "ultima": ultima.strftime("%Y-%m-%d %H:%M") if ultima else None},
+                           "ultima": hora(ultima) if ultima else None},
         })
     return JSONResponse({"type": "FeatureCollection", "features": rasgos},
                         headers={"Cache-Control": "no-store"})
@@ -1756,7 +1798,7 @@ qué proporción de ellas quedó sin poder habitarse.</p>
       <td class="num">{% if f[3] %}<span class="pastilla p4">{{ f[3] }}</span>{% else %}0{% endif %}</td>
       <td class="num">{{ f[4] }}</td><td class="num">{{ f[5] }}</td><td class="num">{{ f[6] }}</td>
       <td class="num">{% if f[7] %}<span class="pastilla palerta">{{ f[7] }}</span>{% else %}0{% endif %}</td>
-      <td class="num">{{ f[10].strftime("%Y-%m-%d %H:%M") if f[10] else "—" }}</td>
+      <td class="num">{{ f[10]|hora }}</td>
     </tr>{% endfor %}
     </tbody>
   </table></div>
@@ -2161,10 +2203,55 @@ y qué queda por resolver.</p>
         {% else %}{{ c.horas }} h{% endif %}</td>
     </tr>{% endfor %}
     </tbody></table></div>
-  <p class="nota">El sistema no sabe qué había que cubrir —no hay un plan cargado—, así
-    que no puede decir qué falta. Lo que sí muestra es dónde se trabajó y cuánto hace
-    que nadie vuelve.</p>
+  {% if plan.rutas %}
+  <p class="nota">Esto es dónde se trabajó. <strong>Qué faltaba</strong> está en la tarjeta
+    de abajo, medido contra las rutas despachadas.</p>
+  {% else %}
+  <p class="nota">El sistema no sabe qué había que cubrir —no hay ninguna ruta despachada—,
+    así que no puede decir qué falta. Lo que sí muestra es dónde se trabajó y cuánto hace
+    que nadie vuelve. <a href="/admin/despacho">Cargue un plan</a> y esta pantalla podrá
+    medir cobertura de verdad.</p>
+  {% endif %}
 </div>
+
+{% if plan.rutas %}
+<div class="tarjeta">
+  <p class="rotulo">Cobertura del plan</p>
+  <div class="cifras" style="margin-bottom:14px">
+    <div class="cifra"><b class="num">{{ plan.visitas }}</b><span>Visitas planeadas</span></div>
+    <div class="cifra c1"><b class="num">{{ plan.hechas }}</b><span>Hechas</span></div>
+    <div class="cifra"><b class="num">{{ plan.no_realizadas }}</b><span>No realizadas</span></div>
+    <div class="cifra {{ 'c3' if plan.pendientes }}"><b class="num">{{ plan.pendientes }}</b>
+      <span>Pendientes</span></div>
+    <div class="cifra"><b class="num">{{ plan.avance }} %</b><span>Avance</span></div>
+  </div>
+  <div class="desplaza"><table>
+    <thead><tr><th>Ruta</th><th>Ingeniero</th><th>Jornada</th><th>Avance</th>
+      <th>Pendientes</th><th>Último cierre</th></tr></thead>
+    <tbody>
+    {% for r in plan.filas %}<tr>
+      <td><a href="/admin/despacho/{{ r.id }}">{{ r.nombre }}</a></td>
+      <td>{{ r.inspector or r.matricula }}</td>
+      <td class="num">{{ r.jornada.strftime("%d %b") }}</td>
+      <td class="num">{{ r.avance_pct }} %</td>
+      <td class="num">{% if r.vencida and r.pendientes %}
+          <span class="pastilla palerta">{{ r.pendientes }} vencidas</span>
+        {% else %}{{ r.pendientes }}{% endif %}</td>
+      <td class="num">{{ r.ultimo_cierre|hora("%d %b %H:%M") }}</td>
+    </tr>{% endfor %}
+    </tbody></table></div>
+  <div style="border-top:1px solid var(--linea);margin-top:14px;padding-top:13px;
+    display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
+    <div><b class="num" style="font-size:20px;font-weight:800">{{ plan.fuera }}</b>
+      <span style="font-size:13px;color:var(--tinta2);font-weight:600;margin-left:7px">evaluadas fuera de plan</span></div>
+    <span style="font-size:13px;color:var(--tinta2);max-width:52ch">En emergencia se evalúa lo que
+      aparece en el camino: eso es trabajo bueno, pero se cuenta aparte.</span>
+  </div>
+  <p class="nota"><strong>Nunca un solo porcentaje mezclado.</strong> Si el trabajo fuera de plan
+    entrara en el avance, una brigada que evaluó cien predios equivocados aparecería al 100 %
+    de cobertura.</p>
+</div>
+{% endif %}
 
 {% if por_brigada|length > 1 %}
 <div class="tarjeta">
@@ -2275,7 +2362,7 @@ def evolucion(req: Request):
         d["segmentos"] = _segmentos(d, d["alto"])
 
     cobertura = [{"municipio": f[0], "barrio": f[1], "evaluadas": f[2], "desalojos": f[3],
-                  "ultima": f[4].strftime("%Y-%m-%d %H:%M"), "horas": round(f[5])}
+                  "ultima": hora(f[4]), "horas": round(f[5])}
                  for f in consulta(f"""
         SELECT municipio, barrio, count(*),
                count(*) FILTER (WHERE clasificacion_efectiva >= 3),
@@ -2286,7 +2373,7 @@ def evolucion(req: Request):
 
     por_brigada = [{"nombre": f[0] or "— sin atribuir", "total": f[1], "sectores": f[2],
                     "matriculas": f[3], "pendientes": f[4],
-                    "ultima": f[5].strftime("%Y-%m-%d %H:%M")}
+                    "ultima": hora(f[5])}
                    for f in consulta(f"""
         SELECT brigada_token, count(*), count(DISTINCT (municipio, barrio)),
                count(DISTINCT matricula),
@@ -2300,8 +2387,39 @@ def evolucion(req: Request):
          "sin_foto": sin_foto, "demora": f"{demora} h" if demora is not None else None}
     return pagina("Evolución",
                   render(TABLERO_HTML, t=t, serie=serie, cobertura=cobertura,
-                         por_brigada=por_brigada),
+                         por_brigada=por_brigada, plan=_cobertura_plan(req)),
                   "evolucion", ses=ses)
+
+
+def _cobertura_plan(req: Request):
+    """Lo planeado contra lo hecho. Vacío si la brigada todavía no despacha rutas:
+    en ese caso la pantalla sigue diciendo, con razón, que no puede medir cobertura."""
+    wr, wra = filtro_ruta(req)
+    filas = [_fila_ruta(f) for f in consulta(f"""
+        SELECT r.id, r.nombre, r.matricula, r.inspector, r.matricula_vigente,
+               r.estado, r.jornada, r.visitas, r.hechas, r.pendientes,
+               r.avance_pct, r.ultimo_cierre, r.vencida, r.version, r.no_realizadas
+          FROM cobertura_ruta r
+         WHERE {wr} AND r.estado IN ('despachada','cerrada')
+         ORDER BY (r.vencida AND r.pendientes > 0) DESC, r.jornada DESC""", tuple(wra))]
+    if not filas:
+        return {"rutas": 0}
+    tot = lambda k: sum(f[k] for f in filas)
+    visitas, hechas = tot("visitas"), tot("hechas")
+    cerradas = visitas - tot("pendientes")
+    # Lo levantado sin estar en ninguna ruta se cuenta APARTE, y solo desde que
+    # existe un plan: antes del primer despacho todo el histórico estaba "fuera
+    # de plan" por definición, y ese número no significaría nada.
+    w, wa = filtro_alcance(req)
+    (desde,), = consulta(f"SELECT min(r.despachada_en) FROM ruta r WHERE {wr}", tuple(wra))
+    (fuera,), = consulta(f"""SELECT count(*) FROM evaluaciones_fuera_de_plan e
+                              WHERE {w} AND (%s IS NULL OR e.recibido_en >= %s)""",
+                         (*wa, desde, desde))
+    return {"rutas": len(filas), "filas": filas, "visitas": visitas, "hechas": hechas,
+            "no_realizadas": tot("no_realizadas"),
+            "pendientes": tot("pendientes"), "fuera": fuera,
+            "avance": round(100 * cerradas / visitas) if visitas else 0}
+
 
 
 # ------------------------------------------------------- catastral pendiente
@@ -2328,7 +2446,7 @@ distrital. Los desalojos van primero.</p>
     <tbody>
     {% for f in filas %}<tr>
       <td><a href="#" onclick="abrirFicha('{{ f.id }}');return false">{{ f.id_local or f.id }}</a>
-        <br><span class="nota" style="margin:0">{{ f.recibido.strftime("%Y-%m-%d %H:%M") }}</span></td>
+        <br><span class="nota" style="margin:0">{{ f.recibido|hora }}</span></td>
       <td>{{ f.direccion or "—" }}
         {% if f.barrio %}<br><span class="nota" style="margin:0">{{ f.municipio }} · {{ f.barrio }}</span>{% endif %}
         {% if f.lat %}<br><a class="nota" target="_blank" rel="noopener"
@@ -2394,6 +2512,485 @@ def catastral_guardar(req: Request, id: str = Form(...), cod: str = Form(...),
             error = "Esa evaluación no existe, no es de su brigada, o ya tenía código."
     return pagina("Catastral", render(CATASTRAL_HTML, filas=_sin_catastral(req),
                                       aviso=aviso, error=error), "catastral", ses=ses)
+
+
+# ═══════════════════════════════════════════════════════════════════ despacho
+#
+# Hasta acá el panel sabía qué SE EVALUÓ, pero no qué HABÍA QUE EVALUAR, así que
+# no podía decir qué faltaba. Una ruta es ese plan: una lista de visitas asignada
+# a UNA matrícula, que el teléfono descarga al sincronizar y trabaja sin señal.
+#
+# La matrícula NO autoriza nada —no hay cuenta de inspector— y quien autoriza
+# sigue siendo el token de brigada. La matrícula solo delimita a quién le toca
+# qué, dentro de una organización que ya comparte el token.
+
+MOTIVOS_CIERRE = {"nadie": "Nadie atendió", "no_existe": "No existe la dirección",
+                  "rechazo": "Se negaron a la inspección",
+                  "inaccesible": "No se pudo acceder", "otra": "Otra razón"}
+
+ESTADO_VISITA = {"pendiente": ("Pendiente", "pi"), "hecha": ("Hecha", "p1"),
+                 "no_realizada": ("No realizada", "pn"), "cancelada": ("Cancelada", "pn")}
+
+# Cuántas horas dura una ruta desde su jornada. Es la orden de borrado que viaja
+# al teléfono: pasado eso, la lista de direcciones se borra sola allá, por reloj
+# del teléfono y sin depender de que haya señal.
+HORAS_RUTA = int(os.getenv("BRIGADA_HORAS_RUTA", "30"))
+
+
+DESPACHO = """
+<h1>Despacho</h1>
+<p class="sub">A cada ingeniero se le asigna una ruta. El teléfono la descarga al
+  sincronizar y la trabaja sin señal; al enviar la evaluación, la visita se cierra sola.</p>
+
+{% if error %}<div class="aviso">{{ error }}</div>{% endif %}
+{% if aviso %}<div class="ok">{{ aviso }}</div>{% endif %}
+
+<div class="cifras">
+  <div class="cifra"><b class="num">{{ t.despachadas }}</b><span>Rutas despachadas</span></div>
+  <div class="cifra c1"><b class="num">{{ t.hechas }}</b><span>Visitas hechas</span></div>
+  <div class="cifra c3"><b class="num">{{ t.pendientes }}</b><span>Visitas pendientes</span></div>
+  <div class="cifra {{ 'alerta' if t.vencidas }}"><b class="num">{{ t.vencidas }}</b>
+    <span>Vencidas sin cerrar</span></div>
+</div>
+
+<div class="tarjeta">
+  <p class="rotulo">Nueva ruta</p>
+  <form method="post" action="/admin/despacho" class="fila">
+    <label><span>Nombre</span><input name="nombre" required
+      placeholder="La Candelaria · jornada 2"></label>
+    <label><span>Ingeniero</span><select name="matricula" required>
+      {% for m, n, b in inspectores %}<option value="{{ m }}">{{ n }} · {{ m }}</option>{% endfor %}
+    </select></label>
+    <label><span>Jornada</span><input type="date" name="jornada" value="{{ hoy }}"></label>
+    <label style="margin:0"><button class="btn btn-p" style="width:100%"
+      {{ "disabled" if not inspectores }}>Crear borrador</button></label>
+  </form>
+  {% if not inspectores %}
+  <p class="nota">No hay inspectores vigentes en su brigada. Regístrelos primero en
+    <a href="/admin/inspectores">Inspectores</a>.</p>
+  {% else %}
+  <p class="nota">Solo aparecen las matrículas <strong>vigentes de su brigada</strong>. La ruta
+    nace en borrador: no baja a ningún teléfono hasta que usted la despache.</p>
+  {% endif %}
+</div>
+
+<div class="tarjeta">
+  <p class="rotulo">Rutas</p>
+  <div class="desplaza"><table>
+  <thead><tr><th>Ruta</th><th>Ingeniero</th><th>Jornada</th><th>Avance</th>
+    <th>Pendientes</th><th>Último cierre</th><th>Estado</th></tr></thead><tbody>
+  {% for r in filas %}<tr>
+    <td><a href="/admin/despacho/{{ r.id }}">{{ r.nombre }}</a><br>
+      <span class="nota" style="margin:0">{{ r.visitas }} visita{{ "s" if r.visitas != 1 }}</span></td>
+    <td>{{ r.inspector or "—" }}<br><span class="nota" style="margin:0">{{ r.matricula }}
+      {%- if not r.matricula_vigente %} · <strong>de baja</strong>{% endif %}</span></td>
+    <td class="num">{{ r.jornada.strftime("%d %b") }}</td>
+    <td>{% if r.visitas %}
+      <div style="height:8px;background:var(--linea);border-radius:99px;overflow:hidden;min-width:90px">
+        <div style="height:100%;width:{{ r.avance_pct }}%;border-radius:99px;
+          background:{{ 'var(--rojo)' if r.vencida else 'var(--azul)' }}"></div></div>
+      <span class="num nota" style="margin:0">{{ r.avance_pct }} % · {{ r.hechas }} de {{ r.visitas }}</span>
+      {% else %}<span style="color:var(--tenue)">—</span>{% endif %}</td>
+    <td class="num">{{ r.pendientes }}</td>
+    <td class="num">{{ r.ultimo_cierre|hora("%d %b %H:%M") }}</td>
+    <td>{% if r.vencida and r.pendientes %}
+        <span class="pastilla palerta">Venció con {{ r.pendientes }} pendiente{{ "s" if r.pendientes != 1 }}</span>
+      {% else %}<span class="pastilla {{ r.pastilla }}">{{ r.estado_txt }}</span>{% endif %}</td>
+  </tr>{% else %}<tr><td colspan="7" class="vacio">Todavía no hay rutas. Cree una arriba.</td></tr>
+  {% endfor %}
+  </tbody></table></div>
+</div>
+
+<p class="nota">Una ruta es una <strong>lista de direcciones de predios todavía no
+  visitados</strong>: es dato personal (Ley 1581 de 2012), y el dato más caducable del
+  sistema. Por eso se vence sola —{{ horas }} horas desde la jornada— y el teléfono la borra
+  por su propio reloj, sin esperar a tener señal.</p>
+"""
+
+
+RUTA_DETALLE = """
+<h1>{{ r.nombre }}</h1>
+<p class="sub">{{ r.inspector or "—" }} · {{ r.matricula }}
+  {%- if not r.matricula_vigente %} <span class="pastilla palerta">Matrícula de baja</span>{% endif %}
+  — jornada del {{ r.jornada.strftime("%d %b") }},
+  {% if r.estado == 'despachada' %}vence el {{ r.vence_en|hora("%d %b a las %H:%M") }}
+  {% else %}sin despachar{% endif %}
+  · <span class="pastilla {{ r.pastilla }}">{{ r.estado_txt }}</span></p>
+
+{% if error %}<div class="aviso">{{ error }}</div>{% endif %}
+{% if aviso %}<div class="ok">{{ aviso }}</div>{% endif %}
+{% if r.vencida and r.pendientes %}<div class="aviso">Esta ruta venció con {{ r.pendientes }}
+  visita{{ "s" if r.pendientes != 1 }} sin cerrar. Ya no baja a ningún teléfono: reasígnelas en
+  una ruta nueva o cancélelas.</div>{% endif %}
+{% if not r.matricula_vigente %}<div class="aviso">La matrícula {{ r.matricula }} está de baja.
+  La ruta <strong>se sigue sirviendo</strong> —quitarle la lista de direcciones a alguien que está
+  en la calle es peor que el problema— pero decida usted si la reasigna.</div>{% endif %}
+
+<div class="cifras">
+  <div class="cifra"><b class="num">{{ r.visitas }}</b><span>Visitas</span></div>
+  <div class="cifra c1"><b class="num">{{ r.hechas }}</b><span>Hechas</span></div>
+  <div class="cifra"><b class="num">{{ r.no_realizadas }}</b><span>No realizadas</span></div>
+  <div class="cifra c3"><b class="num">{{ r.pendientes }}</b><span>Pendientes</span></div>
+</div>
+
+{% if r.estado in ('borrador','despachada') %}
+<div class="tarjeta">
+  <p class="rotulo">Agregar direcciones</p>
+  <form method="post" action="/admin/despacho/{{ r.id }}/direcciones">
+    <label><span>Una por línea</span><textarea name="direcciones" rows="5" required
+      style="width:100%;padding:11px 12px;font:inherit;font-family:ui-monospace,Menlo,monospace;
+             font-size:14px;line-height:1.7;border:1px solid var(--borde);border-radius:var(--r)"
+      placeholder="Cra 7 # 12-34, La Candelaria&#10;Cl 13 # 3-28, La Candelaria"></textarea></label>
+    <div class="fila" style="margin-bottom:12px">
+      <label style="margin:0"><span>Municipio (para todas)</span>
+        <input name="municipio" value="{{ r.municipio_sug or '' }}"></label>
+      <label style="margin:0"><span>Barrio o localidad (opcional)</span><input name="barrio"></label>
+    </div>
+    <button class="btn btn-p">Agregar a la ruta</button>
+  </form>
+  <p class="nota">Lo que va después de la primera coma se guarda como referencia para
+    encontrar el predio. El punto en el mapa se puede dejar en blanco: el ingeniero lo toma
+    con el GPS cuando llega, que es donde vale.</p>
+</div>
+{% endif %}
+
+<div class="tarjeta">
+  <p class="rotulo">Visitas</p>
+  <div class="desplaza"><table>
+  <thead><tr><th>#</th><th>Dirección</th><th>Estado</th><th>Resultado</th>
+    <th>Cerrada</th><th></th></tr></thead><tbody>
+  {% for v in visitas %}<tr>
+    <td class="num">{{ v.orden }}</td>
+    <td>{{ v.direccion or "—" }}
+      {%- if v.referencia %}<br><span class="nota" style="margin:0">{{ v.referencia }}</span>{% endif %}
+      {%- if v.barrio or v.municipio %}<br><span class="nota" style="margin:0">
+        {{ v.barrio }}{% if v.barrio and v.municipio %} · {% endif %}{{ v.municipio }}</span>{% endif %}</td>
+    <td><span class="pastilla {{ v.pastilla }}">{{ v.estado_txt }}</span></td>
+    <td>{% if v.evaluacion %}
+          <a href="#" onclick="abrirFicha('{{ v.evaluacion }}');return false">{{ v.id_local or v.evaluacion }}</a>
+          <span class="pastilla p{{ v.clas }}">{{ v.nombre_clas }}</span>
+        {% elif v.motivo_cierre %}{{ v.motivo_txt }}
+          {%- if v.nota_cierre %}<br><span class="nota" style="margin:0">«{{ v.nota_cierre }}»</span>{% endif %}
+        {% else %}<span style="color:var(--tenue)">—</span>{% endif %}</td>
+    <td class="num">{{ v.cerrada_en|hora("%d %b %H:%M") }}</td>
+    <td>{% if v.estado == 'pendiente' %}
+        <form method="post" action="/admin/despacho/visita">
+          <input type="hidden" name="id" value="{{ v.id }}">
+          <input type="hidden" name="ruta" value="{{ r.id }}">
+          <input type="hidden" name="accion" value="cancelar">
+          <button class="btn btn-s">Cancelar</button></form>
+      {% elif v.estado in ('no_realizada','cancelada') %}
+        <form method="post" action="/admin/despacho/visita">
+          <input type="hidden" name="id" value="{{ v.id }}">
+          <input type="hidden" name="ruta" value="{{ r.id }}">
+          <input type="hidden" name="accion" value="reabrir">
+          <button class="btn btn-s">Reabrir</button></form>
+      {% endif %}</td>
+  </tr>{% else %}<tr><td colspan="6" class="vacio">Esta ruta no tiene visitas todavía.</td></tr>
+  {% endfor %}
+  </tbody></table></div>
+  <p class="nota">Una evaluación cierra <strong>una sola</strong> visita. Si el predio se
+    despachó dos veces por error, la segunda queda pendiente y se ve acá como lo que es
+    —trabajo duplicado— en vez de contarse dos veces como cobertura.</p>
+</div>
+
+<div class="tarjeta">
+  <p class="rotulo">Estado de la ruta</p>
+  <div style="display:flex;gap:9px;flex-wrap:wrap">
+    {% if r.estado == 'borrador' %}
+      <form method="post" action="/admin/despacho/{{ r.id }}/despachar">
+        <button class="btn btn-p" {{ "disabled" if not r.visitas }}>Despachar</button></form>
+    {% elif r.estado == 'despachada' %}
+      <form method="post" action="/admin/despacho/{{ r.id }}/cerrar"
+        onsubmit="return confirm('Cerrar la ruta? Las visitas pendientes SIGUEN pendientes: se ven en el listado y se pueden reasignar.')">
+        <button class="btn">Cerrar la ruta</button></form>
+    {% endif %}
+    {% if r.estado != 'anulada' %}
+      <form method="post" action="/admin/despacho/{{ r.id }}/anular"
+        onsubmit="return confirm('Anular la ruta? Deja de bajar a los teléfonos. Lo ya evaluado no cambia.')">
+        <button class="btn btn-r">Anular</button></form>
+    {% endif %}
+    <a class="btn" href="/admin/despacho">Volver</a>
+  </div>
+  {% if r.estado == 'borrador' %}
+  <p class="nota">Mientras esté en borrador no baja a ningún teléfono. Al despachar, el
+    ingeniero la ve en su próxima sincronización con señal.</p>
+  {% elif r.estado == 'despachada' %}
+  <p class="nota">Versión {{ r.version }}{% if r.descargada_en %} · descargada por primera vez
+    el {{ r.descargada_en|hora("%d %b a las %H:%M") }}{% else %} · <strong>todavía no la ha
+    descargado ningún teléfono</strong>{% endif %}. Cada cambio sube la versión, y el teléfono
+    la trae en la siguiente sincronización.</p>
+  {% endif %}
+</div>
+""" + MODAL_HTML
+
+
+def _totales_despacho(req: Request):
+    w, wa = filtro_ruta(req)
+    (d, h, p, v), = consulta(f"""
+        SELECT count(*) FILTER (WHERE r.estado = 'despachada'),
+               coalesce(sum(r.hechas), 0), coalesce(sum(r.pendientes), 0),
+               coalesce(sum(r.pendientes) FILTER (WHERE r.vencida), 0)
+          FROM cobertura_ruta r WHERE {w}""", tuple(wa))
+    return {"despachadas": d, "hechas": h, "pendientes": p, "vencidas": v}
+
+
+def _rutas(req: Request):
+    w, wa = filtro_ruta(req)
+    filas = consulta(f"""
+        SELECT r.id, r.nombre, r.matricula, r.inspector, r.matricula_vigente,
+               r.estado, r.jornada, r.visitas, r.hechas, r.pendientes,
+               r.avance_pct, r.ultimo_cierre, r.vencida, r.version, r.no_realizadas
+          FROM cobertura_ruta r WHERE {w}
+         ORDER BY (r.vencida AND r.pendientes > 0) DESC,
+                  r.estado = 'despachada' DESC, r.jornada DESC, r.nombre""", tuple(wa))
+    return [_fila_ruta(f) for f in filas]
+
+
+ESTADO_RUTA = {"borrador": ("Borrador", "pn"), "despachada": ("Despachada", "pi"),
+               "cerrada": ("Cerrada", "pn"), "anulada": ("Anulada", "pn")}
+
+
+def _fila_ruta(f):
+    txt, past = ESTADO_RUTA.get(f[5], (f[5], "pn"))
+    return {"id": f[0], "nombre": f[1], "matricula": f[2], "inspector": f[3],
+            "matricula_vigente": f[4], "estado": f[5], "estado_txt": txt, "pastilla": past,
+            "jornada": f[6], "visitas": f[7], "hechas": f[8], "pendientes": f[9],
+            "avance_pct": f[10] or 0, "ultimo_cierre": f[11], "vencida": f[12],
+            "version": f[13], "no_realizadas": f[14]}
+
+
+def _inspectores_vigentes_alcance(req: Request):
+    w, wa = filtro_alcance(req, "i.brigada")
+    return consulta(f"""SELECT i.matricula, i.nombre, i.brigada FROM inspector i
+                         WHERE i.vigente AND {w} ORDER BY i.nombre""", tuple(wa))
+
+
+def _pantalla_despacho(req: Request, ses, aviso=None, error=None):
+    from datetime import date
+    return pagina("Despacho",
+                  render(DESPACHO, filas=_rutas(req), t=_totales_despacho(req),
+                         inspectores=_inspectores_vigentes_alcance(req),
+                         hoy=date.today().isoformat(), horas=HORAS_RUTA,
+                         aviso=aviso, error=error),
+                  "despacho", ses=ses)
+
+
+@router.get("/admin/despacho", response_class=HTMLResponse)
+def despacho(req: Request):
+    return _pantalla_despacho(req, exigir(req))
+
+
+@router.post("/admin/despacho", response_class=HTMLResponse)
+def despacho_alta(req: Request, nombre: str = Form(...), matricula: str = Form(...),
+                  jornada: str = Form("")):
+    import api_brigadas
+    from datetime import date, datetime, timedelta, timezone
+    ses = exigir(req)
+    nombre = nombre.strip()
+    if not nombre:
+        return _pantalla_despacho(req, ses, error="La ruta necesita un nombre.")
+    try:
+        dia = date.fromisoformat(jornada) if jornada else date.today()
+    except ValueError:
+        return _pantalla_despacho(req, ses, error="Esa fecha de jornada no es válida.")
+    # El vencimiento se calcula sobre la jornada y no sobre `current_date` del
+    # servidor: el servidor corre en UTC y Colombia es UTC-5, así que una ruta
+    # creada por la tarde vencería el día equivocado.
+    vence = (datetime.combine(dia, datetime.min.time(), tzinfo=timezone(timedelta(hours=-5)))
+             + timedelta(hours=HORAS_RUTA))
+    # La matrícula NO se acepta como viene: se valida en el mismo SQL que esté
+    # vigente y que sea de la brigada del alcance. Sin esto, un coordinador
+    # despacha a un inspector de otra brigada mandando la matrícula a mano.
+    w, wa = filtro_alcance(req, "i.brigada")
+    fila = consulta(f"""
+        INSERT INTO ruta (id, nombre, brigada, matricula, jornada, vence_en, creada_por)
+        SELECT %s, %s, i.brigada, i.matricula, %s, %s, %s
+          FROM inspector i WHERE i.matricula = %s AND i.vigente AND {w}
+        RETURNING id""",
+        (api_brigadas.ulid(), nombre, dia, vence, ses.usuario, matricula.strip(), *wa))
+    if not fila:
+        return _pantalla_despacho(req, ses,
+                                  error="Esa matrícula no está vigente en su brigada.")
+    return RedirectResponse(f"/admin/despacho/{fila[0][0]}", 303)
+
+
+def _ruta(req: Request, ident: str):
+    w, wa = filtro_ruta(req)
+    filas = consulta(f"""
+        SELECT r.id, r.nombre, r.matricula, r.inspector, r.matricula_vigente,
+               r.estado, r.jornada, r.visitas, r.hechas, r.pendientes,
+               r.avance_pct, r.ultimo_cierre, r.vencida, r.version,
+               r.no_realizadas, r.vence_en, r.descargada_en
+          FROM cobertura_ruta r WHERE r.id = %s AND {w}""", (ident, *wa))
+    if not filas:
+        raise HTTPException(404, "Esa ruta no existe o no es de su brigada.")
+    f = filas[0]
+    r = _fila_ruta(f)
+    r.update({"vence_en": f[15], "descargada_en": f[16]})
+    # Para no volver a escribir el municipio en cada tanda de direcciones.
+    sug = consulta("""SELECT municipio FROM visita
+                       WHERE ruta = %s AND municipio IS NOT NULL
+                       ORDER BY creada_en DESC LIMIT 1""", (ident,))
+    r["municipio_sug"] = sug[0][0] if sug else None
+    return r
+
+
+def _visitas(req: Request, ident: str):
+    w, wa = filtro_ruta(req)
+    filas = consulta(f"""
+        SELECT v.id, v.orden, v.direccion, v.municipio, v.barrio, v.referencia,
+               v.estado, v.motivo_cierre, v.nota_cierre, v.cerrada_en,
+               v.evaluacion, e.id_local, e.clasificacion_efectiva
+          FROM visita v
+          JOIN ruta r ON r.id = v.ruta
+          LEFT JOIN evaluacion_brigada e ON e.id = v.evaluacion
+         WHERE v.ruta = %s AND {w}
+         ORDER BY v.estado = 'pendiente' DESC, v.orden""", (ident, *wa))
+    salida = []
+    for f in filas:
+        txt, past = ESTADO_VISITA.get(f[6], (f[6], "pn"))
+        salida.append({"id": f[0], "orden": f[1], "direccion": f[2], "municipio": f[3],
+                       "barrio": f[4], "referencia": f[5], "estado": f[6],
+                       "estado_txt": txt, "pastilla": past,
+                       "motivo_cierre": f[7], "motivo_txt": MOTIVOS_CIERRE.get(f[7], f[7]),
+                       "nota_cierre": f[8], "cerrada_en": f[9], "evaluacion": f[10],
+                       "id_local": f[11], "clas": f[12],
+                       "nombre_clas": NOMBRE_CLAS.get(f[12], "?")})
+    return salida
+
+
+def _pantalla_ruta(req: Request, ses, ident: str, aviso=None, error=None):
+    return pagina("Ruta", render(RUTA_DETALLE, r=_ruta(req, ident),
+                                 visitas=_visitas(req, ident), aviso=aviso, error=error),
+                  "despacho", ses=ses)
+
+
+@router.get("/admin/despacho/{ident}", response_class=HTMLResponse)
+def ruta_ver(req: Request, ident: str):
+    return _pantalla_ruta(req, exigir(req), ident)
+
+
+@router.post("/admin/despacho/{ident}/direcciones", response_class=HTMLResponse)
+def ruta_direcciones(req: Request, ident: str, direcciones: str = Form(...),
+                     municipio: str = Form(""), barrio: str = Form("")):
+    import api_brigadas
+    ses = exigir(req)
+    w, wa = filtro_ruta(req)
+    # El alcance y el estado van en el WHERE del SELECT que alimenta el INSERT:
+    # sin la ruta correcta no se inserta nada, en vez de comprobarlo en Python
+    # después de haber leído.
+    permitida = consulta(f"""SELECT r.id FROM ruta r
+                              WHERE r.id = %s AND {w} AND r.estado IN ('borrador','despachada')""",
+                         (ident, *wa))
+    if not permitida:
+        return _pantalla_ruta(req, ses, ident,
+                              error="Esa ruta no admite cambios: está cerrada o anulada.")
+    (siguiente,), = consulta("SELECT coalesce(max(orden), 0) FROM visita WHERE ruta = %s", (ident,))
+    nuevas = 0
+    for linea in direcciones.splitlines():
+        linea = linea.strip()
+        if not linea:
+            continue
+        # Lo de después de la primera coma es referencia para encontrar el
+        # predio, no parte de la dirección: "Cra 7 # 12-34, al lado del colegio".
+        dir_, _, ref = linea.partition(",")
+        dir_, ref = dir_.strip(), ref.strip()
+        if not dir_:
+            continue
+        siguiente += 1
+        nuevas += 1
+        consulta("""INSERT INTO visita (id, ruta, orden, direccion, municipio, barrio,
+                                        referencia, motivo)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,'nueva')""",
+                 (api_brigadas.ulid(), ident, siguiente, dir_,
+                  municipio.strip() or None, barrio.strip() or None, ref or None))
+    if not nuevas:
+        return _pantalla_ruta(req, ses, ident, error="No había ninguna dirección en el texto.")
+    v = _subir_version(req, ident)
+    # "dirección" pierde la tilde en plural: no se puede pluralizar pegando "es".
+    cuantas = "1 dirección" if nuevas == 1 else f"{nuevas} direcciones"
+    aviso = (f"Se {'agregó' if nuevas == 1 else 'agregaron'} {cuantas}."
+             + (f" La ruta pasó a la versión {v}: el teléfono la verá en la próxima "
+                "sincronización." if v else ""))
+    return _pantalla_ruta(req, ses, ident, aviso=aviso)
+
+
+def _subir_version(req: Request, ident: str):
+    """Cada cambio sube la versión: es lo que el teléfono compara para no volver
+    a bajar direcciones que ya tiene."""
+    w, wa = filtro_ruta(req)
+    fila = consulta(f"UPDATE ruta r SET version = version + 1 WHERE r.id = %s AND {w} "
+                    f"RETURNING version", (ident, *wa))
+    return fila[0][0] if fila else None
+
+
+@router.post("/admin/despacho/{ident}/despachar", response_class=HTMLResponse)
+def ruta_despachar(req: Request, ident: str):
+    ses = exigir(req)
+    w, wa = filtro_ruta(req)
+    hecho = consulta(f"""UPDATE ruta r SET estado = 'despachada', despachada_en = now(),
+                                           version = version + 1
+                          WHERE r.id = %s AND {w} AND r.estado = 'borrador'
+                            AND EXISTS (SELECT 1 FROM visita v WHERE v.ruta = r.id)
+                      RETURNING r.nombre""", (ident, *wa))
+    if not hecho:
+        return _pantalla_ruta(req, ses, ident,
+                              error="No se pudo despachar: la ruta ya no está en borrador, "
+                                    "no es de su brigada, o no tiene visitas.")
+    return _pantalla_ruta(req, ses, ident,
+                          aviso="Ruta despachada. El ingeniero la verá en su próxima "
+                                "sincronización con señal.")
+
+
+@router.post("/admin/despacho/{ident}/cerrar", response_class=HTMLResponse)
+def ruta_cerrar(req: Request, ident: str):
+    ses = exigir(req)
+    w, wa = filtro_ruta(req)
+    hecho = consulta(f"""UPDATE ruta r SET estado = 'cerrada', cerrada_en = now(),
+                                           version = version + 1
+                          WHERE r.id = %s AND {w} AND r.estado = 'despachada'
+                      RETURNING r.nombre""", (ident, *wa))
+    if not hecho:
+        return _pantalla_ruta(req, ses, ident, error="Esa ruta no estaba despachada.")
+    # Las pendientes NO se cancelan: siguen pendientes y se ven en el listado.
+    # Cerrar la jornada no es lo mismo que decidir que esos predios no importan.
+    return _pantalla_ruta(req, ses, ident,
+                          aviso="Ruta cerrada. Las visitas pendientes siguen pendientes: "
+                                "se pueden reasignar en una ruta nueva.")
+
+
+@router.post("/admin/despacho/{ident}/anular")
+def ruta_anular(req: Request, ident: str):
+    exigir(req)
+    w, wa = filtro_ruta(req)
+    # Nunca DELETE: una ruta anulada sigue siendo el rastro de que alguien la
+    # despachó, y sus visitas cerradas son auditoría de trabajo real.
+    consulta(f"""UPDATE ruta r SET estado = 'anulada', version = version + 1
+                  WHERE r.id = %s AND {w} AND r.estado <> 'anulada'""", (ident, *wa))
+    return RedirectResponse(f"/admin/despacho/{ident}", 303)
+
+
+@router.post("/admin/despacho/visita")
+def visita_accion(req: Request, id: str = Form(...), ruta: str = Form(...),
+                  accion: str = Form(...)):
+    exigir(req)
+    w, wa = filtro_ruta(req)
+    if accion == "cancelar":
+        consulta(f"""UPDATE visita v SET estado = 'cancelada', cerrada_en = now()
+                       FROM ruta r
+                      WHERE v.id = %s AND v.ruta = r.id AND {w} AND v.estado = 'pendiente'""",
+                 (id, *wa))
+    elif accion == "reabrir":
+        # No se reabre lo que ya tiene evaluación: eso lo firmó alguien.
+        consulta(f"""UPDATE visita v SET estado = 'pendiente', cerrada_en = NULL,
+                                         motivo_cierre = NULL, nota_cierre = NULL
+                       FROM ruta r
+                      WHERE v.id = %s AND v.ruta = r.id AND {w}
+                        AND v.estado IN ('no_realizada','cancelada')
+                        AND v.evaluacion IS NULL""", (id, *wa))
+    _subir_version(req, ruta)
+    return RedirectResponse(f"/admin/despacho/{ruta}", 303)
 
 
 # ═════════════════════════════════════════════ exportación al formulario V2F
@@ -2627,7 +3224,7 @@ solo.</p>
       </form>
       <p class="nota" style="margin:0">Esta evaluación la declaró reemplazada
         {{ r.reemplazo_usuario or "—" }}{% if r.reemplazo_en %} el
-        {{ r.reemplazo_en.strftime("%Y-%m-%d %H:%M") }}{% endif %}.</p>
+        {{ r.reemplazo_en|hora }}{% endif %}.</p>
     {% elif not r.vigente %}
       <p class="nota" style="margin:0">Ya fue reemplazada por otra evaluación.</p>
     {% elif r.ts > act.ts %}
@@ -2670,7 +3267,7 @@ TARJETA_HIST = """
   <div class="hist-cab">
     <span class="pastilla p{{ r.clas }}">{{ r.nombre_clas }}</span>
     <strong>{{ r.id_local or r.id }}</strong>
-    <span class="nota" style="margin:0">{{ r.ts.strftime("%Y-%m-%d %H:%M") }}</span>
+    <span class="nota" style="margin:0">{{ r.ts|hora }}</span>
     {% if not actual %}<span class="pastilla pi">a {{ r.metros }} m</span>{% endif %}
     {% if not r.vigente %}<span class="pastilla pn">reemplazada</span>{% endif %}
     {% if r.revision_estado == 'pendiente' %}
