@@ -293,6 +293,71 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 .reg .e{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;
   background:var(--azul-tinte);color:var(--azul-osc);white-space:nowrap}
 .reg .e.ok{background:#F1F5F9;color:var(--tinta2)}
+/* ---------- custodia: qué hay guardado y qué falta enviar ---------- */
+.custodia{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0;font-size:13px;font-weight:600}
+.custodia span{padding:7px 12px;border-radius:999px;border:1px solid var(--linea)}
+.custodia .ok{background:#F0FDF4;border-color:#BBF7D0;color:#14532D}
+.custodia .pend{background:var(--azul-tinte);border-color:#BAE6FD;color:var(--azul-osc)}
+/* Acuse del servidor en la lista de envíos: el equivalente al sello en la copia. */
+.reg .acuse{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+  color:var(--tenue);margin-top:3px;overflow-wrap:anywhere}
+/* Invitación a instalar. Discreta pero no escondida: instalada, la app sobrevive
+   a que el navegador necesite espacio. */
+.instalar{border:1px solid #BAE6FD;border-left:4px solid var(--azul);background:var(--azul-tinte);
+  border-radius:var(--r);padding:13px 15px;margin:14px 0 0}
+.instalar p{margin:0;font-size:14px;line-height:1.5}
+.instalar .t{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--azul-osc);margin-bottom:5px}
+.instalar .ops{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
+.instalar button{flex:1 1 auto;font:inherit;font-size:14px;font-weight:600;padding:11px 14px;
+  border-radius:var(--r);border:1px solid #BAE6FD;background:var(--carta);
+  color:var(--azul-osc);min-height:46px;cursor:pointer}
+.instalar button.pri{background:var(--azul);color:#fff;border-color:var(--azul)}
+
+/* ---------- pestaña Ruta ---------- */
+/* La tarjeta de una visita tiene dos filas, así que anula el display:flex de
+   .reg, que alinea una sola. */
+.vis{display:block}
+.vis .idl{font-size:12px;color:var(--tenue);font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;font-variant-numeric:tabular-nums}
+/* La dirección NO se trunca. En Envíos el ellipsis está bien; acá no: una
+   dirección cortada es una visita que no se encuentra. */
+.vis .a{font-size:17px;font-weight:600;line-height:1.35;margin-top:3px;
+  white-space:normal;overflow:visible;text-overflow:clip}
+.vis .ref{font-size:13px;color:var(--tinta2);line-height:1.45;margin-top:4px}
+.vis.hecha{border-left-color:var(--verde)}
+.vis.nores{border-left-color:var(--tenue)}
+.vis.cancel{opacity:.55}
+.vis.cancel .a{text-decoration:line-through}
+/* Dos ajustes para poder usar .btn dentro de .v2f-ops:
+   - .btn trae width:100%, y como flex-basis es auto, eso gana y cada botón
+     ocupa una fila entera en vez de ponerse al lado del otro.
+   - .btn+.btn{margin-top:9px} los escalona en diagonal dentro del flex.
+   Se acota a .btn para no tocar los botones del formulario V2F, que no la
+   llevan y ya se comportan bien. */
+.v2f-ops .btn{width:auto}
+.v2f-ops .btn+.btn{margin-top:0}
+.cab-ruta{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  flex-wrap:wrap;margin-bottom:12px}
+.cab-ruta .cuenta b{font-size:26px;font-weight:800;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums}
+.cab-ruta .cuenta small{font-size:14px;font-weight:600;color:var(--tinta2)}
+.anchos{display:flex;gap:8px}
+.anchos .btn{flex:1;margin-top:0}
+.btn-ancho{width:100%;margin-top:14px}
+.det-cierre{border-top:1px dashed var(--borde);margin-top:11px;padding-top:11px}
+.det-cierre>p{font-size:13px;font-weight:600;color:var(--tinta2);margin:0 0 8px}
+/* Aviso de visita asignada, arriba del formulario. */
+.banner-vis{border:1px solid #BAE6FD;border-left:4px solid var(--azul);
+  background:var(--azul-tinte);border-radius:var(--r);padding:11px 13px;margin:14px 0 0;
+  display:flex;gap:10px;align-items:flex-start}
+.banner-vis .tx{flex:1;min-width:0}
+.banner-vis .r{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--azul-osc)}
+.banner-vis .d{font-size:15px;font-weight:600;margin-top:2px;line-height:1.3}
+.banner-vis button{flex:none;font:inherit;font-size:13px;font-weight:600;padding:8px 11px;
+  border-radius:var(--r);border:1px solid #BAE6FD;background:var(--carta);
+  color:var(--azul-osc);min-height:44px}
 .vacio{text-align:center;color:var(--tinta2);padding:44px 18px;font-size:15px;line-height:1.6}
 .nota{font-size:13px;color:var(--tinta2);line-height:1.55;margin:10px 0 0}
 .nota a{color:var(--azul);text-decoration:underline;text-underline-offset:2px}
@@ -325,6 +390,9 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 <nav class="tabs" role="tablist">
   <div class="tabs-in">
     <button class="tab" role="tab" id="t-form" aria-selected="true" aria-controls="p-form">Evaluar</button>
+    <!-- Arranca oculta: una brigada que no despacha rutas no ve ninguna
+         diferencia. Aparece sola cuando el teléfono baja una ruta. -->
+    <button class="tab oculto" role="tab" id="t-ruta" aria-selected="false" aria-controls="p-ruta">Ruta</button>
     <button class="tab" role="tab" id="t-cola" aria-selected="false" aria-controls="p-cola">Envíos <span id="conteo"></span></button>
     <button class="tab" role="tab" id="t-conf" aria-selected="false" aria-controls="p-conf">Ajustes</button>
   </div>
@@ -333,10 +401,47 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 <!-- ============ EVALUAR ============ -->
 <main class="wrap" id="p-form" role="tabpanel" aria-labelledby="t-form">
 
+  <!-- Aviso de almacenamiento degradado. Va ACÁ, en la pestaña donde se trabaja,
+       y no en el estado de la sincronización: ahí lo sobrescribía el siguiente
+       mensaje y alguien podía trabajar toda la jornada en modo volátil sin
+       enterarse. Nada lo borra mientras dure la sesión. -->
+  <div class="aviso oculto" id="avisoDisco">
+    <strong>Este teléfono no está guardando en disco.</strong> Lo que evalúe se pierde si
+    cierra la aplicación. Envíe cada evaluación apenas tenga señal, o descargue la copia
+    desde Envíos. Suele pasar en navegación privada: salga de ese modo y vuelva a abrir.
+  </div>
+
   <div class="aviso">
     <strong>Antes de entrar:</strong> si hay personas atrapadas, olor a gas, incendio o colapso en
     curso, retírese y llame al <strong>123</strong>. No inspeccione sola o solo una estructura con
     inclinación visible.
+  </div>
+
+  <!-- Custodia: cuántas hay y cuántas faltan por enviar, siempre a la vista.
+       La ventaja del papel es que uno lo ve; esto es el equivalente. -->
+  <div class="custodia" id="custodia">
+    <span class="ok" id="custOk"></span>
+    <span class="pend oculto" id="custPend"></span>
+  </div>
+
+  <div class="instalar oculto" id="instalar">
+    <div class="t">Instálela en la pantalla de inicio</div>
+    <p id="instalarTxt"></p>
+    <div class="ops">
+      <button type="button" class="pri" id="btnInstalar">Instalar</button>
+      <button type="button" id="btnInstalarNo">Ahora no</button>
+    </div>
+  </div>
+
+  <!-- Visible y quitable a propósito: si llega y termina evaluando el predio de
+       al lado, esta evaluación no puede irse marcada como cumplimiento de otra
+       visita. -->
+  <div class="banner-vis oculto" id="bannerVis">
+    <div class="tx">
+      <div class="r">Visita asignada</div>
+      <div class="d" id="bannerVisDir"></div>
+    </div>
+    <button type="button" id="btnDesvincular">Desvincular</button>
   </div>
 
   <div class="aviso-borrador oculto" id="avisoBorrador" role="status">
@@ -467,6 +572,24 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
 </dialog>
 
 <!-- ============ ENVÍOS ============ -->
+<!-- ============ RUTA ============ -->
+<main class="wrap oculto" id="p-ruta" role="tabpanel" aria-labelledby="t-ruta">
+  <section class="bloque">
+    <h2 class="rotulo" id="rutaNombre">Ruta asignada</h2>
+    <div class="cab-ruta">
+      <div class="cuenta"><b id="rutaHechas">0</b> <small>de <span id="rutaTotal">0</span> hechas</small></div>
+      <div class="nota" id="rutaEdad" style="margin:0"></div>
+    </div>
+    <div class="anchos">
+      <button class="btn btn-p" type="button" id="btnBajarRuta">Actualizar ruta</button>
+    </div>
+    <p class="nota" id="rutaTxt"></p>
+    <div id="rutaVisitas"></div>
+    <button class="btn btn-r btn-ancho" type="button" id="btnBorrarRuta">Borrar la ruta de este teléfono</button>
+    <p class="nota" id="rutaVence"></p>
+  </section>
+</main>
+
 <main class="wrap oculto" id="p-cola" role="tabpanel" aria-labelledby="t-cola">
   <section class="bloque">
     <h2 class="rotulo">Evaluaciones guardadas en este teléfono</h2>
@@ -488,6 +611,15 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
     <p class="nota" style="margin-top:0">Una página con lo esencial: los pasos, los
       cuatro niveles, qué hacer sin señal y cuándo retirarse. Se abre sin conexión.</p>
     <a class="btn" href="guia.html">Abrir la guía de campo</a>
+  </section>
+  <!-- El estado real del almacenamiento, en texto, para que nadie tenga que
+       creer en la palabra de nadie. Es la respuesta concreta a «¿y si se
+       pierde?». -->
+  <section class="bloque">
+    <h2 class="rotulo">Dónde está guardado su trabajo</h2>
+    <p class="nota" style="margin-top:0" id="estadoDisco">Comprobando…</p>
+    <p class="nota">Una evaluación enviada <strong>no se borra</strong> de este teléfono:
+      queda marcada como enviada y se puede volver a descargar cuando quiera.</p>
   </section>
   <section class="bloque">
     <h2 class="rotulo">Quién firma</h2>
@@ -577,32 +709,78 @@ function guardarReg(o){
     var t=DB.transaction("ev","readwrite");t.objectStore("ev").put(o);
     t.oncomplete=res;t.onerror=rej;});
 }
-/* El borrador vive en el mismo almacén con un id reservado, y se filtra ACÁ,
-   en el único sitio por donde se leen los registros. Un almacén nuevo obligaría
-   a subir la versión de la base y a migrar teléfonos que pueden estar en medio
-   de una jornada; esto no toca nada de lo que ya funciona. */
+/* El borrador y la ruta despachada viven en el mismo almacén con ids reservados,
+   y se filtran ACÁ, en el único sitio por donde se leen los registros.
+
+   Un almacén nuevo obligaría a subir la versión de la base y a migrar teléfonos
+   que pueden estar en medio de una jornada. Y hay algo peor que la migración:
+   abrirDB() no tiene handler `onblocked`. Con open("brigada",2), un teléfono con
+   la app instalada Y una pestaña abierta en /app/ —que es justo como se
+   instala— quedaría bloqueado: no se llama ni onsuccess ni onerror, la promesa
+   nunca resuelve y la app no arranca, sin borrador y sin poder evaluar. Los ids
+   de evaluación son "BRG-AAAAMMDD-NNN" y nunca empiezan por "__", así que el
+   prefijo alcanza para distinguirlos. */
 var ID_BORRADOR = "__borrador__";
+var ID_RUTA     = "__ruta__";
+function noReservado(o){ return o && String(o.id).indexOf("__") !== 0; }
 function leerRegs(){
-  if(sinIDB||!DB) return Promise.resolve(memoria.filter(noBorrador));
+  if(sinIDB||!DB) return Promise.resolve(memoria.filter(noReservado));
   return new Promise(function(res){
     var t=DB.transaction("ev","readonly"),q=t.objectStore("ev").getAll();
-    q.onsuccess=function(){res((q.result||[]).filter(noBorrador))};
+    q.onsuccess=function(){res((q.result||[]).filter(noReservado))};
     q.onerror=function(){res([])};});
 }
-function noBorrador(o){ return o && o.id !== ID_BORRADOR; }
-function leerBorrador(){
+function leerReservado(id){
   if(sinIDB||!DB) return Promise.resolve(memoria.filter(function(o){
-    return o.id===ID_BORRADOR; })[0] || null);
+    return o.id===id; })[0] || null);
   return new Promise(function(res){
-    var t=DB.transaction("ev","readonly"),q=t.objectStore("ev").get(ID_BORRADOR);
+    var t=DB.transaction("ev","readonly"),q=t.objectStore("ev").get(id);
     q.onsuccess=function(){res(q.result||null)};q.onerror=function(){res(null)};});
 }
-function borrarBorrador(){
-  if(sinIDB||!DB){ memoria=memoria.filter(noBorrador); return Promise.resolve(); }
+function borrarReservado(id){
+  if(sinIDB||!DB){ memoria=memoria.filter(function(o){return o.id!==id});
+                   return Promise.resolve(); }
   return new Promise(function(res){
-    var t=DB.transaction("ev","readwrite");t.objectStore("ev").delete(ID_BORRADOR);
+    var t=DB.transaction("ev","readwrite");t.objectStore("ev").delete(id);
     t.oncomplete=res;t.onerror=res;});
 }
+/* ---------------- que el navegador NO borre lo guardado ----------------
+   IndexedDB por defecto es "best effort": el navegador puede desalojarla cuando
+   le falta espacio, o cuando el sitio lleva tiempo sin abrirse. Safari es el más
+   agresivo. Pedir persistencia explícita es lo que convierte el almacenamiento
+   en "duradero", y es exactamente el miedo que tiene quien viene del papel.
+
+   Chrome se la concede casi siempre a una PWA instalada en la pantalla de
+   inicio; a una pestaña suelta, a veces no. Por eso instalar importa. */
+var persistido = null;      // true / false / null = el navegador no lo soporta
+function asegurarPersistencia(){
+  try{
+    if(!navigator.storage || !navigator.storage.persist) return Promise.resolve(null);
+    return navigator.storage.persisted().then(function(ya){
+      if(ya){ persistido = true; return true; }
+      return navigator.storage.persist().then(function(ok){ persistido = ok; return ok; });
+    }).catch(function(){ return null; });
+  }catch(e){ return Promise.resolve(null); }
+}
+
+/* Aviso ANTES de que el teléfono se llene, no después. Un disco lleno es la otra
+   forma en que el navegador empieza a botar datos. */
+function revisarEspacio(){
+  try{
+    if(!navigator.storage || !navigator.storage.estimate) return Promise.resolve(null);
+    return navigator.storage.estimate().then(function(e){
+      if(!e || !e.quota) return null;
+      var libre = e.quota - (e.usage || 0);
+      return {libre: libre, apretado: libre < 25 * 1024 * 1024};   // < 25 MB
+    }).catch(function(){ return null; });
+  }catch(e){ return Promise.resolve(null); }
+}
+
+function leerBorrador(){ return leerReservado(ID_BORRADOR); }
+function borrarBorrador(){ return borrarReservado(ID_BORRADOR); }
+function leerRuta(){ return leerReservado(ID_RUTA); }
+function guardarRuta(r){ return guardarReg(r); }
+function borrarRuta(){ rutaMem=null; return borrarReservado(ID_RUTA); }
 function cfgGet(k,d){try{var v=localStorage.getItem("brg_"+k);return v===null?d:v}catch(e){return (cfgMem[k]===undefined?d:cfgMem[k])}}
 var cfgMem={};
 function cfgSet(k,v){try{localStorage.setItem("brg_"+k,v)}catch(e){cfgMem[k]=v}}
@@ -1291,13 +1469,17 @@ BANDERAS.forEach(function(x){
 document.getElementById("final").onchange=pintarPlaca;
 
 /* ---------------- pestañas ---------------- */
-["form","cola","conf"].forEach(function(n){
+/* Una sola lista: estaba escrita dos veces y agregar una pestaña obligaba a
+   acordarse de las dos. */
+var PESTANAS=["form","ruta","cola","conf"];
+PESTANAS.forEach(function(n){
   document.getElementById("t-"+n).onclick=function(){
-    ["form","cola","conf"].forEach(function(m){
+    PESTANAS.forEach(function(m){
       document.getElementById("t-"+m).setAttribute("aria-selected", m===n?"true":"false");
       document.getElementById("p-"+m).classList.toggle("oculto", m!==n);
     });
     if(n==="cola") pintarCola();
+    if(n==="ruta") pintarRuta();
     // La barra de guardado pertenece al formulario. En Envíos y Ajustes no hay
     // nada que guardar, y dejarla ahi sugiere una accion que no existe.
     var pie=document.querySelector(".pie");
@@ -1559,12 +1741,28 @@ document.getElementById("btnGuardar").onclick=function(){
       parciales:c.parciales, parcial_manda:c.manda,
       justificacion:document.getElementById("just").value.trim(),
       observaciones:document.getElementById("obs").value.trim(),
+      /* Qué visita de la ruta cierra esta evaluación. El objeto que se guarda
+         es el MISMO que se envía, sin transformación, así que con esto basta. */
+      visita: visitaActual ? visitaActual.visita_id : null,
       fotos:est.fotos.slice()
     };
     guardarReg(o).then(function(){
-      limpiar();
-      alert("Guardada "+o.id+" · "+TIT[v]+"\nQueda en Envíos hasta que sincronice.");
-      actualizarConteo();
+      /* La visita se marca DESPUÉS de que la evaluación quedó guardada, nunca
+         antes: si el guardado falla, la parada sigue pendiente. */
+      var pv = Promise.resolve();
+      if(visitaActual && rutaMem){
+        var vs=rutaMem.visitas||[];
+        for(var i=0;i<vs.length;i++) if(vs[i].id===visitaActual.visita_id){
+          vs[i].local={estado:"hecha", id_local:o.id, ts:o.ts, enviada:true};
+          pv = guardarRuta(rutaMem);
+          break;
+        }
+      }
+      return pv.then(function(){
+        limpiar();
+        alert("Guardada "+o.id+" · "+TIT[v]+"\nQueda en Envíos hasta que sincronice.");
+        actualizarConteo();
+      });
     });
   });
 };
@@ -1582,6 +1780,7 @@ function limpiar(){
   document.querySelectorAll(".bandera input").forEach(function(i){i.checked=false});
   document.getElementById("gpsTxt").textContent="Sin coordenadas. Se puede guardar igual y georreferenciar después.";
   pintarFotos(); pintarPlaca(); window.scrollTo(0,0);
+  visitaActual=null; pintarBannerVisita();
   borrarBorrador();
 }
 
@@ -1604,7 +1803,10 @@ function tomarFormulario(){
     est: {danos:est.danos, banderas:est.banderas, fotos:est.fotos, lat:est.lat,
           lon:est.lon, acc:est.acc, origen_punto:est.origen_punto, mun:est.mun},
     v2f: document.getElementById("modoV2F").checked ? v2fEst : null,
-    reservado: reservado
+    reservado: reservado,
+    /* Si el sistema descarta la pestaña a mitad del formulario, al retomarlo
+       tiene que seguir vinculado a la visita o el cumplimiento se pierde. */
+    visita: visitaActual
   };
 }
 function hayAlgoQueGuardar(b){
@@ -1640,6 +1842,7 @@ document.addEventListener("visibilitychange", function(){
 function restaurarBorrador(b){
   var c = b.campos, k;
   for(k in c){ var el = document.getElementById(k); if(el) el.value = c[k]; }
+  visitaActual = b.visita || null; pintarBannerVisita();
   ["danos","banderas"].forEach(function(g){
     for(var j in b.est[g]) est[g][j] = b.est[g][j];
   });
@@ -1681,7 +1884,9 @@ function pintarCola(){
     rs.forEach(function(o){
       var d=document.createElement("div"); d.className="reg c"+o.clasificacion;
       d.innerHTML='<div class="d"><div class="id">'+o.id+' · '+TIT[o.clasificacion]+'</div>'+
-        '<div class="a">'+((o.direccion||"Sin dirección")+(o.barrio?" · "+o.barrio:""))+'</div></div>'+
+        '<div class="a">'+((o.direccion||"Sin dirección")+(o.barrio?" · "+o.barrio:""))+'</div>'+
+        (o.id_servidor ? '<div class="acuse">Recibida por el servidor · '+esc(o.id_servidor)+'</div>' : '')+
+        '</div>'+
         '<div class="e'+(o.estado==="enviada"?" ok":"")+'">'+(o.estado==="enviada"?"Enviada":"Pendiente")+'</div>';
       c.appendChild(d);
     });
@@ -1691,7 +1896,203 @@ function actualizarConteo(){
   leerRegs().then(function(rs){
     var p=rs.filter(function(o){return o.estado==="pendiente"}).length;
     document.getElementById("conteo").textContent=p?"("+p+")":"";
+    pintarCustodia(rs.length, p);
   });
+}
+
+/* Siempre a la vista en la pestaña donde se trabaja. No es decoración: es la
+   respuesta permanente a «¿y si se pierde?». */
+function pintarCustodia(total, pend){
+  var ok=document.getElementById("custOk"), pe=document.getElementById("custPend");
+  if(!ok) return;
+  ok.textContent = total===0 ? "Todavía no ha guardado ninguna"
+    : (total===1 ? "1 guardada en este teléfono"
+                 : total+" guardadas en este teléfono");
+  pe.classList.toggle("oculto", !pend);
+  if(pend) pe.textContent = pend===1 ? "1 sin enviar" : pend+" sin enviar";
+}
+
+/* ---------------- ruta despachada ----------------
+   Lo único que baja del servidor a este teléfono. Es una lista de direcciones
+   de predios TODAVÍA NO VISITADOS: dato personal (Ley 1581 de 2012), y el más
+   caducable de todo el sistema. Por eso se vence sola, por el reloj de ESTE
+   teléfono y sin esperar señal: si dependiera de que el servidor confirme, un
+   teléfono sin cobertura se quedaría con la lista para siempre. */
+var rutaMem=null;          // la ruta en memoria, para no releer en cada pintada
+var visitaActual=null;     // {ruta_id, visita_id, direccion} mientras se evalúa
+
+var MOTIVOS=[["nadie","Nadie atendió"],["no_existe","No existe la dirección"],
+             ["rechazo","Se negaron a la inspección"],["inaccesible","No se pudo acceder"]];
+
+function esc(s){
+  return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; });
+}
+
+function pestanaRuta(hay){
+  document.getElementById("t-ruta").classList.toggle("oculto", !hay);
+  // Si estaba parado en Ruta y la ruta desapareció, se vuelve a Evaluar: dejarlo
+  // mirando una pestaña vacía que ya no existe en la barra es peor.
+  if(!hay && document.getElementById("t-ruta").getAttribute("aria-selected")==="true")
+    document.getElementById("t-form").click();
+}
+
+/* Se llama al arrancar y al abrir la pestaña. Borra sin red. */
+function purgarRuta(r){
+  if(!r) return null;
+  var vencida = r.vence_en && (new Date(r.vence_en).getTime() < Date.now());
+  // Si cambiaron la matrícula en Ajustes, esta ruta era de otra persona.
+  var ajena = r.matricula && r.matricula !== cfgGet("mat","");
+  if(vencida || ajena){ borrarRuta(); return null; }
+  return r;
+}
+
+function cargarRuta(){
+  return leerRuta().then(function(r){
+    rutaMem = purgarRuta(r);
+    pestanaRuta(!!rutaMem);
+    return rutaMem;
+  });
+}
+
+function hace(iso){
+  if(!iso) return "";
+  var h=Math.floor((Date.now()-new Date(iso).getTime())/3600000);
+  if(h<1) return "Bajada hace menos de una hora";
+  return "Bajada hace "+h+" hora"+(h===1?"":"s");
+}
+
+function pintarRuta(){
+  var c=document.getElementById("rutaVisitas");
+  if(!rutaMem){ c.innerHTML='<p class="vacio">No hay ninguna ruta descargada.</p>';
+                document.getElementById("rutaTxt").textContent="";
+                document.getElementById("rutaVence").textContent="";
+                return; }
+  var vs=rutaMem.visitas||[], hechas=0;
+  vs.forEach(function(v){ if(v.local && v.local.estado==="hecha") hechas++; });
+  document.getElementById("rutaNombre").textContent=rutaMem.nombre||"Ruta asignada";
+  document.getElementById("rutaHechas").textContent=hechas;
+  document.getElementById("rutaTotal").textContent=vs.length;
+  var e=document.getElementById("rutaEdad");
+  e.textContent=hace(rutaMem.bajada_en);
+  // Ámbar pasadas 12 horas: una ruta vieja puede tener visitas que el
+  // coordinador ya reasignó.
+  e.style.color=(Date.now()-new Date(rutaMem.bajada_en||0).getTime()>43200000)
+    ? "var(--ambar)" : "";
+  document.getElementById("rutaVence").textContent=
+    rutaMem.vence_en ? ("Se borra sola de este teléfono el "+
+      new Date(rutaMem.vence_en).toLocaleString("es-CO",
+        {day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})+
+      ". Las evaluaciones ya hechas no se pierden: quedan en Envíos.") : "";
+
+  // Pendientes primero: es el orden en que se camina.
+  var orden=vs.slice().sort(function(a,b){
+    var pa=(a.local&&a.local.estado!=="pendiente")?1:0,
+        pb=(b.local&&b.local.estado!=="pendiente")?1:0;
+    return pa-pb || (a.orden-b.orden);
+  });
+  c.innerHTML="";
+  orden.forEach(function(v){
+    var st=(v.local&&v.local.estado)||"pendiente";
+    var d=document.createElement("div");
+    d.className="reg vis"+(st==="hecha"?" hecha":st==="no_realizada"?" nores":
+                           st==="cancelada"?" cancel":"");
+    var cab='<div class="idl">'+v.orden+(st==="cancelada"?" · la quitó el coordinador":"")+'</div>'+
+      '<div class="a">'+esc(v.direccion||"Sin dirección")+'</div>';
+    var ref=[];
+    if(v.barrio) ref.push(esc(v.barrio));
+    if(v.municipio) ref.push(esc(v.municipio));
+    var r2=ref.join(" · ")+(v.referencia?(ref.length?" — ":"")+esc(v.referencia):"");
+    if(r2) cab+='<div class="ref">'+r2+'</div>';
+    if(v.clasificacion_previa)
+      cab+='<div class="ref"><strong>Revisita · estaba en '+
+           esc(TIT[v.clasificacion_previa]||"")+'</strong></div>';
+    d.innerHTML=cab;
+
+    if(st==="pendiente"){
+      var ops=document.createElement("div"); ops.className="v2f-ops";
+      var b1=document.createElement("button");
+      b1.type="button"; b1.className="btn btn-p"; b1.textContent="Evaluar aquí";
+      b1.onclick=function(){ abrirVisita(v); };
+      var b2=document.createElement("button");
+      b2.type="button"; b2.className="btn"; b2.textContent="No se pudo";
+      var det=document.createElement("div");
+      det.className="det-cierre oculto";
+      det.innerHTML='<p>¿Qué pasó?</p>';
+      var ops2=document.createElement("div"); ops2.className="v2f-ops";
+      MOTIVOS.forEach(function(m){
+        var mb=document.createElement("button");
+        mb.type="button"; mb.className="btn"; mb.textContent=m[1];
+        mb.onclick=function(){ marcarNoRealizada(v,m[0]); };
+        ops2.appendChild(mb);
+      });
+      det.appendChild(ops2);
+      b2.onclick=function(){ det.classList.toggle("oculto"); };
+      ops.appendChild(b1); ops.appendChild(b2);
+      d.appendChild(ops); d.appendChild(det);
+    }else{
+      var chip=document.createElement("span");
+      chip.className="e"+(st==="hecha"?" ok":"");
+      chip.style.display="inline-block"; chip.style.marginTop="9px";
+      chip.textContent = st==="hecha" ? ("Hecha · "+(v.local.id_local||"")) :
+        st==="cancelada" ? "Cancelada" :
+        ("No se pudo · "+motivoTxt(v.local.motivo));
+      d.appendChild(chip);
+      // Deshacer solo mientras no se haya reportado: después ya lo sabe el panel.
+      if(st==="no_realizada" && v.local && !v.local.enviada){
+        var u=document.createElement("button");
+        u.type="button"; u.className="btn btn-s"; u.style.marginLeft="8px";
+        u.textContent="Deshacer";
+        u.onclick=function(){ v.local={estado:"pendiente"}; guardarRuta(rutaMem).then(pintarRuta); };
+        d.appendChild(u);
+      }
+    }
+    c.appendChild(d);
+  });
+}
+
+function motivoTxt(k){
+  for(var i=0;i<MOTIVOS.length;i++) if(MOTIVOS[i][0]===k) return MOTIVOS[i][1];
+  return "Otra razón";
+}
+
+function marcarNoRealizada(v,motivo){
+  v.local={estado:"no_realizada",motivo:motivo,ts:new Date().toISOString(),enviada:false};
+  guardarRuta(rutaMem).then(pintarRuta);
+}
+
+/* Salta a Evaluar con la dirección puesta. */
+function abrirVisita(v){
+  visitaActual={ruta_id:rutaMem.ruta_id,visita_id:v.id,direccion:v.direccion||""};
+  document.getElementById("dir").value=v.direccion||"";
+  document.getElementById("bar").value=v.barrio||"";
+  // Por código DANE y no por nombre: es la llave estable y evita el problema de
+  // municipios homónimos que fijarMun() ya documenta.
+  var m=null;
+  if(v.cod_dane){
+    var todos=idxMun();
+    for(var i=0;i<todos.length;i++) if(todos[i].cod===v.cod_dane){ m=todos[i]; break; }
+  }
+  if(m){
+    est.mun=m;
+    document.getElementById("mun").value=m.nom;
+    document.getElementById("munTxt").textContent=m.dep+" · código DANE "+m.cod;
+  }else if(v.municipio){
+    document.getElementById("mun").value=v.municipio;
+    fijarMun.call(document.getElementById("mun"));   // reusa la lógica de homónimos
+  }
+  /* La coordenada del despacho NO se copia a est.lat/est.lon: est.lat es dónde
+     estuvo quien evaluó, no dónde dijo el panel que fuera. Se toma con el GPS
+     en el sitio, como siempre. */
+  pintarBannerVisita();
+  document.getElementById("t-form").click();
+}
+
+function pintarBannerVisita(){
+  var b=document.getElementById("bannerVis");
+  if(!b) return;
+  b.classList.toggle("oculto", !visitaActual);
+  if(visitaActual) document.getElementById("bannerVisDir").textContent=visitaActual.direccion;
 }
 
 /* ---------------- descargas ---------------- */
@@ -1738,7 +2139,19 @@ document.getElementById("btnSync").onclick=function(){
   if(!navigator.onLine){t.textContent="Sin conexión. Los datos siguen guardados; reintente con señal.";return;}
   leerRegs().then(function(rs){
     var p=rs.filter(function(o){return o.estado==="pendiente"});
-    if(!p.length){t.textContent="No hay pendientes.";return;}
+    /* Sin pendientes NO se sale: igual hay que preguntar por la ruta. La
+       pestaña Ruta está oculta mientras no haya una descargada, así que si esta
+       rama volviera sin consultar, un teléfono recién configurado no tendría
+       por dónde bajar la primera. */
+    if(!p.length){
+      t.textContent="No hay pendientes. Consultando la ruta...";
+      enviarCierres(url,tok).then(function(){ return bajarRuta(url,tok); })
+        .then(function(){
+          t.textContent = rutaMem ? "No hay pendientes. Su ruta está en la pestaña Ruta."
+                                  : "No hay pendientes ni ruta asignada.";
+        }).catch(function(){ t.textContent="No hay pendientes."; });
+      return;
+    }
     t.textContent="Enviando "+p.length+"...";
     /* De a POCOS, no todos a la vez. Antes salía un fetch por pendiente en
        paralelo: con 80 evaluaciones y fotos son 80 subidas simultáneas, que en
@@ -1750,7 +2163,18 @@ document.getElementById("btnSync").onclick=function(){
       fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-Brigada-Token":tok},
         body:JSON.stringify(o)})
       .then(function(r){
-        if(r.ok){ok++;o.estado="enviada";return guardarReg(o);}
+        if(r.ok){
+          ok++; o.estado="enviada";
+          /* El acuse del servidor. Lo devolvía desde siempre y lo tirábamos a la
+             basura; es lo más parecido al sello en la copia que da el papel, y
+             es lo que permite decirle a alguien «esto ya no depende de su
+             teléfono». Si el cuerpo no se puede leer, se guarda igual la
+             evaluación: el acuse es una comodidad, no la verdad. */
+          return r.json().catch(function(){ return null; }).then(function(d){
+            if(d && d.id_servidor){ o.id_servidor=d.id_servidor; o.duplicado=!!d.duplicado; }
+            return guardarReg(o);
+          });
+        }
       })
       .catch(function(){})
       .then(function(){
@@ -1759,6 +2183,11 @@ document.getElementById("btnSync").onclick=function(){
         if(fin===p.length){
           t.textContent="Enviadas "+ok+" de "+p.length+(ok<p.length?". Las demás siguen guardadas.":".");
           pintarCola(); actualizarConteo();
+          /* Primero se salva el trabajo hecho, DESPUÉS se pide trabajo nuevo.
+             Y todo lo de ruta va detrás de un catch: nada de esto puede impedir
+             que se envíe o se guarde una evaluación. */
+          enviarCierres(url,tok).then(function(){ return bajarRuta(url,tok); })
+            .catch(function(){});
         }else{
           siguiente();
         }
@@ -1768,16 +2197,213 @@ document.getElementById("btnSync").onclick=function(){
   });
 };
 
+/* ---------------- instalar en la pantalla de inicio ----------------
+   No es cosmético. Instalada, la app tiene muchas más posibilidades de que el
+   navegador le conceda almacenamiento duradero, y no se cierra sin querer como
+   una pestaña. Es la medida más barata contra «se me borró». */
+var promptInstalar = null;
+
+function yaInstalada(){
+  try{
+    return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
+        || navigator.standalone === true;
+  }catch(e){ return false; }
+}
+function esIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent||"") && !window.MSStream;
+}
+
+/* Chrome y Edge en Android avisan cuando se puede instalar; hay que atrapar el
+   evento porque solo se puede usar una vez y solo tras un gesto de la persona. */
+window.addEventListener("beforeinstallprompt", function(e){
+  e.preventDefault(); promptInstalar = e; pintarInstalar();
+});
+window.addEventListener("appinstalled", function(){
+  promptInstalar = null; cfgSet("inst","1"); pintarInstalar();
+});
+
+function pintarInstalar(){
+  var c = document.getElementById("instalar");
+  if(!c) return;
+  /* Ya instalada, o ya dijo que no: no se insiste. Un aviso que vuelve todos los
+     días se aprende a ignorar, y entonces deja de servir cuando importa. */
+  if(yaInstalada() || cfgGet("inst","") === "1"){ c.classList.add("oculto"); return; }
+  var ios = esIOS(), t = document.getElementById("instalarTxt");
+  var b = document.getElementById("btnInstalar");
+  if(ios){
+    /* iOS no ofrece instalación automática: hay que decirle a la persona los dos
+       toques exactos, o no lo encuentra. */
+    t.innerHTML = "Toque <strong>Compartir</strong> abajo, y luego " +
+      "<strong>«Agregar a pantalla de inicio»</strong>. Así funciona sin señal y " +
+      "el teléfono no borra su trabajo para hacer espacio.";
+    b.classList.add("oculto");
+  }else if(promptInstalar){
+    t.innerHTML = "Así funciona sin señal y el teléfono <strong>no borra su trabajo</strong> " +
+      "para hacer espacio. Toma un segundo.";
+    b.classList.remove("oculto");
+  }else{
+    c.classList.add("oculto"); return;      // este navegador no la puede instalar
+  }
+  c.classList.remove("oculto");
+}
+
+document.getElementById("btnInstalar").onclick=function(){
+  if(!promptInstalar) return;
+  promptInstalar.prompt();
+  promptInstalar.userChoice.then(function(r){
+    if(r && r.outcome === "accepted") cfgSet("inst","1");
+    promptInstalar = null; pintarInstalar();
+  }).catch(function(){});
+};
+document.getElementById("btnInstalarNo").onclick=function(){
+  cfgSet("inst","1"); pintarInstalar();
+};
+
+/* ---------------- bajada de la ruta ----------------
+   El primer canal de BAJADA de la app: hasta acá los datos solo subían. */
+function urlRuta(u){ return u.replace(/\/evaluaciones\/?$/, "/ruta"); }
+function urlCierre(u){ return u.replace(/\/evaluaciones\/?$/, "/visitas/cierre"); }
+
+function bajarRuta(url,tok){
+  var t=document.getElementById("rutaTxt");
+  var mat=cfgGet("mat","");
+  if(!url||!tok||!navigator.onLine) return Promise.resolve();
+  // Si el endpoint no termina en /evaluaciones, urlRuta() devolvería la misma
+  // URL y el GET pegaría contra el POST de evaluaciones.
+  if(!/\/evaluaciones\/?$/.test(url)){
+    if(t) t.textContent="El endpoint configurado no permite descargar rutas.";
+    return Promise.resolve();
+  }
+  if(!mat){ if(t) t.textContent="Escriba su matrícula en Ajustes para recibir rutas.";
+            return Promise.resolve(); }
+  var sello=(rutaMem&&rutaMem.sello)||"";
+  return fetch(urlRuta(url)+"?matricula="+encodeURIComponent(mat)+
+               "&sello="+encodeURIComponent(sello),
+    {headers:{"X-Brigada-Token":tok},cache:"no-store"})
+  .then(function(r){
+    // 404: este servidor no tiene el módulo de despacho. Silencio absoluto; un
+    // servidor sin despacho es un despliegue perfectamente válido.
+    if(r.status===404) return null;
+    // 401: NO se borra la ruta local. Un token rotado no puede vaciarle la
+    // jornada a quien está parado en la calle.
+    if(r.status===401){ if(t) t.textContent="El servidor rechazó el token. La ruta que tiene sigue acá."; return null; }
+    if(!r.ok){ if(t) t.textContent="No se pudo consultar la ruta. Reintente con señal."; return null; }
+    return r.json();
+  })
+  .then(function(d){
+    if(!d) return;
+    if(d.sin_cambios){
+      if(rutaMem){ rutaMem.consultada_en=new Date().toISOString(); guardarRuta(rutaMem); }
+      if(t) t.textContent="La ruta está al día.";
+      return;
+    }
+    var rs=d.rutas||[];
+    if(!rs.length){
+      borrarRuta(); pestanaRuta(false);
+      if(t) t.textContent="No tiene ninguna ruta asignada.";
+      return;
+    }
+    // Una ruta a la vez: es una jornada, no una bandeja. Si hubiera varias, la
+    // primera es la de jornada más antigua, que es la que va atrasada.
+    var r0=rs[0];
+    var nueva={id:ID_RUTA, ruta_id:r0.id, sello:d.sello, version:r0.version,
+               nombre:r0.nombre, matricula:d.matricula, notas:r0.notas,
+               vence_en:r0.vence_en, bajada_en:new Date().toISOString(),
+               visitas:r0.visitas||[]};
+    mezclarRuta(nueva, rutaMem);
+    rutaMem=nueva;
+    return guardarRuta(nueva).then(function(){
+      pestanaRuta(true); pintarRuta();
+      if(t) t.textContent="Ruta actualizada: "+nueva.visitas.length+" visita"+
+        (nueva.visitas.length===1?"":"s")+".";
+    });
+  })
+  .catch(function(){ if(t) t.textContent="No se pudo consultar la ruta."; });
+}
+
+/* El servidor manda para la LISTA (qué visitas hay, en qué orden, con qué
+   dirección); el estado LOCAL manda para lo que ya se trabajó. Un reemplazo
+   completo le borraría el trabajo del día a quien actualiza a media tarde. */
+function mezclarRuta(nueva, vieja){
+  var previo={}, i;
+  if(vieja && vieja.visitas)
+    for(i=0;i<vieja.visitas.length;i++) previo[vieja.visitas[i].id]=vieja.visitas[i].local;
+  for(i=0;i<nueva.visitas.length;i++){
+    var v=nueva.visitas[i], p=previo[v.id];
+    if(p && p.estado && p.estado!=="pendiente"){ v.local=p; delete previo[v.id]; }
+    else v.local={estado: v.estado==="cancelada" ? "cancelada" : "pendiente"};
+  }
+  /* Una visita que el servidor ya no manda pero que este teléfono trabajó y
+     todavía no reportó se conserva: si se descartara, esa novedad no se
+     enviaría nunca y el coordinador nunca sabría qué pasó ahí. */
+  for(var id in previo){
+    var q=previo[id];
+    if(q && q.estado==="no_realizada" && !q.enviada){
+      nueva.visitas.push({id:id, orden:999, direccion:"(retirada del despacho)",
+                          local:q});
+    }
+  }
+}
+
+/* Las visitas que NO produjeron evaluación. Van por su propio canal: forzarlas
+   por /api/evaluaciones obligaría a inventar una evaluación que nadie firmó. */
+function enviarCierres(url,tok){
+  if(!rutaMem||!url||!tok||!navigator.onLine) return Promise.resolve();
+  if(!/\/evaluaciones\/?$/.test(url)) return Promise.resolve();
+  var pend=(rutaMem.visitas||[]).filter(function(v){
+    return v.local && v.local.estado==="no_realizada" && !v.local.enviada; });
+  if(!pend.length) return Promise.resolve();
+  return fetch(urlCierre(url),{method:"POST",
+    headers:{"Content-Type":"application/json","X-Brigada-Token":tok},
+    body:JSON.stringify({cierres:pend.map(function(v){
+      return {visita:v.id, motivo:v.local.motivo, ts:v.local.ts}; })})})
+  .then(function(r){ if(!r.ok) return;
+    // El servidor responde 200 aunque una visita ya no exista: se marcan como
+    // enviadas igual, para que el teléfono deje de reintentar para siempre.
+    pend.forEach(function(v){ v.local.enviada=true; });
+    return guardarRuta(rutaMem);
+  })
+  .catch(function(){});
+}
+
+document.getElementById("btnBajarRuta").onclick=function(){
+  var t=document.getElementById("rutaTxt");
+  if(!navigator.onLine){ t.textContent="Sin señal. Puede seguir trabajando la ruta que tiene."; return; }
+  t.textContent="Consultando...";
+  var url=urlSync(), tok=cfgGet("tok","");
+  enviarCierres(url,tok).then(function(){ return bajarRuta(url,tok); });
+};
+
+document.getElementById("btnBorrarRuta").onclick=function(){
+  if(!confirm("¿Borrar la ruta de este teléfono? Las evaluaciones ya hechas no se pierden: quedan en Envíos.")) return;
+  borrarRuta().then(function(){ pestanaRuta(false); pintarRuta(); });
+};
+
+document.getElementById("btnDesvincular").onclick=function(){
+  visitaActual=null; pintarBannerVisita();
+};
+
 /* ---------------- ajustes ---------------- */
 ["nom","mat","bri","url","tok","doc","prof"].forEach(function(k){
   document.getElementById("c"+k.charAt(0).toUpperCase()+k.slice(1)).value=cfgGet(k,"");
 });
 if(!document.getElementById("cUrl").value) document.getElementById("cUrl").value=urlPorDefecto();
 document.getElementById("btnGuardarConf").onclick=function(){
+  /* Si cambia la matrícula, la ruta descargada era de otra persona: se borra en
+     el acto y se avisa. Dejarle a alguien las direcciones de un compañero
+     porque reconfiguraron el teléfono no es aceptable. */
+  var matVieja=cfgGet("mat",""), matNueva=document.getElementById("cMat").value.trim();
+  var cambioMat = rutaMem && matNueva !== matVieja;
   ["nom","mat","bri","url","tok","doc","prof"].forEach(function(k){
     cfgSet(k,document.getElementById("c"+k.charAt(0).toUpperCase()+k.slice(1)).value.trim());
   });
-  pintarFirma(); alert("Ajustes guardados.");
+  pintarFirma();
+  if(cambioMat){
+    borrarRuta().then(function(){ pestanaRuta(false); pintarRuta(); });
+    alert("Ajustes guardados.\n\nSe borró la ruta descargada: pertenecía a la matrícula anterior.");
+  }else{
+    alert("Ajustes guardados.");
+  }
 };
 /* Qué exige la brigada de este teléfono. Por defecto, matrícula: es el criterio
    del sistema y el que corresponde si todavía no se ha podido preguntar. El
@@ -1865,6 +2491,12 @@ document.getElementById("btnProbar").onclick=function(){
         }
         t.textContent="Todo correcto. El servidor responde y el token es válido."+
           (typeof res.n==="number" ? " Tiene "+res.n+" evaluaciones recibidas." : "")+extra;
+        /* Se aprovecha para traer la ruta: «Probar conexión» es justo lo que se
+           toca con señal antes de salir a terreno, que es el único momento en
+           que se puede bajar. */
+        return bajarRuta(u,k).then(function(){
+          if(rutaMem) t.textContent += " Tiene una ruta asignada: está en la pestaña Ruta.";
+        }).catch(function(){});
       });
   })
   .catch(function(e){
@@ -1896,6 +2528,10 @@ window.addEventListener("offline",pintarRed);
 abrirDB().then(function(){
   pintarRed(); pintarPoliticaFirma(); pintarFirma(); pintarPlaca(); pintarFotos();
   actualizarConteo();
+  /* La ruta se purga sin red, por el reloj de este teléfono: vencida o de otra
+     matrícula, se borra. Un teléfono que se queda tres días sin señal —o que se
+     pierde— no puede conservar indefinidamente una lista de direcciones. */
+  cargarRuta();
   /* Si quedó una evaluación a medio llenar, se ofrece seguirla. No se restaura
      sola: quien abre la app puede estar empezando otra cosa, y aparecerle datos
      de otro edificio sin avisar es peor que perderlos. */
@@ -1916,10 +2552,44 @@ abrirDB().then(function(){
       }
     };
   });
-  if(sinIDB){
-    document.getElementById("syncTxt").textContent=
-      "Aviso: este navegador no guarda en disco. Las evaluaciones se pierden al cerrar. Instale la app desde el servidor.";
-  }
+  /* El aviso de disco vivía en syncTxt, dentro de Envíos, y el siguiente mensaje
+     de sincronización lo borraba: se podía trabajar la jornada entera en modo
+     volátil sin enterarse. Ahora es un bloque propio en la pestaña donde se
+     trabaja, y nada lo sobrescribe. */
+  document.getElementById("avisoDisco").classList.toggle("oculto", !sinIDB);
+
+  pintarInstalar();
+
+  /* Que el navegador no bote lo guardado cuando necesite espacio. Se pide una
+     sola vez; si ya estaba concedido, no vuelve a preguntar. */
+  asegurarPersistencia().then(function(ok){
+    var t=document.getElementById("estadoDisco");
+    if(!t) return;
+    if(sinIDB){
+      t.innerHTML="<strong>Sin guardar en disco.</strong> Este navegador no lo permite " +
+        "(suele ser navegación privada). Envíe cada evaluación apenas tenga señal.";
+    }else if(ok === true){
+      t.innerHTML="<strong>Guardado duradero.</strong> El navegador se comprometió a no " +
+        "borrar sus evaluaciones para hacer espacio. Están en este teléfono hasta que " +
+        "usted las borre.";
+    }else{
+      /* Chrome se lo concede a una app instalada, y a una pestaña suelta muchas
+         veces no. Decirlo tal cual, sin alarmar: el trabajo está guardado, solo
+         que sin garantía frente a un teléfono lleno. */
+      t.innerHTML="<strong>Guardado, pero sin garantía.</strong> Sus evaluaciones están en " +
+        "este teléfono, pero el navegador no se comprometió a conservarlas si se queda sin " +
+        "espacio. <strong>Instale la app en la pantalla de inicio</strong> y esa garantía " +
+        "se activa.";
+    }
+  }).then(function(){ return revisarEspacio(); }).then(function(e){
+    if(e && e.apretado && !sinIDB){
+      var a=document.getElementById("avisoDisco");
+      a.innerHTML="<strong>A este teléfono le queda poco espacio.</strong> Envíe las " +
+        "evaluaciones pendientes y libere espacio: cuando el disco se llena, el " +
+        "navegador empieza a borrar datos guardados.";
+      a.classList.remove("oculto");
+    }
+  }).catch(function(){});
 });
 if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
   navigator.serviceWorker.register("sw.js").catch(function(){});

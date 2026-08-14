@@ -120,6 +120,71 @@ Dos: **admin** (clave maestra en `BRIGADA_ADMIN_HASH`, ve todo) y **coordinador*
   compartir token. El k-anonimato se aplica sobre el resultado ya filtrado.
 - `esquema.sql` — **fuente de verdad del esquema**, idempotente. La tabla, los índices
   y la vista `consolidado_publico` viven ahí, no en el docstring del `.py`.
+  **Las vistas van todas juntas, después de la última columna de la que dependen.**
+  `pendientes_de_catastral` estaba definida arriba y usaba `id_local` y
+  `clasificacion_efectiva`, que se agregan más abajo con `ALTER`: en una base ya
+  existente daba igual, pero **crear una base desde cero fallaba** —justo lo que
+  hace el comando de instalación documentado acá.
+
+### Custodia del trabajo en el teléfono
+
+Quien viene del papel teme que «se borre y se pierda», y una parte del miedo era correcta.
+
+- **`navigator.storage.persist()` al arrancar.** IndexedDB por defecto es *best effort*: el
+  navegador la desaloja cuando le falta espacio o el sitio lleva tiempo sin abrirse. Chrome
+  concede la persistencia casi siempre a una PWA **instalada** y muchas veces no a una
+  pestaña suelta — por eso la invitación a instalar no es cosmética.
+- **El aviso de modo degradado vive en la pestaña Evaluar, no en `syncTxt`.** Estaba ahí y
+  el siguiente mensaje de sincronización lo borraba: se podía trabajar la jornada entera en
+  modo volátil (`sinIDB`) sin enterarse.
+- **El `id_servidor` se guarda y se muestra.** El receptor lo devolvía desde siempre y se
+  tiraba. Es el equivalente al sello en la copia, y es lo que permite decir «esto ya no
+  depende de su teléfono».
+- **Ajustes dice en texto si el guardado es duradero o no.** Sin eufemismos: «guardado, pero
+  sin garantía» cuando el navegador negó la persistencia.
+- `docs/no-se-pierde.html` es la pieza que se le manda al ingeniero antes de la primera
+  jornada, con el plan de transición en paralelo. Se compila con
+  `python3 docs/build_manual.py no-se-pierde`.
+
+### Despacho (rutas de inspección)
+
+El panel ya no solo sabe qué se evaluó: sabe **qué había que evaluar**. Una `ruta` se
+asigna a UNA matrícula, el teléfono la descarga al sincronizar y la trabaja sin señal, y
+al enviar la evaluación **la visita se cierra sola**.
+
+- **El cierre de la visita va en un SAVEPOINT anidado** (`with con.transaction():` dentro
+  del `with pool.connection()` de `recibir()`). `pool.connection()` es UNA transacción: sin
+  el savepoint, cualquier fallo del despacho tumbaría también el `INSERT` de la evaluación
+  y saldría un 503. **Se pierde el enlace, nunca la evaluación.**
+- **`evaluacion_brigada.visita_declarada` NO lleva foreign key**, a propósito. Un id de
+  visita vencido, anulado o de otra brigada haría fallar el `INSERT` → 503 → jornada
+  atrapada en un teléfono. Mismo criterio que la matrícula fuera del registro: se acepta y
+  se marca. El enlace validado vive en `visita.evaluacion`; lo declarado queda aparte, como
+  el par `brigada` (declarada) / `brigada_token` (autenticada).
+- **`filtro_ruta()` y no `filtro_alcance()` para consultas de rutas.** `ruta` tiene columna
+  `brigada`, no `brigada_token`; con la columna por defecto, un JOIN con
+  `evaluacion_brigada` resuelve **en silencio** contra la columna equivocada.
+- **La matrícula del `GET /api/ruta` no autoriza nada.** El token es de la brigada y lo
+  comparten todos sus teléfonos. Cruzar brigadas sí es imposible —la brigada sale de
+  `autenticar()`, nunca de un parámetro—, y lo que contiene el riesgo es el contenido: ahí
+  no viaja nada que un compañero de la misma brigada no pueda ver.
+- **La ruta se vence sola en el teléfono, por su propio reloj** (`ruta.vence_en`, por
+  defecto 30 h desde la jornada, `BRIGADA_HORAS_RUTA`). Si dependiera de que el servidor
+  confirme, un teléfono sin señal —o perdido— conservaría la lista de direcciones para
+  siempre. También se borra si cambian la matrícula en Ajustes.
+- **La ruta vive en el almacén `ev` con el id reservado `"__ruta__"`**, igual que el
+  borrador. No subir `indexedDB.open("brigada",1)` a la versión 2: `abrirDB()` no maneja
+  `onblocked`, y un upgrade con la PWA instalada más una pestaña abierta en `/app/` deja la
+  promesa sin resolver y **la app no arranca**.
+- **`count(v.id)` y nunca `count(*)` en `cobertura_ruta`**: con el `LEFT JOIN`, una ruta sin
+  visitas produce una fila con `v.*` en NULL y `count(*)` contaría 1.
+- **Nunca un solo porcentaje mezclado en Evolución.** Lo levantado fuera de ruta se cuenta
+  aparte; sumarlo al avance haría que una brigada que evaluó cien predios equivocados
+  apareciera al 100 % de cobertura.
+- **`|hora`, el filtro de zona horaria del panel.** La base devuelve `timestamptz` en la
+  zona de la sesión, que en el contenedor es UTC; pintarlo con `strftime` mostraba todo
+  cinco horas adelantado, incluido `revision_vence`. Toda fecha que vea una persona pasa
+  por ese filtro (`BRIGADA_ZONA`, por defecto `America/Bogota`). `jornada` no: es un `DATE`.
 
 ### Invariantes del receptor (no romper)
 
@@ -155,6 +220,14 @@ Dos: **admin** (clave maestra en `BRIGADA_ADMIN_HASH`, ve todo) y **coordinador*
   responsabilidad profesional; no relajarlo porque "el frontend ya lo chequea".
 
 ### Flujo de datos
+
+El panel puede **despachar una ruta**: el teléfono la baja con `GET /api/ruta` al
+sincronizar (o al «Probar conexión»), la guarda en IndexedDB bajo el id reservado
+`"__ruta__"` y la trabaja sin señal. Al guardar una evaluación desde una visita, el payload
+lleva `visita: <id>`, y el receptor cierra esa visita en la misma petición. Lo que no
+produce evaluación —nadie atendió, no existe la dirección, se negaron, no se pudo acceder—
+sube por `POST /api/visitas/cierre`. Sin ruta asignada la pestaña «Ruta» ni siquiera
+aparece, y todo lo demás funciona igual que siempre.
 
 Formulario → `est` (estado en memoria) → `guardarReg()` en IndexedDB (`brigada`/`ev`, keyPath `id`)
 con `estado:"pendiente"` → botón *Enviar pendientes* hace un POST por registro con header

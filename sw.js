@@ -14,7 +14,7 @@
    vea <https://www.gnu.org/licenses/>.
  */
 
-const CACHE = "brigada-v25";   // subir en CADA cambio de los archivos cacheados
+const CACHE = "brigada-v27";   // subir en CADA cambio de los archivos cacheados
 // Leaflet va en la lista para que el mapa exista aunque el teléfono ya no tenga
 // señal cuando se abre. Las TESELAS no se cachean: son de otro origen, son
 // miles y llenarían el disco del teléfono. Sin señal el mapa avisa y la
@@ -54,6 +54,10 @@ self.addEventListener("fetch", e => {
   // sobrevive a configurar la clave en el servidor), y el panel muestra
   // direcciones y coordenadas, que no pueden quedar guardadas en el disco del
   // navegador (Ley 1581 de 2012).
+  // Desde el módulo de despacho la segunda razón pesa todavía más: /api/ruta
+  // devuelve direcciones de predios TODAVÍA NO VISITADOS. Esa lista se guarda en
+  // IndexedDB con su propio vencimiento, que la borra sola; una copia en la
+  // caché del navegador escaparía de ese control y sobreviviría al vencimiento.
   if (url.pathname.startsWith("/admin") || url.pathname.startsWith("/api")) return;
 
   e.respondWith(
