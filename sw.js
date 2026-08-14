@@ -14,7 +14,7 @@
    vea <https://www.gnu.org/licenses/>.
  */
 
-const CACHE = "brigada-v27";   // subir en CADA cambio de los archivos cacheados
+const CACHE = "brigada-v28";   // subir en CADA cambio de los archivos cacheados
 // Leaflet va en la lista para que el mapa exista aunque el teléfono ya no tenga
 // señal cuando se abre. Las TESELAS no se cachean: son de otro origen, son
 // miles y llenarían el disco del teléfono. Sin señal el mapa avisa y la

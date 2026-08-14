@@ -171,16 +171,38 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   background:var(--azul-tinte);border-radius:var(--r);padding:14px;margin-bottom:14px}
 
 /* ---------- mapa para ajustar el punto ---------- */
-#dlgMapa{border:0;border-radius:var(--r-l);padding:0;width:96vw;max-width:640px}
+/* El diálogo se acota contra la PANTALLA y reparte lo que hay: cabecera y pie
+   piden lo suyo, el mapa se queda con el resto. Antes cada pieza pedía su altura
+   por separado —cabecera + min(62vh,460px) + pie— y la suma se pasaba: el pie
+   con «Usar este punto» quedaba debajo del borde inferior y solo se llegaba a él
+   desplazando. Quien no lo intentaba, veía únicamente «Cancelar».
+   `dvh` es la altura que queda DESCONTANDO la barra del navegador móvil; `vh`
+   mide contra el viewport grande, que en el teléfono no existe hasta que la
+   barra se esconde. La línea `vh` queda de respaldo para navegadores viejos. */
+#dlgMapa{border:0;border-radius:var(--r-l);padding:0;width:96vw;max-width:640px;
+  max-height:92vh;max-height:92dvh;margin:auto;overflow:hidden}
+/* OJO con el display: va en [open] y no en #dlgMapa a secas. Un `display:flex`
+   suelto le gana al `display:none` que el navegador le pone al diálogo cerrado,
+   y el mapa quedaría dibujado en medio del formulario todo el tiempo. */
+#dlgMapa[open]{display:flex;flex-direction:column}
 #dlgMapa::backdrop{background:rgba(15,23,42,.6)}
 .mapa-cab,.mapa-pie{display:flex;gap:10px;align-items:center;padding:12px 14px;
-  flex-wrap:wrap;background:var(--carta)}
+  flex-wrap:wrap;background:var(--carta);flex:none}
 .mapa-cab{border-bottom:1px solid var(--linea)}
 .mapa-pie{border-top:1px solid var(--linea)}
-#mapaLienzo{height:min(62vh,460px);width:100%}
+/* Pide su altura de siempre, pero es lo ÚNICO que puede encoger: cuando la suma
+   choca con el techo del diálogo, el que cede es el mapa y nunca los botones.
+   Sin esta altura preferida el diálogo se ajusta al contenido, no sobra espacio
+   que repartir, y el mapa se quedaría en el mínimo hasta en una tablet. */
+#mapaLienzo{flex:1 1 auto;width:100%;min-height:180px;
+  height:min(62vh,460px);height:min(62dvh,460px)}
+/* Los dos botones juntos y en el mismo sitio de siempre: el de cerrar al lado
+   del de aceptar. Separados —uno arriba y otro abajo— el de arriba se lee como
+   la única salida. */
+.mapa-ops{display:flex;gap:10px;margin-left:auto}
 /* Los botones de la app ocupan todo el ancho a propósito —se tocan con guantes—
    pero dentro de la barra del mapa tienen que convivir dos en una línea. */
-.mapa-cab .btn,.mapa-pie .btn{width:auto}
+.mapa-cab .btn,.mapa-pie .btn{width:auto;margin-top:0}
 .btn-s{font-size:14px;padding:9px 14px;min-height:44px}
 /* El marcador de Leaflet es una imagen externa que no vendorizamos: se dibuja
    con CSS. Además así puede ser más grande que el de serie, que con el pulgar y
@@ -562,12 +584,14 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
   <div class="mapa-cab">
     <strong>Ajustar el punto</strong>
     <span class="nota" style="margin:0">Arrastre el marcador hasta la edificación.</span>
-    <button class="btn btn-s" type="button" id="mapaCerrar" style="margin-left:auto">Cancelar</button>
   </div>
   <div id="mapaLienzo"></div>
   <div class="mapa-pie">
     <span class="nota" id="mapaTxt" style="margin:0"></span>
-    <button class="btn btn-p" type="button" id="mapaUsar" style="margin-left:auto">Usar este punto</button>
+    <div class="mapa-ops">
+      <button class="btn btn-s" type="button" id="mapaCerrar">Cancelar</button>
+      <button class="btn btn-p" type="button" id="mapaUsar">Usar este punto</button>
+    </div>
   </div>
 </dialog>
 
