@@ -661,8 +661,25 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-of
         placeholder="Ingeniero civil, arquitecto, técnico..."></label>
     </div>
   </section>
+  <!-- El camino corto. Va ANTES del bloque del servidor porque para casi todo el
+       mundo es el único que hay que tocar: ocho caracteres en vez de cuarenta y
+       ocho, dictables por teléfono y tecleables con guantes. -->
+  <section class="bloque">
+    <h2 class="rotulo">Incorporar este teléfono</h2>
+    <p class="nota" style="margin-top:0">Si quien coordina le dio un <strong>código de
+      ocho caracteres</strong>, escríbalo acá y el teléfono queda configurado solo. No
+      hace falta tocar nada más abajo.</p>
+    <label class="campo"><span>Código de incorporación</span>
+      <input id="cCodigo" autocomplete="off" spellcheck="false" maxlength="9"
+        inputmode="latin" placeholder="ABCD2345"
+        style="text-transform:uppercase;letter-spacing:.12em;font-size:19px"></label>
+    <button class="btn btn-p" type="button" id="btnAlta">Incorporar</button>
+    <p class="nota" id="altaTxt"></p>
+  </section>
   <section class="bloque">
     <h2 class="rotulo">Servidor</h2>
+    <p class="nota" style="margin-top:0">Esto lo llena el código de incorporación. Solo
+      hace falta tocarlo a mano si le entregaron un token en vez de un código.</p>
     <label class="campo"><span>Endpoint de sincronización</span>
       <input id="cUrl" placeholder="https://servidor/api/evaluaciones" autocomplete="off"
         inputmode="url" spellcheck="false"></label>
@@ -2459,6 +2476,49 @@ function pintarFirma(){
 function urlSalud(u){
   return u.replace(/\/evaluaciones\/?$/, "/salud");
 }
+/* ---------------- incorporar este teléfono ----------------
+   Cambia un código corto por la configuración completa. El token que llega es
+   de ESTE aparato, no de la brigada: si el teléfono se pierde, se da de baja
+   ese y nadie más se entera. */
+function urlAlta(u){
+  /* El endpoint de sincronización viene por defecto con el mismo origen que
+     sirve la app, así que de ahí sale a qué servidor preguntarle. Si alguien lo
+     cambió a mano por uno que no termina en /evaluaciones, no se adivina. */
+  return /\/evaluaciones\/?$/.test(u) ? u.replace(/\/evaluaciones\/?$/, "/alta") : "";
+}
+
+document.getElementById("btnAlta").onclick=function(){
+  var t=document.getElementById("altaTxt");
+  var cod=document.getElementById("cCodigo").value.toUpperCase().replace(/[^0-9A-Z]/g,"");
+  if(cod.length!==8){ t.textContent="El código tiene ocho caracteres."; return; }
+  if(!navigator.onLine){ t.textContent="Sin señal. Esto necesita conexión una sola vez; puede hacerlo desde cualquier lado antes de salir."; return; }
+  var url=urlAlta(urlSync());
+  if(!url){ t.textContent="El endpoint configurado no permite incorporar por código. Escriba el token a mano."; return; }
+  var b=this; b.disabled=true; t.textContent="Incorporando...";
+  fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({codigo:cod, alias:cfgGet("nom","")})})
+  .then(function(r){ return r.json().catch(function(){return null}).then(function(d){
+    b.disabled=false;
+    if(r.ok && d && d.token){
+      cfgSet("tok", d.token);
+      if(d.brigada) cfgSet("bri", d.brigada);
+      document.getElementById("cTok").value=d.token;
+      document.getElementById("cBri").value=d.brigada||"";
+      document.getElementById("cCodigo").value="";
+      pintarFirma();
+      t.innerHTML="<strong>Listo.</strong> Este teléfono quedó incorporado a "+
+        esc(d.brigada||"la brigada")+". Ya puede evaluar y sincronizar."+
+        (d.exige_matricula ? " Escriba su nombre y matrícula arriba." : "");
+      return;
+    }
+    /* El mensaje del servidor se muestra tal cual: está escrito para una
+       persona («ese código no sirve: no existe, ya venció...»). */
+    t.textContent=(d && d.detail) ? d.detail : "No se pudo incorporar. Intente de nuevo.";
+  });})
+  .catch(function(){ b.disabled=false;
+    t.textContent="No se pudo conectar. Revise la señal e intente otra vez."; });
+};
+
 document.getElementById("btnProbar").onclick=function(){
   var t=document.getElementById("probarTxt");
   var u=document.getElementById("cUrl").value.trim();

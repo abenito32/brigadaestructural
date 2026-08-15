@@ -41,7 +41,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import psycopg
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from psycopg.types.json import Jsonb
@@ -321,7 +321,44 @@ def autenticar(token: str) -> tuple[str | None, bool]:
         # Token heredado del entorno: no tiene brigada y por tanto no tiene
         # politica propia. Se le exige matricula, que es el criterio por defecto.
         return None, True
+    # Token de un TELEFONO, emitido por un codigo de incorporacion. Se consulta
+    # DESPUES del de brigada a proposito: el camino viejo no puede volverse mas
+    # lento ni cambiar de comportamiento por agregar el nuevo. Un telefono ya
+    # configurado no nota nada.
+    if disp := _autenticar_dispositivo(token):
+        return disp
     raise HTTPException(401, "Token de brigada inválido")
+
+
+def _autenticar_dispositivo(token: str) -> tuple[str, bool] | None:
+    """Un token por telefono, en vez de uno por brigada.
+
+    Perder un aparato en terreno dejaba una sola salida: rotar el token de la
+    brigada y reconfigurar a todos, en mitad de una emergencia. O sea, en la
+    practica, no revocar nada. Con uno por aparato se da de baja ese y nadie mas
+    se entera.
+
+    `ultimo_uso` se escribe fuera de la transaccion de lectura y sin que un fallo
+    importe: es para que el panel pueda decir "este telefono no aparece hace tres
+    dias", no un dato del que dependa nadie.
+    """
+    try:
+        with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
+            cur.execute("""SELECT d.id, b.nombre, b.exige_matricula
+                             FROM dispositivo d JOIN brigada b ON b.nombre = d.brigada
+                            WHERE d.token_hash = %s AND d.activo AND b.activa""",
+                        (sha(token),))
+            fila = cur.fetchone()
+            if not fila:
+                return None
+            try:
+                cur.execute("UPDATE dispositivo SET ultimo_uso = now() WHERE id = %s",
+                            (fila[0],))
+            except psycopg.Error:
+                pass
+            return fila[1], fila[2]
+    except (psycopg.Error, PoolTimeout):
+        raise HTTPException(503, "No se pudo validar el token: base de datos no disponible")
 
 
 @app.get("/api/brigada")
@@ -477,6 +514,117 @@ def cerrar_visitas(c: Cierres, x_brigada_token: str = Header(default="")):
         print(f"[cierre] {e.__class__.__name__}: {e}", flush=True)
         raise HTTPException(503, "No se pudieron registrar los cierres")
     return {"ok": True, "resultados": salida}
+
+
+# ------------------------------------------------------- codigo de incorporacion
+#
+# Configurar un telefono exigia teclear 48 caracteres hexadecimales, por aparato.
+# Con ocho inspectores en un estacionamiento y mala señal, esa es la razon por la
+# que una jornada arranca dos horas tarde. Un codigo corto se cambia por la
+# configuracion completa.
+#
+# Es el segundo endpoint del sistema que ENTREGA una credencial, y el unico sin
+# autenticacion previa. Las defensas no son el secreto del codigo —tiene que
+# poder dictarse por telefono— sino que vence, se agota, se puede anular, y que
+# probar codigos a ciegas se frena por IP.
+
+# Alfabeto sin 0/O/1/I/L: esto se dicta en voz alta y se teclea con guantes.
+ALFABETO_CODIGO = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+LARGO_CODIGO = 8
+MAX_INTENTOS_ALTA = 10          # por IP
+VENTANA_INTENTOS_ALTA = 900     # 15 minutos
+
+
+def generar_codigo() -> str:
+    return "".join(secrets.choice(ALFABETO_CODIGO) for _ in range(LARGO_CODIGO))
+
+
+class Alta(BaseModel):
+    codigo: str = ""
+    alias: str = ""
+
+
+@app.post("/api/alta")
+def alta(a: Alta, request: Request, x_real_ip: str = Header(default="")):
+    """Cambia un codigo de incorporacion por la configuracion de este telefono.
+
+    Devuelve un token PROPIO del aparato, no el de la brigada: el de la brigada
+    ni siquiera se puede devolver, porque la base guarda solo su sha256.
+    """
+    ip = x_real_ip or (request.client.host if request.client else "?")
+    codigo = "".join(c for c in a.codigo.upper() if c in ALFABETO_CODIGO)
+    if len(codigo) != LARGO_CODIGO:
+        raise HTTPException(422, "El código tiene ocho caracteres")
+
+    token = secrets.token_hex(24)
+    sirvio = True
+    try:
+        with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
+            cur.execute("""SELECT count(*) FROM intento_alta
+                            WHERE ip = %s AND cuando > now() - make_interval(secs => %s)""",
+                        (ip, VENTANA_INTENTOS_ALTA))
+            if cur.fetchone()[0] >= MAX_INTENTOS_ALTA:
+                # 429 y no 401: es reintentable mas tarde, y decir la verdad no
+                # le da nada al que esta probando codigos.
+                raise HTTPException(429, "Demasiados intentos. Espere unos minutos.")
+
+            # El agotamiento va en el mismo UPDATE que la comprobacion: dos
+            # telefonos incorporandose a la vez no pueden pasarse del cupo.
+            cur.execute("""UPDATE codigo_alta
+                              SET usos = usos + 1, ultimo_uso = now()
+                            WHERE codigo = %s AND NOT anulado
+                              AND vence_en > now() AND usos < usos_max
+                        RETURNING brigada""", (codigo,))
+            fila = cur.fetchone()
+            if not fila:
+                # NO se registra el intento aca dentro. `with pool.connection()`
+                # es UNA transaccion, y levantar la excepcion del 404 la hace
+                # rollback: el INSERT del intento se borraria con ella y el freno
+                # no engancharia NUNCA. Se sale del bloque primero y se anota
+                # despues, en su propia transaccion. Es la misma trampa que el
+                # cierre de visita del despacho, al reves: alla habia que aislar
+                # lo que puede fallar; aca, lo que tiene que sobrevivir al fallo.
+                sirvio = False
+            else:
+                brigada_nombre = fila[0]
+
+            ident = ulid() if fila else ""
+            if fila:
+                cur.execute("""INSERT INTO dispositivo (id, token_hash, brigada, alias, codigo)
+                               VALUES (%s,%s,%s,%s,%s)""",
+                            (ident, sha(token), brigada_nombre,
+                             a.alias.strip()[:80] or None, codigo))
+                cur.execute("SELECT exige_matricula FROM brigada WHERE nombre = %s",
+                            (brigada_nombre,))
+                exige = cur.fetchone()[0]
+    except HTTPException:
+        raise
+    except (psycopg.Error, PoolTimeout) as e:
+        print(f"[alta] {e.__class__.__name__}: {e}", flush=True)
+        raise HTTPException(503, "No se pudo incorporar el teléfono")
+
+    if not sirvio:
+        # Transaccion propia: este registro tiene que sobrevivir al 404 que sigue.
+        try:
+            with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
+                cur.execute("INSERT INTO intento_alta (ip) VALUES (%s)", (ip,))
+        except (psycopg.Error, PoolTimeout):
+            pass
+        # Un solo mensaje para "no existe", "vencido" y "agotado": si
+        # distinguieran, quien prueba codigos sabria cuando acerto uno real.
+        raise HTTPException(404, "Ese código no sirve: no existe, ya venció "
+                                 "o se acabaron sus usos. Pídale otro a quien coordina.")
+
+    # La limpieza de intentos viejos va aparte y sin que un fallo importe: es
+    # mantenimiento, no parte de incorporar un telefono.
+    try:
+        with pool.connection(timeout=ESPERA_POOL) as con, con.cursor() as cur:
+            cur.execute("DELETE FROM intento_alta WHERE cuando < now() - interval '1 day'")
+    except (psycopg.Error, PoolTimeout):
+        pass
+
+    return {"ok": True, "token": token, "brigada": brigada_nombre,
+            "exige_matricula": exige, "dispositivo": ident}
 
 
 @app.post("/api/evaluaciones")

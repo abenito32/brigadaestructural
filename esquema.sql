@@ -869,3 +869,75 @@ SELECT evento, cod_dane, municipio,
 FROM reporte_ciudadano
 WHERE estado <> 'descartado'
 GROUP BY evento, cod_dane, municipio, sector;
+
+
+-- ===========================================================================
+-- Códigos de incorporación
+-- ===========================================================================
+--
+-- Configurar un teléfono exigía teclear a mano el token de la brigada: 48
+-- caracteres hexadecimales, por aparato, de pie y con guantes. Con ocho
+-- inspectores en un estacionamiento eso no es una molestia, es la razón por la
+-- que la jornada arranca dos horas tarde o no arranca.
+--
+-- Un código corto se cambia por la configuración completa. NO reemplaza al
+-- token: lo entrega. Por eso lleva las tres defensas que un token permanente no
+-- necesita —vence, se agota y se puede anular— y por eso se guarda en claro:
+-- tiene que poder LEERSE para dictárselo a alguien por teléfono, y su seguridad
+-- viene de que dura horas y sirve pocas veces, no de ser secreto para siempre.
+
+CREATE TABLE IF NOT EXISTS codigo_alta (
+  codigo      text PRIMARY KEY,
+  brigada     text NOT NULL REFERENCES brigada(nombre) ON DELETE CASCADE,
+  creado_en   timestamptz NOT NULL DEFAULT now(),
+  creado_por  text NOT NULL,
+  vence_en    timestamptz NOT NULL,
+  usos_max    int NOT NULL DEFAULT 10,
+  usos        int NOT NULL DEFAULT 0,
+  anulado     boolean NOT NULL DEFAULT false,
+  ultimo_uso  timestamptz,
+  nota        text
+);
+
+ALTER TABLE codigo_alta DROP CONSTRAINT IF EXISTS codigo_alta_vence_check;
+ALTER TABLE codigo_alta ADD CONSTRAINT codigo_alta_vence_check
+  CHECK (vence_en > creado_en);
+ALTER TABLE codigo_alta DROP CONSTRAINT IF EXISTS codigo_alta_usos_check;
+ALTER TABLE codigo_alta ADD CONSTRAINT codigo_alta_usos_check
+  CHECK (usos_max > 0 AND usos >= 0);
+
+-- La consulta caliente es por código; el listado del panel, por brigada.
+CREATE INDEX IF NOT EXISTS codigo_alta_brigada_idx ON codigo_alta (brigada, creado_en DESC);
+
+-- Un teléfono incorporado. Cada uno con SU token, y no el de la brigada.
+--
+-- La base guarda solo el sha256 del token de brigada, así que el servidor no
+-- puede entregarlo aunque quiera: no lo tiene. Eso obligó a que el código emita
+-- un token nuevo, y resultó ser mejor de lo que se buscaba. Con un token por
+-- brigada, perder un teléfono en terreno significa rotar el token y reconfigurar
+-- a TODA la brigada en mitad de una emergencia —o sea, en la práctica, no
+-- revocar nada—. Con uno por aparato se da de baja ese y nadie más se entera.
+--
+-- El token de la brigada sigue existiendo y sigue funcionando: los teléfonos ya
+-- configurados no se tocan. Este es el camino nuevo, no un requisito retroactivo.
+CREATE TABLE IF NOT EXISTS dispositivo (
+  id          text PRIMARY KEY,                 -- ULID del servidor
+  token_hash  text NOT NULL UNIQUE,             -- sha256, como el de brigada
+  brigada     text NOT NULL REFERENCES brigada(nombre) ON DELETE CASCADE,
+  alias       text,                             -- "teléfono de Ana", lo escribe quien lo incorpora
+  codigo      text REFERENCES codigo_alta(codigo),   -- con qué código entró
+  creado_en   timestamptz NOT NULL DEFAULT now(),
+  ultimo_uso  timestamptz,
+  activo      boolean NOT NULL DEFAULT true
+);
+CREATE INDEX IF NOT EXISTS dispositivo_brigada_idx ON dispositivo (brigada, activo);
+
+
+-- Intentos fallidos, para frenar a quien pruebe códigos a ciegas. Se guarda la
+-- IP y no el código: registrar los códigos probados sería construir el
+-- diccionario del atacante dentro de la propia base.
+CREATE TABLE IF NOT EXISTS intento_alta (
+  ip          text NOT NULL,
+  cuando      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS intento_alta_idx ON intento_alta (ip, cuando DESC);

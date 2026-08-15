@@ -283,6 +283,7 @@ label.acepto>span{display:inline;font-weight:400;font-size:14px;margin:0;color:v
     {% if rol == 'admin' %}<a href="/admin/ciudadano" class="{{ 'on' if pag=='ciudadano' }}">Ciudadanos</a>{% endif %}
     {% if rol == 'admin' %}<a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>{% endif %}
     <a href="/admin/inspectores" class="{{ 'on' if pag=='inspectores' }}">Inspectores</a>
+    <a href="/admin/telefonos" class="{{ 'on' if pag=='telefonos' }}">Teléfonos</a>
     {% if rol == 'admin' %}<a href="/admin/solicitudes" class="{{ 'on' if pag=='solicitudes' }}">Solicitudes</a>{% endif %}
     <a href="/admin/salir" class="salir">Salir{% if rol == 'coordinador' %} · {{ quien }}{% endif %}</a>
   </nav>
@@ -4011,3 +4012,196 @@ def eventos_municipios_contacto(req: Request, id: str = Form(...), cod: str = Fo
         txt = "Contacto retirado. La guía dejará de publicar un teléfono ahí."
     return RedirectResponse(f"/admin/eventos/municipios?id={urllib.parse.quote(id)}"
                             f"&aviso={urllib.parse.quote(txt)}", status_code=303)
+
+
+# ═══════════════════════════════════════════════════ incorporar teléfonos
+#
+# Configurar un telefono exigia teclear 48 caracteres hexadecimales, por aparato.
+# Esa era la razon por la que una brigada nueva tardaba una tarde en arrancar, y
+# por la que quien administra el sistema quedaba en el camino critico de cada
+# incorporacion.
+#
+# Lo abre `exigir()` y NO `exigir_admin()`: un coordinador tiene que poder
+# incorporar a su propia gente sin pedirle permiso a nadie. El alcance sale de
+# `alcance_brigada()`, asi que solo ve y toca su brigada.
+
+HORAS_CODIGO = 48
+
+
+TELEFONOS_HTML = """
+<h1>Incorporar teléfonos</h1>
+{% if aviso %}<div class="aviso ok">{{ aviso }}</div>{% endif %}
+{% if error %}<div class="aviso alerta">{{ error }}</div>{% endif %}
+
+{% if nuevo %}
+<div class="tarjeta" style="border:2px solid var(--azul)">
+  <p class="rotulo" style="margin-top:0">Código de incorporación</p>
+  <p style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:44px;
+     font-weight:800;letter-spacing:.14em;margin:6px 0">{{ nuevo.codigo }}</p>
+  <p>Para <strong>{{ nuevo.brigada }}</strong> · sirve {{ nuevo.usos_max }} veces ·
+     vence el {{ nuevo.vence|hora }}.</p>
+  <p class="nota" style="margin-bottom:0">Dígaselo a cada inspector: abren la aplicación,
+    van a <strong>Ajustes → Incorporar este teléfono</strong> y lo escriben. No hay que
+    teclear ningún token. Se puede dictar por teléfono: no lleva ceros ni oes, ni unos ni eles.</p>
+</div>
+{% endif %}
+
+<div class="tarjeta">
+  <h2 style="margin-top:0">Generar un código</h2>
+  <form method="post" action="/admin/telefonos" style="display:grid;gap:10px;
+        grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:end">
+    {% if brigadas|length > 1 %}
+    <label style="margin:0"><span>Brigada</span>
+      <select name="brigada">{% for b in brigadas %}<option>{{ b }}</option>{% endfor %}</select></label>
+    {% else %}<input type="hidden" name="brigada" value="{{ brigadas[0] }}">{% endif %}
+    <label style="margin:0"><span>¿Para cuántos teléfonos?</span>
+      <input name="usos" type="number" min="1" max="200" value="10"></label>
+    <label style="margin:0"><span>Vence en (horas)</span>
+      <input name="horas" type="number" min="1" max="720" value="{{ horas }}"></label>
+    <button class="btn btn-p">Generar</button>
+  </form>
+  <p class="nota" style="margin:10px 0 0">Un código no es un token: <strong>vence, se
+    agota y se puede anular</strong>. Por eso se puede dictar en voz alta sin que eso
+    sea un problema.</p>
+</div>
+
+{% if codigos %}
+<div class="tarjeta">
+  <h2 style="margin-top:0">Códigos vigentes</h2>
+  <div class="desplaza"><table>
+    <thead><tr><th>Código</th><th>Brigada</th><th class="num">Usos</th><th>Vence</th><th></th></tr></thead>
+    <tbody>
+    {% for c in codigos %}<tr>
+      <td style="font-family:ui-monospace,Menlo,monospace;font-weight:700;letter-spacing:.08em">{{ c.codigo }}</td>
+      <td>{{ c.brigada }}</td>
+      <td class="num">{{ c.usos }} de {{ c.usos_max }}</td>
+      <td class="nota">{{ c.vence|hora }}</td>
+      <td><form method="post" action="/admin/telefonos/anular">
+        <input type="hidden" name="codigo" value="{{ c.codigo }}">
+        <button class="btn btn-s">Anular</button></form></td>
+    </tr>{% endfor %}
+    </tbody></table></div>
+</div>
+{% endif %}
+
+<div class="tarjeta">
+  <h2 style="margin-top:0">Teléfonos incorporados</h2>
+  {% if not dispositivos %}
+  <p class="nota" style="margin:0">Ninguno todavía. Los teléfonos configurados con el token
+    de la brigada no aparecen acá: siguen funcionando igual, pero no se pueden dar de baja
+    de a uno.</p>
+  {% else %}
+  <div class="desplaza"><table>
+    <thead><tr><th>Teléfono</th><th>Brigada</th><th>Incorporado</th><th>Último envío</th><th></th></tr></thead>
+    <tbody>
+    {% for d in dispositivos %}<tr class="{{ 'apagado' if not d.activo }}">
+      <td>{{ d.alias or "sin nombre" }}{% if not d.activo %} <span class="pastilla">de baja</span>{% endif %}</td>
+      <td>{{ d.brigada }}</td>
+      <td class="nota">{{ d.creado|hora }}</td>
+      <td class="nota">{{ d.ultimo|hora if d.ultimo else "nunca" }}</td>
+      <td>{% if d.activo %}<form method="post" action="/admin/telefonos/baja"
+             onsubmit="return confirm('Dar de baja este teléfono. Deja de poder enviar en el acto; lo que ya envió se conserva.')">
+        <input type="hidden" name="id" value="{{ d.id }}">
+        <button class="btn btn-s">Dar de baja</button></form>{% endif %}</td>
+    </tr>{% endfor %}
+    </tbody></table></div>
+  <p class="nota" style="margin:10px 0 0">Dar de baja un teléfono <strong>no borra nada</strong>
+    de lo que envió: solo deja de aceptarle envíos nuevos. Es lo que se hace cuando un
+    aparato se pierde, y antes obligaba a rotar el token de toda la brigada.</p>
+  {% endif %}
+</div>
+"""
+
+
+def _brigadas_alcance(req: Request):
+    """Las brigadas que esta sesión puede tocar. Un coordinador, la suya y nada más."""
+    alc = alcance_brigada(req)
+    if alc:
+        return [alc]
+    return [f[0] for f in consulta("SELECT nombre FROM brigada WHERE activa ORDER BY nombre")]
+
+
+def _pag_telefonos(req, nuevo=None, aviso=None, error=None):
+    ses = exigir(req)
+    brigadas = _brigadas_alcance(req)
+    if not brigadas:
+        return pagina("Teléfonos", render(TELEFONOS_HTML, brigadas=[], codigos=[],
+                                          dispositivos=[], nuevo=None, horas=HORAS_CODIGO,
+                                          aviso=None,
+                                          error="No hay ninguna brigada activa todavía."),
+                      "telefonos", ses=ses)
+    cods = consulta("""SELECT codigo, brigada, usos, usos_max, vence_en
+                         FROM codigo_alta
+                        WHERE brigada = ANY(%s) AND NOT anulado
+                          AND vence_en > now() AND usos < usos_max
+                        ORDER BY creado_en DESC""", (brigadas,))
+    disp = consulta("""SELECT id, alias, brigada, creado_en, ultimo_uso, activo
+                         FROM dispositivo
+                        WHERE brigada = ANY(%s)
+                        ORDER BY activo DESC, ultimo_uso DESC NULLS LAST""", (brigadas,))
+    return pagina("Teléfonos",
+                  render(TELEFONOS_HTML, brigadas=brigadas, horas=HORAS_CODIGO,
+                         codigos=[{"codigo": c[0], "brigada": c[1], "usos": c[2],
+                                   "usos_max": c[3], "vence": c[4]} for c in cods],
+                         dispositivos=[{"id": d[0], "alias": d[1], "brigada": d[2],
+                                        "creado": d[3], "ultimo": d[4], "activo": d[5]}
+                                       for d in disp],
+                         nuevo=nuevo, aviso=aviso, error=error),
+                  "telefonos", ses=ses)
+
+
+@router.get("/admin/telefonos", response_class=HTMLResponse)
+def telefonos(req: Request):
+    return _pag_telefonos(req)
+
+
+@router.post("/admin/telefonos", response_class=HTMLResponse)
+def telefonos_generar(req: Request, brigada: str = Form(...), usos: int = Form(10),
+                      horas: int = Form(HORAS_CODIGO)):
+    ses = exigir(req)
+    # La brigada no se acepta como viene: se fuerza al alcance. Sin esto, un
+    # coordinador podria emitir un codigo para otra brigada mandando el nombre a
+    # mano, y con el, incorporar un telefono que lee las evaluaciones de esa otra.
+    permitidas = _brigadas_alcance(req)
+    if brigada not in permitidas:
+        return _pag_telefonos(req, error="No puede generar códigos para esa brigada.")
+    import api_brigadas
+    usos = max(1, min(usos, 200))
+    horas = max(1, min(horas, 720))
+    # Se reintenta ante choque de código: son 31^8 combinaciones, así que pasa
+    # practicamente nunca, pero "practicamente nunca" no es "nunca".
+    for _ in range(5):
+        codigo = api_brigadas.generar_codigo()
+        try:
+            consulta("""INSERT INTO codigo_alta (codigo, brigada, creado_por, vence_en,
+                                                 usos_max)
+                        VALUES (%s,%s,%s, now() + make_interval(hours => %s), %s)""",
+                     (codigo, brigada, ses.usuario, horas, usos))
+            break
+        except Exception:
+            codigo = None
+    if not codigo:
+        return _pag_telefonos(req, error="No se pudo generar el código. Intente otra vez.")
+    fila = consulta("SELECT vence_en FROM codigo_alta WHERE codigo = %s", (codigo,))
+    return _pag_telefonos(req, nuevo={"codigo": codigo, "brigada": brigada,
+                                      "usos_max": usos, "vence": fila[0][0]})
+
+
+@router.post("/admin/telefonos/anular", response_class=HTMLResponse)
+def telefonos_anular(req: Request, codigo: str = Form(...)):
+    exigir(req)
+    permitidas = _brigadas_alcance(req)
+    consulta("UPDATE codigo_alta SET anulado = true WHERE codigo = %s AND brigada = ANY(%s)",
+             (codigo, permitidas))
+    return _pag_telefonos(req, aviso="Código anulado. Los teléfonos que ya se "
+                                     "incorporaron con él siguen funcionando.")
+
+
+@router.post("/admin/telefonos/baja", response_class=HTMLResponse)
+def telefonos_baja(req: Request, id: str = Form(...)):
+    exigir(req)
+    permitidas = _brigadas_alcance(req)
+    consulta("UPDATE dispositivo SET activo = false WHERE id = %s AND brigada = ANY(%s)",
+             (id, permitidas))
+    return _pag_telefonos(req, aviso="Teléfono dado de baja. Deja de poder enviar; lo "
+                                     "que ya había enviado se conserva.")
