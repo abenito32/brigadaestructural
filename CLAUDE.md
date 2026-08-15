@@ -186,6 +186,46 @@ al enviar la evaluación **la visita se cierra sola**.
   cinco horas adelantado, incluido `revision_vence`. Toda fecha que vea una persona pasa
   por ese filtro (`BRIGADA_ZONA`, por defecto `America/Bogota`). `jornada` no: es un `DATE`.
 
+### Reporte ciudadano (`ciudadano.brigadaestructural.co`)
+
+La única entrada que **no firma un profesional**. Es un insumo para decidir a dónde
+mandar una brigada, nunca una evaluación: no produce clasificación, no escribe en
+`evaluacion_brigada`, no entra en `consolidado_publico`.
+
+- **Origen separado, y no una ruta bajo el dominio principal.** `/app/` es el único
+  origen cuya IndexedDB guarda evaluaciones pendientes y direcciones de rutas
+  despachadas. La página del ciudadano es la única superficie pública sin token; en
+  el mismo origen, un XSS ahí podría leer ese almacenamiento.
+- **`api_ciudadano.py` es proceso y pool aparte**, no una ruta más del uvicorn de
+  :8004 que comparten `api_brigadas`/`api_consulta`/`admin_web`. Una avalancha
+  pública —la que llega sola tras un sismo, o la que manda alguien— consumiría las
+  conexiones de las que depende un teléfono en la calle, y con `ESPERA_POOL=5` el
+  inspector recibiría 503.
+- **El municipio lo ELIGE la persona; no se deduce de la coordenada.** Los
+  centroides del DANE ponen una casa de Suba en Cota y una de Bosa en Soacha, y el
+  municipio decide a qué autoridad se manda a alguien.
+- **La coordenada se guarda solo si `en_sitio`.** Tras un sismo la gente evacuó: un
+  GPS tomado sin preguntar registra el albergue, no la casa dañada, y produce
+  racimos alrededor de los albergues que nadie sabría leer.
+- **Sin evento activo se muestra la guía y no el formulario.** Un formulario abierto
+  que nadie lee le hace creer a una persona que ya hizo lo que tenía que hacer.
+  Un solo evento activo a la vez, garantizado por índice único parcial.
+- **El contacto local se muestra solo verificado y con la fecha a la vista.** Un
+  `CHECK` impide guardarlo a medias. La línea nacional no vive en esa tabla: no
+  caduca. Un teléfono muerto en plena emergencia es peor que ninguno.
+- **EXIF borrado al recibir** (`sin_exif()`, a mano, sin Pillow): las fotos de
+  celular traen la coordenada de dónde se tomaron, que la persona no sabe que está
+  mandando. Se conservan APP0/JFIF y APP2/ICC; solo se cae APP1.
+- **El cupo de fotos es por evento** (`evento.fotos_bytes`, contado en la misma
+  transacción). Agotado, **el reporte entra sin fotos**: nunca se pierde el reporte,
+  que es lo único que la persona no va a volver a llenar.
+- **La respuesta solo devuelve el folio.** Ni clasificación, ni prioridad, ni si
+  escaló: devolver eso convertiría el formulario en un dictamen automático sobre una
+  vivienda. Y **el folio no es consultable**: un endpoint que lo resuelva convierte
+  una tanda de folios adivinados en una lista de casas dañadas y vacías.
+- **El teléfono va en `reservado`** y se purga al cerrar el evento. Nada depende de
+  que esa columna tenga contenido.
+
 ### Invariantes del receptor (no romper)
 
 - **Nunca 200 sin haber grabado.** Ante cualquier fallo de BD devuelve 503. Con un 200

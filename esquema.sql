@@ -671,3 +671,193 @@ WHERE v.estado = 'pendiente'
   AND r.estado = 'despachada'
   AND r.vence_en < now()
 ORDER BY r.vence_en;
+
+
+-- ===========================================================================
+-- Reporte ciudadano
+-- ===========================================================================
+--
+-- La única entrada al sistema que NO firma un profesional. Quien reporta es la
+-- persona que vive en el inmueble, sin matrícula y sin cuenta.
+--
+-- Todo lo que sigue existe para sostener una frontera: esto es un INSUMO para
+-- decidir a dónde mandar una brigada, y NUNCA una evaluación. No produce
+-- clasificación, no alimenta `evaluacion_brigada`, no entra en
+-- `consolidado_publico` y no sale en ninguna exportación a autoridades. Lo que
+-- se entrega sigue saliendo solo de lo que firmó un ingeniero en sitio.
+--
+-- Se acota por EVENTO a propósito. El subdominio existe los 365 días del año y
+-- la mayoría de esos días no hay sismo: un formulario abierto sin nadie leyendo
+-- del otro lado recoge reportes que le hacen creer a una persona que ya hizo lo
+-- que tenía que hacer. Sin evento activo la guía se muestra y el formulario no.
+
+CREATE TABLE IF NOT EXISTS evento (
+  id            text PRIMARY KEY,                 -- ULID del servidor
+  nombre        text NOT NULL,                    -- "Sismo del 10 de agosto de 2026"
+  descripcion   text,
+  ocurrido_en   timestamptz NOT NULL,
+  estado        text NOT NULL DEFAULT 'borrador'
+                CHECK (estado IN ('borrador','activo','cerrado')),
+  -- Al cerrarlo se purgan los datos de contacto de sus reportes. La fecha queda
+  -- como constancia de que la purga corrió.
+  cerrado_en    timestamptz,
+  purgado_en    timestamptz,
+  creado_en     timestamptz NOT NULL DEFAULT now(),
+  creado_por    text NOT NULL,                    -- 'admin'; los eventos no los declara un coordinador
+  -- Cupo de disco para las fotos de ESTE evento. Un canal público de subida de
+  -- imágenes llena un disco más rápido de lo que uno cree, y es el mismo disco
+  -- del que dependen las evaluaciones firmadas: el tope va por evento y no solo
+  -- por petición.
+  cupo_fotos_mb int NOT NULL DEFAULT 2048,
+  -- Lo consumido, contado en la misma transacción que inserta el reporte. Medir
+  -- el directorio en cada petición sería un recorrido de disco por reporte; y
+  -- estimarlo dejaría el tope como una sugerencia.
+  fotos_bytes   bigint NOT NULL DEFAULT 0
+);
+ALTER TABLE evento ADD COLUMN IF NOT EXISTS fotos_bytes bigint NOT NULL DEFAULT 0;
+
+-- Solo un evento activo a la vez. Con dos, un reporte no sabría a cuál pertenece
+-- y la página no sabría cuál guía mostrar.
+CREATE UNIQUE INDEX IF NOT EXISTS evento_activo_idx
+  ON evento ((estado)) WHERE estado = 'activo';
+
+
+-- Dónde está abierto el formulario, y a quién se manda a la gente de ahí.
+--
+-- La lista es corta a propósito: son los municipios afectados de UN evento, no
+-- los 1.122 del país. Ese es justamente el motivo de que el directorio de
+-- autoridades sea mantenible — un directorio nacional permanente nadie lo
+-- actualiza, y un teléfono muerto en plena emergencia es peor que ninguno.
+CREATE TABLE IF NOT EXISTS evento_municipio (
+  evento        text NOT NULL REFERENCES evento(id) ON DELETE CASCADE,
+  cod_dane      text NOT NULL,                    -- DIVIPOLA; llave estable del municipio
+  municipio     text NOT NULL,                    -- grafía del catálogo, para mostrar
+  gravedad      text CHECK (gravedad IN ('leve','moderada','grave','critica')),
+  -- El contacto local. Se muestra SOLO si alguien lo verificó, y con la fecha a
+  -- la vista: quien lea la página tiene que poder juzgar qué tan viejo es el
+  -- dato antes de marcar. Sin verificar, la guía dice qué buscar y no a quién
+  -- llamar; la línea nacional se muestra siempre y no vive acá.
+  entidad       text,
+  telefono      text,
+  verificado_en date,
+  verificado_por text,
+  notas         text,
+  PRIMARY KEY (evento, cod_dane)
+);
+
+-- Un contacto sin fecha de verificación no se puede mostrar, así que tampoco se
+-- puede guardar a medias: o está completo o no está.
+ALTER TABLE evento_municipio DROP CONSTRAINT IF EXISTS evento_municipio_contacto_check;
+ALTER TABLE evento_municipio ADD CONSTRAINT evento_municipio_contacto_check
+  CHECK ((entidad IS NULL AND telefono IS NULL AND verificado_en IS NULL)
+      OR (entidad IS NOT NULL AND telefono IS NOT NULL AND verificado_en IS NOT NULL));
+
+
+CREATE TABLE IF NOT EXISTS reporte_ciudadano (
+  id            text PRIMARY KEY,                 -- ULID del servidor
+  -- El folio que se le da a la persona: RC-AAAAMMDD-NNNN. Es para que pueda
+  -- referirse a su reporte, NO para consultarlo: no hay endpoint que lo devuelva.
+  -- Un folio consultable convierte una tanda de folios adivinados en una lista
+  -- de casas dañadas y vacías.
+  folio         text NOT NULL UNIQUE,
+  evento        text NOT NULL REFERENCES evento(id),
+  recibido_en   timestamptz NOT NULL DEFAULT now(),
+
+  -- Ubicación. El municipio lo ELIGE la persona de un catálogo; no se deduce de
+  -- la coordenada. Los centroides del DANE ponen una casa de Suba en Cota y una
+  -- de Bosa en Soacha, y acá el municipio decide a qué autoridad se manda a
+  -- alguien: no puede salir de una aproximación.
+  cod_dane      text NOT NULL,
+  municipio     text NOT NULL,
+  direccion     text NOT NULL,
+  barrio        text,
+  -- El punto, SOLO si la persona dijo estar frente al inmueble. Es la corrección
+  -- al error de origen del módulo: después de un sismo la gente evacuó, y un GPS
+  -- tomado sin preguntar registra el albergue donde está parada, no la casa
+  -- dañada. Un racimo de reportes alrededor de un albergue no lo detecta nadie.
+  geom          geometry(Point,4326),
+  precision_m   int,
+  en_sitio      boolean NOT NULL DEFAULT false,
+
+  -- Las respuestas. Siete que deciden algo (tres escalan, dos arman el patrón de
+  -- cuadra, dos dan contexto) y lo demás opcional. Cada pregunta de más es gente
+  -- que abandona a mitad, y quien llena esto está asustado y con el teléfono en
+  -- las últimas.
+  respuestas    jsonb NOT NULL,
+  relato        text,                             -- "¿quiere agregar algo más?"
+  fotos         text[] NOT NULL DEFAULT '{}',     -- rutas en disco, nunca base64
+
+  -- Compartimento reservado, igual que el de `evaluacion_brigada`: el teléfono
+  -- de quien reporta. Fuera del CSV, del GeoJSON y del consolidado. Se BORRA al
+  -- cerrar el evento —la lista de "casa dañada + dueño" deja de existir sola—,
+  -- y por eso el reporte tiene que sobrevivir sin él: nada acá depende de que
+  -- esta columna tenga contenido.
+  reservado     jsonb,
+
+  -- Triaje del panel. `escalado` lo pone el servidor por reglas simples sobre
+  -- las respuestas: inclinación, colapso parcial u olor a gas. NO es una
+  -- clasificación de habitabilidad y no se le muestra jamás a quien reporta.
+  escalado      boolean NOT NULL DEFAULT false,
+  motivo_escalado text,
+  estado        text NOT NULL DEFAULT 'nuevo'
+                CHECK (estado IN ('nuevo','en_ruta','descartado','duplicado')),
+  visita        text REFERENCES visita(id),       -- si se convirtió en parada de una ruta
+  revisado_por  text,
+  revisado_en   timestamptz,
+  nota_interna  text
+);
+
+COMMENT ON TABLE reporte_ciudadano IS
+  'Insumo para decidir a dónde ir. NO es una evaluación: no produce clasificación '
+  'de habitabilidad ni entra en consolidado_publico. Ver el bloque "Reporte '
+  'ciudadano" en esquema.sql.';
+COMMENT ON COLUMN reporte_ciudadano.reservado IS
+  'Datos de contacto de quien reporta (Ley 1581/2012). No exponer fuera de la '
+  'ficha individual. Se purga al cerrar el evento.';
+
+CREATE INDEX IF NOT EXISTS reporte_ciudadano_evento_idx
+  ON reporte_ciudadano (evento, estado, recibido_en DESC);
+CREATE INDEX IF NOT EXISTS reporte_ciudadano_mun_idx
+  ON reporte_ciudadano (evento, cod_dane);
+CREATE INDEX IF NOT EXISTS reporte_ciudadano_geom_idx
+  ON reporte_ciudadano USING gist (geom);
+CREATE INDEX IF NOT EXISTS reporte_ciudadano_escalado_idx
+  ON reporte_ciudadano (evento, recibido_en DESC) WHERE escalado;
+
+
+-- El quinto modo de armar una ruta. Los cuatro anteriores salían de decisiones
+-- del coordinador; este sale de lo que reportó la gente.
+ALTER TABLE ruta DROP CONSTRAINT IF EXISTS ruta_armado_check;
+ALTER TABLE ruta ADD CONSTRAINT ruta_armado_check
+  CHECK (armado IN ('manual','area','revisita','csv','ciudadano'));
+
+
+-- La cola del panel, ya agrupada. El valor no está en los reportes sueltos: está
+-- en que diecinueve casas contiguas digan lo mismo, que es lo que separa el
+-- movimiento del suelo —o de un edificio vecino— del daño aislado. Un humano no
+-- ve eso en una lista de 472 filas.
+--
+-- Se agrupa por barrio dentro de municipio y no por distancia: el barrio es lo
+-- que la gente escribe y lo que una brigada usa para caminar. Sin barrio cae en
+-- '(sin barrio)', que es su propio racimo y no se mezcla con nadie.
+DROP VIEW IF EXISTS racimos_ciudadanos;
+CREATE VIEW racimos_ciudadanos AS
+SELECT evento, cod_dane, municipio,
+       coalesce(nullif(btrim(barrio),''), '(sin barrio)') AS sector,
+       count(*)                                             AS reportes,
+       count(*) FILTER (WHERE escalado)                     AS escalados,
+       count(*) FILTER (WHERE estado = 'nuevo')             AS sin_revisar,
+       count(*) FILTER (WHERE estado = 'en_ruta')           AS en_ruta,
+       -- Las dos señales que hacen el patrón de cuadra. Juntas y en varias casas
+       -- contiguas dicen algo que ninguna casa sola dice.
+       count(*) FILTER (WHERE respuestas->>'puertas' = 'si')       AS puertas_trabadas,
+       count(*) FILTER (WHERE respuestas->>'grietas_nuevas' = 'si') AS grietas_nuevas,
+       min(recibido_en)                                     AS primero,
+       max(recibido_en)                                     AS ultimo,
+       -- Para centrar el mapa. Solo con los que se tomaron en sitio: promediar
+       -- puntos de albergues correría el racimo a otro lado de la ciudad.
+       avg(ST_Y(geom)) FILTER (WHERE en_sitio)              AS lat,
+       avg(ST_X(geom)) FILTER (WHERE en_sitio)              AS lon
+FROM reporte_ciudadano
+WHERE estado <> 'descartado'
+GROUP BY evento, cod_dane, municipio, sector;
