@@ -85,9 +85,10 @@ RESPUESTAS_VALIDAS = {"si", "no", "nose"}
 # persona puede observar sin criterio tecnico, y NO una clasificacion: no se le
 # muestra a quien reporta y no se parece a un semaforo. Un dictamen automatico
 # nunca llega al ciudadano; la app calcula, el ingeniero decide.
+# Texto CON tildes: esto lo lee una persona en el panel, no es un comentario.
 REGLAS_ESCALADO = {
-    "colapso": "se cayo una parte de la edificacion",
-    "inclinacion": "la edificacion se ve inclinada",
+    "colapso": "se cayó una parte de la edificación",
+    "inclinacion": "la edificación se ve inclinada",
     "gas": "olor a gas",
 }
 

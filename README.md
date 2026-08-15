@@ -15,6 +15,7 @@ No es auto-reporte ciudadano. Quien llena el formulario es el inspector, en siti
 /api/        el receptor
 /sw.js       desactivador del service worker viejo — no borrar
 admin.<dominio>   el panel, en origen separado
+ciudadano.<dominio>   el reporte ciudadano, en origen separado
 ```
 
 ### 1. Los estáticos
@@ -125,6 +126,89 @@ del terreno vacíe su cola de una vez— y 30 por minuto sostenido. Al pasarse r
 El receptor devuelve **503 y no 200** si no pudo grabar. Es deliberado: con un 200
 la app marcaría la evaluación como enviada y borraría el pendiente, perdiéndola sin
 que nadie se entere. Con 503 el registro sobrevive en el teléfono y se reintenta.
+
+## El reporte ciudadano (subdominio aparte)
+
+La única entrada que **no firma un profesional**: la persona que vive en el inmueble
+registra que existe y qué se ve. Es un insumo para decidir a dónde mandar una
+brigada, **nunca una evaluación** — no produce clasificación, no escribe en
+`evaluacion_brigada` y no entra en `consolidado_publico`.
+
+Va en **`ciudadano.<dominio>`**, origen separado, y no en una ruta del dominio
+principal. La razón no es estética: `/app/` es el único origen cuya IndexedDB
+guarda evaluaciones pendientes y las direcciones de rutas despachadas, y esta
+página es la única superficie pública y sin token del sistema. En el mismo origen,
+un XSS acá podría leer ese almacenamiento.
+
+Se acota por **evento**. El subdominio existe los 365 días del año y la mayoría de
+esos días no hay sismo: sin evento activo se muestra la guía y **no** el
+formulario. Un formulario abierto que nadie lee le hace creer a alguien que ya hizo
+lo que tenía que hacer, y le consume la única acción que iba a tomar ese día. El
+formulario se abre además solo en los municipios donde hay una brigada operando
+(`evento_municipio.formulario_abierto`); en los demás el municipio igual aparece,
+con su contacto, porque la guía sirve ahí.
+
+```bash
+sudo cp brigadas-ciudadano.service.example /etc/systemd/system/brigadas-ciudadano.service
+sudo mkdir -p /var/lib/brigadas/fotos-ciudadano
+sudo chown brigadas:brigadas /var/lib/brigadas/fotos-ciudadano
+# en /etc/brigadas.env:
+#   BRIGADA_DSN_CIUDADANO=postgresql://ciudadano:...@127.0.0.1:5433/brigadas
+#   BRIGADA_FOTOS_CIUDADANO=/var/lib/brigadas/fotos-ciudadano
+sudo systemctl daemon-reload && sudo systemctl enable --now brigadas-ciudadano
+```
+
+`BRIGADA_DSN_CIUDADANO` debería apuntar a un **rol restringido** a `evento`,
+`evento_municipio` y `reporte_ciudadano`. Así la frontera con el lado profesional
+se sostiene sola aunque alguien escriba mal una consulta dentro de seis meses. Si
+falta, el servicio cae a `BRIGADA_DSN` para no bloquear un despliegue de
+emergencia — mismo comportamiento, menos garantías.
+
+```nginx
+# La zona va en conf.d/brigadas-limites.conf, con el resto. La clave es la IP
+# porque acá no hay token: es la única que hay.
+limit_req_zone $binary_remote_addr zone=ciudadano:10m rate=20r/m;
+
+server {
+    server_name ciudadano.ejemplo.org;
+    root /var/www/brigadaestructural/ciudadano;
+    index index.html;
+
+    location /api/ {
+        limit_req  zone=ciudadano burst=10 nodelay;
+        proxy_pass http://127.0.0.1:8005;     # el servicio del ciudadano, NO el 8004
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        client_max_body_size 10M;             # hasta 3 fotos ya reducidas
+    }
+
+    # Sin service worker y sin manifest: esta página es suelta a propósito.
+    location / { try_files $uri $uri/ =404; }
+}
+```
+
+El primer evento se declara por SQL mientras no exista la pantalla de admin:
+
+```sql
+INSERT INTO evento (id, nombre, ocurrido_en, estado, creado_por)
+VALUES ('01J...', 'Sismo del 10 de agosto de 2026', '2026-08-10 07:34-05', 'activo', 'admin');
+
+-- Con brigada operando: el formulario se abre acá.
+INSERT INTO evento_municipio (evento, cod_dane, municipio, gravedad, formulario_abierto,
+                              entidad, telefono, verificado_en, verificado_por)
+VALUES ('01J...', '66001', 'Pereira', 'critica', true,
+        'Gestión del Riesgo de Pereira', '606 000 0000', '2026-08-14', 'andres');
+
+-- Afectado pero sin brigada: sale en la guía, sin formulario. El contacto es
+-- todo-o-nada: o van entidad, teléfono y fecha, o no va ninguno.
+INSERT INTO evento_municipio (evento, cod_dane, municipio, gravedad)
+VALUES ('01J...', '27600', 'San José del Palmar', 'critica');
+```
+
+**Un teléfono sin verificar no se publica.** La línea nacional se muestra siempre
+porque no caduca; el contacto local solo aparece con la fecha de verificación a la
+vista, para que quien lo lea pueda juzgar qué tan viejo es el dato antes de marcar.
+Un número muerto en plena emergencia es peor que ninguno.
 
 ## Material
 

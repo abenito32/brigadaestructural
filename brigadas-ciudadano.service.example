@@ -1,0 +1,45 @@
+# Copiar a /etc/systemd/system/brigadas-ciudadano.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now brigadas-ciudadano
+#
+# SERVICIO APARTE, y no una ruta mas de brigadas-api. Este es el unico endpoint
+# publico y sin credencial del sistema: por aca entra la avalancha que llega sola
+# despues de un sismo, y la que manda alguien a proposito. Compartiendo proceso,
+# esa avalancha se llevaria las conexiones del pool de las que depende un telefono
+# parado en la calle intentando sincronizar la jornada —y con ESPERA_POOL=5 el
+# inspector recibiria un 503—. Separado, esto se satura entero sin que la brigada
+# se entere, y systemd lo reinicia solo.
+#
+# El archivo de entorno va aparte (root:root 0600) porque este unit es
+# world-readable y no puede contener el DSN.
+[Unit]
+Description=Brigadas · receptor del reporte ciudadano
+After=network.target
+
+[Service]
+Type=simple
+User=brigadas
+Group=brigadas
+WorkingDirectory=/opt/brigadas
+EnvironmentFile=/etc/brigadas.env
+ExecStart=/opt/brigadas/venv/bin/uvicorn api_ciudadano:app --host 127.0.0.1 --port 8005
+Restart=always
+RestartSec=5
+
+# Las fotos del ciudadano van a SU PROPIO directorio, no al de las evaluaciones.
+# Son material sin firmar y de origen publico: mezclarlos obligaria a mirar dos
+# veces cada vez que alguien exporta o respalda "las fotos".
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/brigadas/fotos-ciudadano
+
+# Un canal publico de subida de imagenes es la forma mas facil de llenar un disco.
+# El cupo por evento lo controla la aplicacion; esto es el segundo cinturon, para
+# que un proceso desbocado no se lleve por delante al resto del servidor —que es
+# compartido con otros servicios—.
+MemoryMax=512M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

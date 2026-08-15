@@ -20,6 +20,7 @@ import base64
 import hashlib
 import json
 import pathlib
+import urllib.parse
 from typing import NamedTuple
 import hmac
 import os
@@ -278,6 +279,7 @@ label.acepto>span{display:inline;font-weight:400;font-size:14px;margin:0;color:v
     <a href="/admin/reportes" class="{{ 'on' if pag=='reportes' }}">Reportes</a>
     <a href="/admin/exportar" class="{{ 'on' if pag=='exportar' }}">Exportar</a>
     <a href="/admin/rojos" class="{{ 'on' if pag=='rojos' }}">Revisión</a>
+    {% if rol == 'admin' %}<a href="/admin/ciudadano" class="{{ 'on' if pag=='ciudadano' }}">Ciudadanos</a>{% endif %}
     {% if rol == 'admin' %}<a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>{% endif %}
     <a href="/admin/inspectores" class="{{ 'on' if pag=='inspectores' }}">Inspectores</a>
     {% if rol == 'admin' %}<a href="/admin/solicitudes" class="{{ 'on' if pag=='solicitudes' }}">Solicitudes</a>{% endif %}
@@ -3388,3 +3390,243 @@ def historia_deshacer(req: Request, id: str = Form(...), vieja: str = Form(...))
                   WHERE id = %s AND reemplazada_por = %s AND {w}""",
              (vieja, id, *wa))
     return _historia(req, id, aviso="Reemplazo deshecho. Las dos vuelven a contar.")
+
+
+# ═════════════════════════════════════════════════════════ reporte ciudadano
+#
+# La cola de lo que reporto la gente. Es un INSUMO para decidir a donde ir, no
+# una evaluacion: no lleva clasificacion, no se mezcla con evaluacion_brigada y
+# no sale en el consolidado.
+#
+# SOLO ADMIN, y no coordinador. Un reporte ciudadano no tiene brigada: atribuirlo
+# por geografia seria adivinar, y adivinar mal significa mostrarle direcciones de
+# ciudadanos a la brigada equivocada. El admin lo reparte.
+#
+# El valor no esta en los reportes sueltos sino en el RACIMO: que diecinueve casas
+# contiguas digan lo mismo es lo que separa el movimiento del suelo —o de un
+# edificio vecino— del daño aislado, y eso un humano no lo ve en una lista de
+# cuatrocientas filas.
+
+MOTIVOS_CIUDADANO = {
+    "colapso": "Se cayó una parte", "inclinacion": "Se ve inclinada",
+    "gas": "Huele a gas", "puertas": "Puertas o ventanas trabadas",
+    "grietas_nuevas": "Grietas nuevas", "pisos": "Más de un piso",
+    "antiguedad": "Más de 30 años", "escaleras": "Escaleras dañadas",
+    "fachada": "Cayó fachada a la calle", "agua": "Agua o tuberías rotas",
+    "vecinos": "Vecinas igual de afectadas"}
+RESP_TXT = {"si": "Sí", "no": "No", "nose": "No sé"}
+# Las tres que mandan una brigada al sitio sin esperar turno. Es el mismo
+# conjunto que aplica api_ciudadano al recibir; aca solo se usa para resaltar.
+REGLAS_PELIGRO = {"colapso", "inclinacion", "gas"}
+
+
+CIUDADANO_HTML = """
+<h1>Reportes ciudadanos</h1>
+{% if not evento %}
+<div class="tarjeta"><p class="nota" style="margin:0">No hay ningún evento activo, así
+  que el formulario público está cerrado y no está entrando nada. La página del
+  ciudadano sigue mostrando la guía y los contactos.</p></div>
+{% else %}
+<p class="nota">{{ evento[1] }} · ocurrió el {{ evento[2]|hora }}</p>
+{% if aviso %}<div class="aviso ok">{{ aviso }}</div>{% endif %}
+
+<div class="cifras">
+  <div class="cifra"><b class="num">{{ t.total }}</b><span>Reportes</span></div>
+  <div class="cifra {{ 'alerta' if t.escalados }}"><b class="num">{{ t.escalados }}</b>
+    <span>Con señal de peligro</span></div>
+  <div class="cifra"><b class="num">{{ t.sin_revisar }}</b><span>Sin revisar</span></div>
+  <div class="cifra"><b class="num">{{ t.sectores }}</b><span>Sectores</span></div>
+</div>
+
+<p class="nota">Lo que sigue son <strong>reportes sin firma profesional</strong>: sirven
+  para decidir a dónde mandar una brigada y no valen como evaluación. Un sector con
+  muchas casas diciendo lo mismo —puertas trabadas y grietas nuevas— sugiere movimiento
+  del terreno o de una construcción vecina, no daño aislado.</p>
+
+{% if not racimos %}
+<div class="tarjeta"><p class="nota" style="margin:0">Todavía no ha llegado ningún
+  reporte.</p></div>
+{% else %}
+<div class="tarjeta">
+  <div class="desplaza"><table>
+    <thead><tr><th>Sector</th><th class="num">Reportes</th><th class="num">Peligro</th>
+      <th class="num">Puertas</th><th class="num">Grietas</th><th>Último</th><th></th></tr></thead>
+    <tbody>
+    {% for r in racimos %}<tr>
+      <td><strong>{{ r.sector }}</strong><br>
+        <span class="nota" style="margin:0">{{ r.municipio }}</span></td>
+      <td class="num">{{ r.reportes }}</td>
+      <td class="num">{% if r.escalados %}<span class="pastilla palerta">{{ r.escalados }}</span>
+        {% else %}0{% endif %}</td>
+      <td class="num">{{ r.puertas }}</td>
+      <td class="num">{{ r.grietas }}</td>
+      <td class="nota">{{ r.ultimo|hora }}</td>
+      <td><a class="btn btn-s" href="/admin/ciudadano/sector?cod={{ r.cod_dane }}&sector={{ r.sector|urlencode }}">Ver</a></td>
+    </tr>{% endfor %}
+    </tbody></table></div>
+</div>
+{% endif %}
+{% endif %}
+"""
+
+
+def _evento_activo():
+    filas = consulta("""SELECT id, nombre, ocurrido_en FROM evento WHERE estado = 'activo'""")
+    return filas[0] if filas else None
+
+
+@router.get("/admin/ciudadano", response_class=HTMLResponse)
+def ciudadano(req: Request, aviso: str = ""):
+    ses = exigir_admin(req)
+    ev = _evento_activo()
+    racimos, t = [], {}
+    if ev:
+        filas = consulta("""SELECT sector, municipio, cod_dane, reportes, escalados,
+                                   sin_revisar, puertas_trabadas, grietas_nuevas, ultimo
+                              FROM racimos_ciudadanos
+                             WHERE evento = %s
+                             ORDER BY escalados DESC, reportes DESC, ultimo DESC""", (ev[0],))
+        racimos = [{"sector": f[0], "municipio": f[1], "cod_dane": f[2], "reportes": f[3],
+                    "escalados": f[4], "sin_revisar": f[5], "puertas": f[6],
+                    "grietas": f[7], "ultimo": f[8]} for f in filas]
+        t = {"total": sum(r["reportes"] for r in racimos),
+             "escalados": sum(r["escalados"] for r in racimos),
+             "sin_revisar": sum(r["sin_revisar"] for r in racimos),
+             "sectores": len(racimos)}
+    return pagina("Reportes ciudadanos",
+                  render(CIUDADANO_HTML, evento=ev, racimos=racimos, t=t,
+                         aviso=aviso or None),
+                  "ciudadano", ses=ses)
+
+
+SECTOR_HTML = """
+<h1>{{ sector }}</h1>
+<p class="nota">{{ municipio }} · <a href="/admin/ciudadano">volver a los sectores</a></p>
+{% if aviso %}<div class="aviso ok">{{ aviso }}</div>{% endif %}
+
+{% for r in filas %}
+<div class="tarjeta">
+  <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
+    <div>
+      <strong>{{ r.direccion }}</strong>
+      {% if r.escalado %}<span class="pastilla palerta">{{ r.motivo_escalado }}</span>{% endif %}
+      {% if r.estado != 'nuevo' %}<span class="pastilla">{{ r.estado }}</span>{% endif %}
+      <div class="nota" style="margin:0">{{ r.folio }} · {{ r.recibido|hora }}</div>
+    </div>
+    <div>
+      {% if r.lat %}<a class="nota" target="_blank" rel="noopener"
+        href="https://www.openstreetmap.org/?mlat={{ r.lat }}&mlon={{ r.lon }}#map=19/{{ r.lat }}/{{ r.lon }}"
+        >ver la coordenada</a>
+      {% else %}<span class="nota">Sin coordenada — no estaba en el inmueble</span>{% endif %}
+    </div>
+  </div>
+
+  <p style="margin:10px 0 4px">
+    {% for k, v in r.respuestas %}
+      <span class="pastilla {{ 'palerta' if v == 'si' and k in peligro else '' }}"
+        >{{ etiquetas.get(k, k) }}: {{ resp_txt.get(v, v) }}</span>
+    {% endfor %}
+  </p>
+  {% if r.relato %}<p class="nota" style="margin:8px 0 0">«{{ r.relato }}»</p>{% endif %}
+  {% if r.telefono %}<p class="nota" style="margin:6px 0 0">Teléfono:
+    <a href="tel:{{ r.telefono }}">{{ r.telefono }}</a> — se borra al cerrar el evento.</p>{% endif %}
+
+  {% if r.fotos %}
+  <div class="fotos-ficha" style="margin-top:10px">
+    {% for i in range(r.fotos) %}
+    <figure class="foto-marco" style="margin:0">
+      <img loading="lazy" alt="Foto {{ i+1 }} del reporte {{ r.folio }}"
+           src="/admin/ciudadano/foto/{{ r.id }}/{{ i }}">
+      <figcaption class="foto-marca">{{ r.folio }} · foto {{ i+1 }}</figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if r.estado == 'nuevo' %}
+  <form method="post" action="/admin/ciudadano/estado" style="display:flex;gap:8px;margin-top:12px">
+    <input type="hidden" name="id" value="{{ r.id }}">
+    <input type="hidden" name="cod" value="{{ cod }}">
+    <input type="hidden" name="sector" value="{{ sector }}">
+    <button class="btn btn-s" name="estado" value="duplicado">Es el mismo predio de otro</button>
+    <button class="btn btn-s" name="estado" value="descartado">Descartar</button>
+  </form>
+  {% endif %}
+</div>
+{% endfor %}
+"""
+
+
+@router.get("/admin/ciudadano/sector", response_class=HTMLResponse)
+def ciudadano_sector(req: Request, cod: str = "", sector: str = "", aviso: str = ""):
+    ses = exigir_admin(req)
+    ev = _evento_activo()
+    if not ev:
+        raise HTTPException(404, "No hay ningún evento activo")
+    # El sector '(sin barrio)' no es un barrio: es el cajón de los que llegaron sin
+    # barrio escrito. Se consulta como IS NULL / vacío, no comparando el rótulo.
+    if sector == "(sin barrio)":
+        cond, args = "coalesce(nullif(btrim(barrio),''),'') = ''", ()
+    else:
+        cond, args = "btrim(barrio) = %s", (sector,)
+    filas = consulta(f"""SELECT id, folio, recibido_en, direccion, respuestas, relato,
+                                escalado, motivo_escalado, estado,
+                                ST_Y(geom), ST_X(geom),
+                                coalesce(array_length(fotos,1), 0),
+                                reservado->>'telefono', municipio
+                           FROM reporte_ciudadano
+                          WHERE evento = %s AND cod_dane = %s AND {cond}
+                            AND estado <> 'descartado'
+                          ORDER BY escalado DESC, recibido_en DESC""",
+                     (ev[0], cod, *args))
+    if not filas:
+        raise HTTPException(404, "No hay reportes en ese sector")
+    datos = [{"id": f[0], "folio": f[1], "recibido": f[2], "direccion": f[3],
+              # Las claves se ordenan poniendo primero las que escalan: es lo que
+              # alguien necesita leer antes de decidir si manda a alguien hoy.
+              "respuestas": sorted((f[4] or {}).items(),
+                                   key=lambda kv: (kv[0] not in REGLAS_PELIGRO, kv[0])),
+              "relato": f[5], "escalado": f[6], "motivo_escalado": f[7], "estado": f[8],
+              "lat": f[9], "lon": f[10], "fotos": f[11], "telefono": f[12]} for f in filas]
+    return pagina(f"{sector}", render(SECTOR_HTML, filas=datos, sector=sector,
+                                      municipio=filas[0][13], cod=cod,
+                                      etiquetas=MOTIVOS_CIUDADANO, resp_txt=RESP_TXT,
+                                      peligro=REGLAS_PELIGRO, aviso=aviso or None),
+                  "ciudadano", ses=ses)
+
+
+@router.post("/admin/ciudadano/estado", response_class=HTMLResponse)
+def ciudadano_estado(req: Request, id: str = Form(...), estado: str = Form(...),
+                     cod: str = Form(""), sector: str = Form("")):
+    exigir_admin(req)
+    if estado not in ("duplicado", "descartado"):
+        raise HTTPException(422, "Estado no válido")
+    # `en_ruta` NO se pone desde acá: eso lo hace el despacho al crear la visita,
+    # y ponerlo a mano dejaría un reporte marcado como atendido sin que exista
+    # ninguna parada que lo respalde.
+    consulta("""UPDATE reporte_ciudadano
+                   SET estado = %s, revisado_por = %s, revisado_en = now()
+                 WHERE id = %s AND estado = 'nuevo'""",
+             (estado, leer_sesion(req.cookies.get("brigada_admin")).usuario, id))
+    destino = (f"/admin/ciudadano/sector?cod={urllib.parse.quote(cod)}"
+               f"&sector={urllib.parse.quote(sector)}&aviso=Reporte+marcado+como+{estado}.")
+    return RedirectResponse(destino, status_code=303)
+
+
+@router.get("/admin/ciudadano/foto/{ident}/{n}")
+def ciudadano_foto(req: Request, ident: str, n: int):
+    """Las fotos del ciudadano, solo dentro del panel.
+
+    Nunca se sirven publicamente: son de origen abierto y sin firmar, y muestran
+    el interior de la casa de alguien. Directorio propio y comprobado, igual que
+    con las de las evaluaciones."""
+    exigir_admin(req)
+    fila = consulta("SELECT fotos FROM reporte_ciudadano WHERE id = %s", (ident,))
+    if not fila or not fila[0][0] or n < 0 or n >= len(fila[0][0]):
+        raise HTTPException(404, "No existe esa foto")
+    import api_ciudadano
+    ruta = pathlib.Path(fila[0][0][n]).resolve()
+    if not ruta.is_file() or api_ciudadano.FOTOS.resolve() not in ruta.parents:
+        raise HTTPException(404, "El archivo ya no está")
+    return Response(ruta.read_bytes(), media_type="image/jpeg",
+                    headers={"Cache-Control": "private, no-store"})
