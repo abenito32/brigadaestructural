@@ -279,6 +279,7 @@ label.acepto>span{display:inline;font-weight:400;font-size:14px;margin:0;color:v
     <a href="/admin/reportes" class="{{ 'on' if pag=='reportes' }}">Reportes</a>
     <a href="/admin/exportar" class="{{ 'on' if pag=='exportar' }}">Exportar</a>
     <a href="/admin/rojos" class="{{ 'on' if pag=='rojos' }}">Revisión</a>
+    {% if rol == 'admin' %}<a href="/admin/eventos" class="{{ 'on' if pag=='eventos' }}">Eventos</a>{% endif %}
     {% if rol == 'admin' %}<a href="/admin/ciudadano" class="{{ 'on' if pag=='ciudadano' }}">Ciudadanos</a>{% endif %}
     {% if rol == 'admin' %}<a href="/admin/brigadas" class="{{ 'on' if pag=='brigadas' }}">Brigadas</a>{% endif %}
     <a href="/admin/inspectores" class="{{ 'on' if pag=='inspectores' }}">Inspectores</a>
@@ -3630,3 +3631,383 @@ def ciudadano_foto(req: Request, ident: str, n: int):
         raise HTTPException(404, "El archivo ya no está")
     return Response(ruta.read_bytes(), media_type="image/jpeg",
                     headers={"Cache-Control": "private, no-store"})
+
+
+# ═══════════════════════════════════════════════════════════ eventos (admin)
+#
+# Declarar un evento es abrir el formulario publico. Es la decision con mas
+# consecuencias del panel, y por eso vive aca y no en un INSERT a mano.
+#
+# Lo importante NO es encender: es APAGAR. Sin evento activo la pagina del
+# ciudadano muestra la guia y ningun formulario, y esa es la posicion correcta
+# la mayor parte del año. Cerrar ademas cumple lo que se le prometio a la gente
+# por escrito —«se borra cuando termine el operativo»— purgando los telefonos.
+
+def _muni_indice():
+    """cod_dane -> nombre, desde DIVIPOLA. La grafia sale de aca y no de lo que
+    escriba nadie: es lo que permite agrupar por sector sin que 'Pereira' y
+    'pereira ' sean dos municipios distintos."""
+    import municipios
+    idx = {}
+    for linea in municipios.MUNICIPIOS:
+        cod, nom, _la, _lo = linea.split("|")
+        idx[cod] = (nom, municipios.DEPARTAMENTOS.get(cod[:2], ""))
+    return idx
+
+
+EVENTOS_HTML = """
+<h1>Eventos</h1>
+{% if aviso %}<div class="aviso ok">{{ aviso }}</div>{% endif %}
+{% if error %}<div class="aviso alerta">{{ error }}</div>{% endif %}
+
+<p class="nota">Un evento es lo que abre el formulario público del ciudadano. Sin
+  ninguno activo, <code>ciudadano.brigadaestructural.co</code> muestra la guía y las
+  autoridades, y no recoge nada — que es lo correcto la mayor parte del año.</p>
+
+<div class="tarjeta">
+  <h2 style="margin-top:0">Declarar uno nuevo</h2>
+  <form method="post" action="/admin/eventos" style="display:grid;gap:10px;
+        grid-template-columns:repeat(auto-fit,minmax(190px,1fr));align-items:end">
+    <label style="margin:0"><span>Nombre</span>
+      <input name="nombre" required maxlength="120" placeholder="Sismo del 10 de agosto de 2026"></label>
+    <label style="margin:0"><span>Cuándo ocurrió</span>
+      <input name="ocurrido" required type="datetime-local"></label>
+    <label style="margin:0"><span>Cupo de fotos (MB)</span>
+      <input name="cupo" type="number" min="0" max="102400" value="2048"></label>
+    <label style="margin:0;grid-column:1/-1"><span>Descripción (opcional)</span>
+      <input name="descripcion" maxlength="300"
+             placeholder="Magnitud 7,4 · epicentro en San José del Palmar, Chocó."></label>
+    <button class="btn btn-p">Crear como borrador</button>
+  </form>
+  <p class="nota" style="margin:10px 0 0">Nace en <strong>borrador</strong>: no abre nada
+    hasta que se active, y no se puede activar sin al menos un municipio con formulario
+    abierto.</p>
+</div>
+
+{% for e in eventos %}
+<div class="tarjeta">
+  <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
+    <div>
+      <h2 style="margin:0">{{ e.nombre }}
+        <span class="pastilla {{ 'palerta' if e.estado=='activo' }}">{{ e.estado }}</span></h2>
+      <div class="nota" style="margin:0">Ocurrió el {{ e.ocurrido|hora }} ·
+        creado por {{ e.creado_por }}
+        {% if e.cerrado %} · cerrado el {{ e.cerrado|hora }}{% endif %}</div>
+      {% if e.descripcion %}<div class="nota" style="margin:4px 0 0">{{ e.descripcion }}</div>{% endif %}
+    </div>
+    <div class="nota" style="text-align:right">
+      {{ e.reportes }} reporte{{ '' if e.reportes == 1 else 's' }} · {{ e.abiertos }} de {{ e.municipios }} municipio{{ '' if e.municipios == 1 else 's' }} con formulario<br>
+      fotos {{ e.fotos_mb }} de {{ e.cupo }} MB
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+    {% if e.estado == 'borrador' %}
+      <form method="post" action="/admin/eventos/estado"><input type="hidden" name="id" value="{{ e.id }}">
+        <button class="btn btn-s" name="estado" value="activo">Activar — abre el formulario público</button></form>
+    {% elif e.estado == 'activo' %}
+      <form method="post" action="/admin/eventos/estado"
+            onsubmit="return confirm('Cerrar el operativo: el formulario público deja de recibir y se BORRAN los teléfonos de quienes reportaron. No se puede deshacer.')">
+        <input type="hidden" name="id" value="{{ e.id }}">
+        <button class="btn btn-s" name="estado" value="cerrado">Cerrar y purgar los teléfonos</button></form>
+    {% endif %}
+    <a class="btn btn-s" href="/admin/eventos/municipios?id={{ e.id }}">Municipios y contactos</a>
+  </div>
+  {% if e.purgado %}<p class="nota" style="margin:8px 0 0">Teléfonos purgados el {{ e.purgado|hora }}.</p>{% endif %}
+</div>
+{% endfor %}
+"""
+
+
+def _eventos_filas():
+    filas = consulta("""
+        SELECT e.id, e.nombre, e.descripcion, e.ocurrido_en, e.estado, e.creado_por,
+               e.cerrado_en, e.purgado_en, e.cupo_fotos_mb, e.fotos_bytes,
+               (SELECT count(*) FROM evento_municipio m WHERE m.evento = e.id),
+               (SELECT count(*) FROM evento_municipio m WHERE m.evento = e.id
+                                                          AND m.formulario_abierto),
+               (SELECT count(*) FROM reporte_ciudadano r WHERE r.evento = e.id)
+          FROM evento e
+         ORDER BY (e.estado = 'activo') DESC, e.ocurrido_en DESC""")
+    return [{"id": f[0], "nombre": f[1], "descripcion": f[2], "ocurrido": f[3],
+             "estado": f[4], "creado_por": f[5], "cerrado": f[6], "purgado": f[7],
+             "cupo": f[8], "fotos_mb": round((f[9] or 0) / 1048576, 1),
+             "municipios": f[10], "abiertos": f[11], "reportes": f[12]} for f in filas]
+
+
+@router.get("/admin/eventos", response_class=HTMLResponse)
+def eventos(req: Request, aviso: str = "", error: str = ""):
+    ses = exigir_admin(req)
+    return pagina("Eventos", render(EVENTOS_HTML, eventos=_eventos_filas(),
+                                    aviso=aviso or None, error=error or None),
+                  "eventos", ses=ses)
+
+
+@router.post("/admin/eventos", response_class=HTMLResponse)
+def eventos_crear(req: Request, nombre: str = Form(...), ocurrido: str = Form(...),
+                  cupo: int = Form(2048), descripcion: str = Form("")):
+    ses = exigir_admin(req)
+    nombre = nombre.strip()
+    if not nombre:
+        return RedirectResponse("/admin/eventos?error=El+nombre+no+puede+ir+vacío.",
+                                status_code=303)
+    from datetime import datetime
+    try:
+        # `ocurrido` viene de un <input datetime-local>: sin zona. Se interpreta en
+        # la zona del panel y no en UTC, que es lo que quiso decir quien lo escribio.
+        cuando = datetime.strptime(ocurrido[:16], "%Y-%m-%dT%H:%M").replace(tzinfo=ZONA)
+    except ValueError:
+        return RedirectResponse("/admin/eventos?error=La+fecha+no+se+entiende.",
+                                status_code=303)
+    import api_brigadas
+    consulta("""INSERT INTO evento (id, nombre, descripcion, ocurrido_en, estado,
+                                    creado_por, cupo_fotos_mb)
+                VALUES (%s,%s,%s,%s,'borrador',%s,%s)""",
+             (api_brigadas.ulid(), nombre[:120], descripcion.strip()[:300] or None,
+              cuando, ses.usuario, max(0, min(cupo, 102400))))
+    return RedirectResponse("/admin/eventos?aviso=Evento+creado+en+borrador.+Agréguele"
+                            "+municipios+antes+de+activarlo.", status_code=303)
+
+
+@router.post("/admin/eventos/estado", response_class=HTMLResponse)
+def eventos_estado(req: Request, id: str = Form(...), estado: str = Form(...)):
+    exigir_admin(req)
+    if estado not in ("activo", "cerrado"):
+        raise HTTPException(422, "Estado no válido")
+    import api_brigadas, psycopg
+    with api_brigadas.pool.connection(timeout=api_brigadas.ESPERA_POOL) as con, con.cursor() as cur:
+        if estado == "activo":
+            # Activar sin municipios abiertos deja la pagina prometiendo un
+            # formulario que no aparece en ningun lado.
+            cur.execute("""SELECT count(*) FROM evento_municipio
+                            WHERE evento = %s AND formulario_abierto""", (id,))
+            if not cur.fetchone()[0]:
+                return RedirectResponse(
+                    "/admin/eventos?error=No+se+puede+activar+sin+al+menos+un+municipio"
+                    "+con+el+formulario+abierto.", status_code=303)
+            try:
+                with con.transaction():
+                    cur.execute("UPDATE evento SET estado='activo' WHERE id=%s AND estado='borrador'", (id,))
+            except psycopg.errors.UniqueViolation:
+                # El indice unico parcial no deja dos activos. Con dos, un reporte
+                # no sabria a cual pertenece y la pagina no sabria que guia mostrar.
+                return RedirectResponse(
+                    "/admin/eventos?error=Ya+hay+un+evento+activo.+Ciérrelo+antes+de"
+                    "+abrir+otro.", status_code=303)
+            return RedirectResponse("/admin/eventos?aviso=Evento+activo.+El+formulario"
+                                    "+público+ya+está+abierto.", status_code=303)
+
+        # Cerrar. La purga del telefono va en la MISMA transaccion que el cierre:
+        # es lo que se le prometio por escrito a cada persona que reporto, y un
+        # cierre que no purga deja la lista de "casa dañada + dueño" viva sin que
+        # nadie se entere. Si algo falla, no se cierra y se vuelve a intentar.
+        cur.execute("""UPDATE reporte_ciudadano SET reservado = NULL
+                        WHERE evento = %s AND reservado IS NOT NULL""", (id,))
+        purgados = cur.rowcount
+        cur.execute("""UPDATE evento SET estado='cerrado', cerrado_en=now(), purgado_en=now()
+                        WHERE id=%s AND estado='activo'""", (id,))
+    return RedirectResponse(f"/admin/eventos?aviso=Operativo+cerrado.+Se+borraron+"
+                            f"{purgados}+teléfonos.", status_code=303)
+
+
+GRAVEDAD = {"leve": "leve", "moderada": "moderada", "grave": "grave", "critica": "crítica"}
+
+MUNICIPIOS_EV_HTML = """
+<h1>{{ e.nombre }}</h1>
+<p class="nota">Municipios y contactos · <a href="/admin/eventos">volver a eventos</a></p>
+{% if aviso %}<div class="aviso ok">{{ aviso }}</div>{% endif %}
+{% if error %}<div class="aviso alerta">{{ error }}</div>{% endif %}
+
+<div class="tarjeta">
+  <h2 style="margin-top:0">Agregar un municipio</h2>
+  <form method="post" action="/admin/eventos/municipios" style="display:grid;gap:10px;
+        grid-template-columns:repeat(auto-fit,minmax(190px,1fr));align-items:end">
+    <input type="hidden" name="id" value="{{ e.id }}">
+    <label style="margin:0;grid-column:span 2"><span>Municipio</span>
+      <input name="cod" list="lista-mun" required placeholder="Escriba y elija"></label>
+    <datalist id="lista-mun">
+      {% for cod, nom, dep in catalogo %}<option value="{{ cod }}">{{ nom }} · {{ dep }}</option>{% endfor %}
+    </datalist>
+    <label style="margin:0"><span>Gravedad</span>
+      <select name="gravedad">
+        <option value="">Sin clasificar</option>
+        <option value="leve">Leve</option><option value="moderada">Moderada</option>
+        <option value="grave">Grave</option><option value="critica">Crítica</option>
+      </select></label>
+    <label style="margin:0"><span>¿Hay brigada operando?</span>
+      <select name="abierto">
+        <option value="no">No — solo la guía</option>
+        <option value="si">Sí — abrir el formulario</option>
+      </select></label>
+    <button class="btn btn-p">Agregar</button>
+  </form>
+  <p class="nota" style="margin:10px 0 0">El formulario se abre <strong>solo donde hay
+    brigada operando</strong>. Donde no la hay el municipio igual aparece con su contacto:
+    la guía sirve ahí. Abrirlo donde nadie va a ir es un buzón sin destinatario.</p>
+</div>
+
+{% if not filas %}
+<div class="tarjeta"><p class="nota" style="margin:0">Todavía no tiene municipios. Sin al
+  menos uno con el formulario abierto, el evento no se puede activar.</p></div>
+{% endif %}
+
+{% for m in filas %}
+<div class="tarjeta">
+  <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
+    <div><strong>{{ m.municipio }}</strong> <span class="nota">· DANE {{ m.cod_dane }}</span>
+      {% if m.gravedad %}<span class="pastilla">{{ GRAVEDAD.get(m.gravedad, m.gravedad) }}</span>{% endif %}
+      <span class="pastilla {{ 'palerta' if m.abierto }}">{{ 'formulario abierto' if m.abierto else 'solo guía' }}</span>
+      {% if m.reportes %}<span class="nota">· {{ m.reportes }} reporte{{ '' if m.reportes == 1 else 's' }}</span>{% endif %}
+    </div>
+    <div style="display:flex;gap:8px">
+      <form method="post" action="/admin/eventos/municipios/abrir">
+        <input type="hidden" name="id" value="{{ e.id }}"><input type="hidden" name="cod" value="{{ m.cod_dane }}">
+        <button class="btn btn-s" name="abierto" value="{{ 'no' if m.abierto else 'si' }}"
+          >{{ 'Cerrar el formulario' if m.abierto else 'Abrir el formulario' }}</button></form>
+      {% if not m.reportes %}
+      <form method="post" action="/admin/eventos/municipios/quitar"
+            onsubmit="return confirm('¿Quitar {{ m.municipio }} de este evento?')">
+        <input type="hidden" name="id" value="{{ e.id }}"><input type="hidden" name="cod" value="{{ m.cod_dane }}">
+        <button class="btn btn-s">Quitar</button></form>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="post" action="/admin/eventos/municipios/contacto" style="display:grid;gap:10px;
+        grid-template-columns:repeat(auto-fit,minmax(170px,1fr));align-items:end;margin-top:12px">
+    <input type="hidden" name="id" value="{{ e.id }}"><input type="hidden" name="cod" value="{{ m.cod_dane }}">
+    <label style="margin:0"><span>Entidad que atiende</span>
+      <input name="entidad" value="{{ m.entidad or '' }}" maxlength="120"
+             placeholder="Gestión del Riesgo de…"></label>
+    <label style="margin:0"><span>Teléfono</span>
+      <input name="telefono" value="{{ m.telefono or '' }}" maxlength="40"></label>
+    <label style="margin:0"><span>Verificado por</span>
+      <input name="por" value="{{ m.verificado_por or quien }}" maxlength="60"></label>
+    <button class="btn btn-s">Guardar el contacto</button>
+  </form>
+  {% if m.verificado_en %}
+    <p class="nota" style="margin:8px 0 0">Publicado, verificado el {{ m.verificado_en }}.
+      La fecha se ve en la página del ciudadano.</p>
+  {% else %}
+    <p class="nota" style="margin:8px 0 0">Sin contacto publicado. La guía dirá qué buscar y
+      no a quién llamar — un número muerto en plena emergencia es peor que ninguno.</p>
+  {% endif %}
+</div>
+{% endfor %}
+"""
+
+
+def _evento(id_):
+    filas = consulta("SELECT id, nombre, estado FROM evento WHERE id = %s", (id_,))
+    if not filas:
+        raise HTTPException(404, "No existe ese evento")
+    return {"id": filas[0][0], "nombre": filas[0][1], "estado": filas[0][2]}
+
+
+def _mun_filas(id_):
+    filas = consulta("""SELECT m.cod_dane, m.municipio, m.gravedad, m.formulario_abierto,
+                               m.entidad, m.telefono, m.verificado_en, m.verificado_por,
+                               (SELECT count(*) FROM reporte_ciudadano r
+                                 WHERE r.evento = m.evento AND r.cod_dane = m.cod_dane)
+                          FROM evento_municipio m
+                         WHERE m.evento = %s ORDER BY m.municipio""", (id_,))
+    return [{"cod_dane": f[0], "municipio": f[1], "gravedad": f[2], "abierto": f[3],
+             "entidad": f[4], "telefono": f[5], "verificado_en": f[6],
+             "verificado_por": f[7], "reportes": f[8]} for f in filas]
+
+
+def _pag_mun(req, id_, aviso=None, error=None):
+    ses = exigir_admin(req)
+    idx = _muni_indice()
+    catalogo = sorted(((c, n, d) for c, (n, d) in idx.items()), key=lambda x: x[1])
+    return pagina("Municipios del evento",
+                  render(MUNICIPIOS_EV_HTML, e=_evento(id_), filas=_mun_filas(id_),
+                         catalogo=catalogo, aviso=aviso, error=error, quien=ses.usuario,
+                         GRAVEDAD=GRAVEDAD),
+                  "eventos", ses=ses)
+
+
+@router.get("/admin/eventos/municipios", response_class=HTMLResponse)
+def eventos_municipios(req: Request, id: str = "", aviso: str = "", error: str = ""):
+    return _pag_mun(req, id, aviso or None, error or None)
+
+
+@router.post("/admin/eventos/municipios", response_class=HTMLResponse)
+def eventos_municipios_alta(req: Request, id: str = Form(...), cod: str = Form(...),
+                            gravedad: str = Form(""), abierto: str = Form("no")):
+    exigir_admin(req)
+    cod = cod.strip()
+    idx = _muni_indice()
+    if cod not in idx:
+        return _pag_mun(req, id, error="Ese código DANE no está en el catálogo. Elija un "
+                                       "municipio de la lista.")
+    consulta("""INSERT INTO evento_municipio (evento, cod_dane, municipio, gravedad,
+                                              formulario_abierto)
+                VALUES (%s,%s,%s,%s,%s)
+                ON CONFLICT (evento, cod_dane) DO UPDATE
+                  SET gravedad = EXCLUDED.gravedad,
+                      formulario_abierto = EXCLUDED.formulario_abierto""",
+             (id, cod, idx[cod][0], gravedad or None, abierto == "si"))
+    return RedirectResponse(f"/admin/eventos/municipios?id={urllib.parse.quote(id)}"
+                            f"&aviso={urllib.parse.quote(idx[cod][0] + ' agregado.')}",
+                            status_code=303)
+
+
+@router.post("/admin/eventos/municipios/abrir", response_class=HTMLResponse)
+def eventos_municipios_abrir(req: Request, id: str = Form(...), cod: str = Form(...),
+                             abierto: str = Form("no")):
+    exigir_admin(req)
+    consulta("""UPDATE evento_municipio SET formulario_abierto = %s
+                 WHERE evento = %s AND cod_dane = %s""", (abierto == "si", id, cod))
+    txt = "Formulario abierto ahí." if abierto == "si" else \
+          "Formulario cerrado ahí. El municipio sigue en la guía con su contacto."
+    return RedirectResponse(f"/admin/eventos/municipios?id={urllib.parse.quote(id)}"
+                            f"&aviso={urllib.parse.quote(txt)}", status_code=303)
+
+
+@router.post("/admin/eventos/municipios/quitar", response_class=HTMLResponse)
+def eventos_municipios_quitar(req: Request, id: str = Form(...), cod: str = Form(...)):
+    exigir_admin(req)
+    # No se quita un municipio que ya tiene reportes: `reporte_ciudadano` guarda el
+    # cod_dane sin foreign key —a proposito, para que un municipio retirado no
+    # tumbe un INSERT— y borrarlo dejaria esos reportes fuera de la guia y del
+    # racimo, invisibles. Para dejar de recibir esta el boton de cerrar.
+    hay = consulta("SELECT count(*) FROM reporte_ciudadano WHERE evento=%s AND cod_dane=%s",
+                   (id, cod))
+    if hay and hay[0][0]:
+        return _pag_mun(req, id, error="Ese municipio ya tiene reportes: quitarlo los "
+                                       "dejaría invisibles. Cierre el formulario en vez "
+                                       "de quitarlo.")
+    consulta("DELETE FROM evento_municipio WHERE evento=%s AND cod_dane=%s", (id, cod))
+    return RedirectResponse(f"/admin/eventos/municipios?id={urllib.parse.quote(id)}"
+                            "&aviso=Municipio+quitado.", status_code=303)
+
+
+@router.post("/admin/eventos/municipios/contacto", response_class=HTMLResponse)
+def eventos_municipios_contacto(req: Request, id: str = Form(...), cod: str = Form(...),
+                                entidad: str = Form(""), telefono: str = Form(""),
+                                por: str = Form("")):
+    ses = exigir_admin(req)
+    entidad, telefono = entidad.strip(), telefono.strip()
+    # Todo o nada, igual que el CHECK del esquema. Guardar el contacto ES declarar
+    # que alguien lo verifico hoy: la fecha la pone el servidor y no se escribe a
+    # mano, porque su unico proposito es que quien lea la pagina pueda juzgar que
+    # tan viejo es el dato antes de marcar.
+    if bool(entidad) != bool(telefono):
+        return _pag_mun(req, id, error="El contacto va completo o no va: hacen falta la "
+                                       "entidad y el teléfono.")
+    if entidad:
+        consulta("""UPDATE evento_municipio
+                       SET entidad=%s, telefono=%s, verificado_en=current_date,
+                           verificado_por=%s
+                     WHERE evento=%s AND cod_dane=%s""",
+                 (entidad[:120], telefono[:40], (por.strip() or ses.usuario)[:60], id, cod))
+        txt = "Contacto publicado, con la fecha de hoy como verificación."
+    else:
+        consulta("""UPDATE evento_municipio
+                       SET entidad=NULL, telefono=NULL, verificado_en=NULL,
+                           verificado_por=NULL
+                     WHERE evento=%s AND cod_dane=%s""", (id, cod))
+        txt = "Contacto retirado. La guía dejará de publicar un teléfono ahí."
+    return RedirectResponse(f"/admin/eventos/municipios?id={urllib.parse.quote(id)}"
+                            f"&aviso={urllib.parse.quote(txt)}", status_code=303)
