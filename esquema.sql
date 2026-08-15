@@ -733,6 +733,12 @@ CREATE TABLE IF NOT EXISTS evento_municipio (
   cod_dane      text NOT NULL,                    -- DIVIPOLA; llave estable del municipio
   municipio     text NOT NULL,                    -- grafía del catálogo, para mostrar
   gravedad      text CHECK (gravedad IN ('leve','moderada','grave','critica')),
+  -- Estar afectado y poder reportar son dos cosas distintas. El formulario se
+  -- abre SOLO donde hay una brigada operando: abrirlo donde nadie va a ir
+  -- convierte el reporte en un buzón sin destinatario, que es el mismo problema
+  -- del evento apagado pero por municipio. Donde está cerrado el municipio
+  -- igual aparece —con su gravedad y su contacto— porque la guía sirve ahí.
+  formulario_abierto boolean NOT NULL DEFAULT false,
   -- El contacto local. Se muestra SOLO si alguien lo verificó, y con la fecha a
   -- la vista: quien lea la página tiene que poder juzgar qué tan viejo es el
   -- dato antes de marcar. Sin verificar, la guía dice qué buscar y no a quién
@@ -744,6 +750,8 @@ CREATE TABLE IF NOT EXISTS evento_municipio (
   notas         text,
   PRIMARY KEY (evento, cod_dane)
 );
+ALTER TABLE evento_municipio
+  ADD COLUMN IF NOT EXISTS formulario_abierto boolean NOT NULL DEFAULT false;
 
 -- Un contacto sin fecha de verificación no se puede mostrar, así que tampoco se
 -- puede guardar a medias: o está completo o no está.

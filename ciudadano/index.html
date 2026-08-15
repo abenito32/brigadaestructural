@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Reporte de vivienda afectada · Brigada Estructural</title>
+<meta name="description" content="Guía de qué hacer si su vivienda quedó afectada por un sismo, y registro del inmueble donde hay brigadas de ingenieros operando.">
+<!--
+  Brigada · Reporte ciudadano
+  Copyright (C) 2026 Rollout Comercio e Servicios Limitada / Andrés Benito Revollo Vélez
+  Software libre bajo GNU AGPL v3. El enlace al código fuente en el pie es parte
+  del cumplimiento del §13: no quitarlo.
+
+  Página SUELTA a propósito: sin service worker, sin manifest, sin PWA. Quien
+  reporta lo hace una vez desde su casa; no necesita que esto funcione sin señal,
+  y sin señal no podría enviar de todos modos. Un service worker acá sería una
+  caché más que invalidar y otro alcance que puede pisar el de /app/.
+
+  ES5 y sin dependencias, igual que la aplicación de campo: esto lo va a abrir
+  cualquier teléfono, incluido uno viejo y con la batería en las últimas.
+-->
+<style>
+:root{
+  --papel:#F1F5F9;--carta:#FFFFFF;--tinta:#0F172A;--tinta2:#475569;--tenue:#5E6E82;
+  --borde:#CBD5E1;--linea:#E2E8F0;--azul:#0369A1;--azul-osc:#075985;--azul-tinte:#E0F2FE;
+  --verde:#15803D;--verde-tinte:#F0FDF4;--ambar:#FACC15;--ambar-tinta:#422006;
+  --rojo:#B91C1C;--rojo-tinte:#FEF2F2;
+  --r:8px;--r-l:14px;--sombra:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--papel);color:var(--tinta);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px;line-height:1.55;-webkit-text-size-adjust:100%}
+a{color:var(--azul-osc)}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px}
+.top{background:var(--carta);border-bottom:1px solid var(--linea);padding:14px 0}
+.marca{font-weight:700;font-size:16px;text-decoration:none;color:var(--tinta)}
+.marca span{color:var(--azul)}
+h1{font-size:26px;line-height:1.25;letter-spacing:-.02em;margin:22px 0 10px}
+h2{font-size:19px;line-height:1.3;margin:26px 0 10px}
+h3{font-size:16px;margin:18px 0 6px}
+p{margin:0 0 12px}
+.bloque{background:var(--carta);border:1px solid var(--linea);border-radius:var(--r-l);
+  padding:18px;margin:14px 0;box-shadow:var(--sombra)}
+
+/* El aviso de que esto NO es una línea de emergencia. Va arriba de todo y en
+   rojo porque es lo único que, leído tarde, le cuesta tiempo a alguien que lo
+   necesita. */
+.alerta{background:var(--rojo-tinte);border:1px solid #FCA5A5;border-left:5px solid var(--rojo);
+  border-radius:var(--r);padding:15px 16px;margin:16px 0}
+.alerta strong{color:var(--rojo)}
+.aviso{background:var(--azul-tinte);border:1px solid #BAE6FD;border-left:5px solid var(--azul);
+  border-radius:var(--r);padding:14px 16px;margin:14px 0}
+.ok{background:var(--verde-tinte);border:1px solid #BBF7D0;border-left:5px solid var(--verde);
+  border-radius:var(--r);padding:14px 16px;margin:14px 0}
+.nota{font-size:14px;color:var(--tinta2)}
+.tenue{font-size:13px;color:var(--tenue)}
+ul{margin:0 0 12px;padding-left:22px}
+li{margin-bottom:6px}
+
+label{display:block;margin:14px 0 0}
+label>span{display:block;font-weight:600;font-size:15px;margin-bottom:6px}
+input[type=text],input[type=tel],select,textarea{width:100%;font:inherit;font-size:16px;
+  padding:13px 12px;border:1px solid var(--borde);border-radius:var(--r);background:var(--carta);
+  color:var(--tinta)}
+textarea{min-height:90px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:3px solid var(--azul);outline-offset:1px}
+
+/* Los tres botones de cada pregunta. Grandes: esto se toca con una mano, de pie
+   y a veces de noche. */
+.preg{border-top:1px solid var(--linea);padding-top:14px;margin-top:14px}
+.preg:first-child{border-top:0;padding-top:0;margin-top:0}
+.preg .q{font-weight:600;font-size:16px;margin-bottom:4px}
+.preg .ay{font-size:13px;color:var(--tenue);margin-bottom:9px}
+.tres{display:flex;gap:8px}
+.tres button{flex:1;font:inherit;font-size:15px;font-weight:600;padding:13px 8px;min-height:52px;
+  border:1px solid var(--borde);border-radius:var(--r);background:var(--carta);color:var(--tinta);
+  cursor:pointer}
+.tres button[aria-pressed=true]{background:var(--azul);color:#fff;border-color:var(--azul)}
+.btn{display:block;width:100%;font:inherit;font-size:17px;font-weight:600;padding:16px;
+  min-height:56px;border:1px solid var(--borde);border-radius:var(--r);background:var(--carta);
+  color:var(--tinta);cursor:pointer;margin-top:14px}
+.btn-p{background:var(--azul);color:#fff;border-color:var(--azul)}
+.btn[disabled]{opacity:.5}
+.dos{display:flex;gap:10px}
+.dos .btn{margin-top:0}
+
+.fotos{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.fotos figure{margin:0;position:relative}
+.fotos img{width:86px;height:86px;object-fit:cover;border-radius:var(--r);
+  border:1px solid var(--borde);display:block}
+.fotos button{position:absolute;top:-7px;right:-7px;width:28px;height:28px;border-radius:50%;
+  border:1px solid var(--borde);background:var(--carta);font:inherit;font-size:15px;
+  line-height:1;cursor:pointer}
+
+.folio{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;font-weight:700;
+  letter-spacing:.04em}
+.muni{display:flex;justify-content:space-between;gap:10px;align-items:baseline;
+  border-bottom:1px solid var(--linea);padding:10px 0}
+.muni:last-child{border-bottom:0}
+.pastilla{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-si{background:var(--verde-tinte);color:#14532D;border:1px solid #BBF7D0}
+.p-no{background:var(--papel);color:var(--tenue);border:1px solid var(--linea)}
+.oculto{display:none!important}
+footer{border-top:1px solid var(--linea);margin-top:30px;padding:20px 0 34px;
+  font-size:13px;color:var(--tenue);background:var(--carta)}
+footer a{color:var(--tenue)}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="wrap"><a class="marca" href="/">Brigada<span> Estructural</span></a></div></div>
+
+<div class="wrap">
+
+  <h1>Si su vivienda quedó afectada por el sismo</h1>
+
+  <!-- Primero lo que puede costarle tiempo a alguien: que esto no es el 123. -->
+  <div class="alerta">
+    <p><strong>Esto no es una línea de emergencia ni una entidad oficial.</strong></p>
+    <p style="margin-bottom:0">Si hay alguien herido o atrapado, si huele a gas o si la
+      edificación está a punto de caerse, <strong>llame a la línea de emergencias de su
+      municipio ahora</strong> y no siga leyendo. Quien declara si una vivienda se puede
+      habitar es su alcaldía, con la UNGRD, la Defensa Civil y los bomberos. Este registro
+      no reemplaza ese trámite ni lo acelera.</p>
+  </div>
+
+  <div class="bloque">
+    <h2 style="margin-top:0">Qué hacer</h2>
+    <ol>
+      <li><strong>Salga si la edificación está dañada</strong>, y no vuelva a entrar a sacar
+        cosas mientras no la revise alguien.</li>
+      <li><strong>Reporte a su alcaldía</strong> y pida una visita de inspección técnica. Ese
+        es el trámite que vale.</li>
+      <li><strong>No firme ni pague inspecciones</strong> a quien llegue a ofrecerlas de puerta
+        en puerta. Después de un sismo aparecen estafas con ese cuento.</li>
+      <li>Si en su municipio hay una brigada operando, <strong>puede registrar su inmueble
+        acá abajo</strong> para que sepan que existe y dónde queda.</li>
+    </ol>
+    <p class="nota" style="margin-bottom:0">Registrar el inmueble <strong>no es pedir una
+      visita</strong> y no le da prioridad. Es información para que una brigada de ingenieros
+      decida a dónde ir. No podemos decirle si alguien va a llegar, ni cuándo.</p>
+  </div>
+
+  <!-- ================= estado del operativo ================= -->
+  <div id="cargando" class="bloque"><p class="nota" style="margin:0">Consultando si hay algún
+    operativo activo…</p></div>
+
+  <div id="sinEvento" class="bloque oculto">
+    <h2 style="margin-top:0">No hay ningún operativo activo</h2>
+    <p style="margin-bottom:0">El registro de inmuebles se abre cuando una entidad activa una
+      brigada de evaluación después de un sismo. Mientras tanto, lo de arriba sigue siendo
+      lo que hay que hacer: su alcaldía es quien atiende.</p>
+  </div>
+
+  <div id="conEvento" class="oculto">
+    <div class="bloque">
+      <h2 style="margin-top:0" id="evNombre"></h2>
+      <p class="nota" id="evDesc"></p>
+      <p style="margin-bottom:6px"><strong>Municipios con brigada y contactos</strong></p>
+      <div id="listaMun"></div>
+    </div>
+
+    <div class="bloque" id="cajaForm">
+      <h2 style="margin-top:0">Registrar un inmueble</h2>
+
+      <label><span>1 · ¿En qué municipio está el inmueble?</span>
+        <select id="mun">
+          <option value="">Elija su municipio…</option>
+        </select>
+      </label>
+      <p class="nota" id="munNota" style="margin-top:8px"></p>
+
+      <div id="restoForm" class="oculto">
+        <label><span>2 · Dirección o cómo se llega</span>
+          <input type="text" id="dir" autocomplete="off"
+                 placeholder="Cra 5 # 12-40, o «casa verde frente a la escuela»"></label>
+        <label><span>Barrio o vereda</span>
+          <input type="text" id="bar" autocomplete="off" placeholder="Opcional, pero ayuda mucho"></label>
+        <p class="tenue">El barrio es lo que permite ver que varias casas de la misma cuadra
+          están reportando lo mismo, que es cuando se manda a alguien.</p>
+
+        <!-- El GPS NO se pide de entrada. Después de un sismo la gente evacuó: si
+             tomáramos el punto sin preguntar, quedaría registrado el albergue donde
+             está parada y no la casa dañada. -->
+        <div class="preg" style="border-top:1px solid var(--linea);padding-top:14px">
+          <div class="q">3 · ¿Está usted ahora frente al inmueble?</div>
+          <div class="ay">Si está ahí, podemos tomar el punto exacto. Si lo está llenando
+            desde otro lado, no: quedaría marcado el lugar donde está usted.</div>
+          <div class="dos">
+            <button type="button" class="btn" id="btnAqui">Sí, estoy aquí</button>
+            <button type="button" class="btn" id="btnLejos">No, desde otro lado</button>
+          </div>
+          <p class="nota" id="gpsTxt" style="margin-top:10px"></p>
+        </div>
+
+        <h3 style="margin-top:22px">4 · Qué se ve</h3>
+        <p class="tenue">Conteste lo que pueda ver sin arriesgarse. «No sé» es una respuesta
+          perfectamente válida y no perjudica su reporte.</p>
+        <div id="preguntas"></div>
+
+        <details style="margin-top:16px">
+          <summary style="cursor:pointer;font-weight:600">Agregar más detalle (opcional)</summary>
+          <div id="preguntasOpc" style="margin-top:12px"></div>
+          <label><span>¿Quiere contar algo más?</span>
+            <textarea id="relato" maxlength="2000"
+              placeholder="Lo que crea importante y no cupo arriba"></textarea></label>
+        </details>
+
+        <h3 style="margin-top:22px">5 · Fotos (opcional)</h3>
+        <div class="alerta">
+          <p style="margin-bottom:8px"><strong>No entre. Tome las fotos desde afuera</strong> si
+            pasa cualquiera de estas:</p>
+          <ul style="margin-bottom:8px">
+            <li>ya se cayó una parte del techo, del entrepiso o de una escalera</li>
+            <li>hay grietas nuevas en los muros que sostienen la casa, o un muro se ve inclinado</li>
+            <li>huele a gas, o ve cables sueltos</li>
+            <li>hay vidrios, tejas o pedazos colgando</li>
+            <li>la casa está sola y no hay quien lo acompañe</li>
+          </ul>
+          <p style="margin-bottom:8px">Si entra, que sea corto: <strong>no suba a un segundo
+            piso, no se meta debajo de lo que ya cedió, y salga si vuelve a temblar.</strong>
+            Está habiendo réplicas, y una réplica termina de bajar lo que el sismo dejó
+            vencido.</p>
+          <p style="margin-bottom:0"><strong>Ninguna foto vale una lesión.</strong> El reporte
+            sirve igual sin ellas.</p>
+        </div>
+        <p class="nota">Sirven sobre todo las de adentro cuando se pueden tomar sin riesgo: hay
+          casas a las que se les cayó el cielo raso o parte del techo y por fuera se ven bien.</p>
+        <input type="file" id="fotoIn" accept="image/*" multiple class="oculto">
+        <button type="button" class="btn" id="btnFoto">Agregar foto (hasta 3)</button>
+        <div class="fotos" id="fotos"></div>
+
+        <h3 style="margin-top:22px">6 · Cómo ubicarlo (opcional)</h3>
+        <label><span>Teléfono</span>
+          <input type="tel" id="tel" autocomplete="tel" placeholder="Opcional"></label>
+        <p class="tenue">Solo para avisarle antes de una visita. No lo usamos para nada más, no
+          se lo damos a nadie, y se borra cuando termine el operativo. Puede dejarlo en blanco:
+          su reporte vale igual.</p>
+
+        <label style="margin-top:18px;display:flex;gap:10px;align-items:flex-start">
+          <input type="checkbox" id="autoriza" style="width:22px;height:22px;flex:none;margin-top:2px">
+          <span style="font-weight:400;font-size:14px;margin:0">Autorizo el tratamiento de estos
+            datos para efectos de la evaluación de daños, conforme a la Ley 1581 de 2012. El
+            responsable es Rollout Comercio e Servicios Limitada. La dirección y el punto no se
+            publican: lo que se entrega a autoridades va agregado por sector.</span>
+        </label>
+
+        <button type="button" class="btn btn-p" id="btnEnviar">Registrar el inmueble</button>
+        <p class="nota" id="envioTxt"></p>
+      </div>
+    </div>
+
+    <div class="bloque oculto" id="cajaGracias">
+      <div class="ok">
+        <p style="margin-bottom:6px"><strong>Su reporte quedó registrado.</strong></p>
+        <p style="margin-bottom:0">Número: <span class="folio" id="folioTxt"></span></p>
+      </div>
+      <p>Anótelo o tome una captura de pantalla. Sirve para referirse a este reporte si habla
+        con la brigada.</p>
+      <p><strong>No podemos decirle si alguien va a ir, ni cuándo.</strong> Su reporte entra a
+        una lista que revisan ingenieros para decidir a dónde mandar una brigada. Si necesita
+        que declaren su vivienda habitable o no, eso lo hace su alcaldía y sigue siendo el
+        trámite que vale.</p>
+      <button type="button" class="btn" id="btnOtro">Registrar otro inmueble</button>
+    </div>
+  </div>
+</div>
+
+<footer><div class="wrap">
+  <p style="margin-bottom:6px">Brigada Estructural · Rollout Comercio e Servicios Limitada</p>
+  <p style="margin-bottom:6px">Herramienta de triaje preliminar. No sustituye el concepto de la
+    autoridad competente.</p>
+  <p style="margin:0"><a href="https://github.com/abenito32/brigadaestructural" rel="noopener">Código
+    fuente</a> · <a href="https://www.gnu.org/licenses/agpl-3.0.html" rel="license noopener">AGPL
+    v3</a> · <a href="/">brigadaestructural.co</a></p>
+</div></footer>
+
+<script>
+(function(){
+"use strict";
+
+/* Las siete que deciden algo. Tres escalan el reporte, dos arman el patrón de
+   cuadra y dos dan contexto. Cada pregunta de más es gente que abandona el
+   formulario a la mitad, y quien llena esto está asustado. */
+var PREGUNTAS = [
+  ["colapso",       "¿Se cayó alguna parte de la construcción?",
+                    "Techo, cielo raso, un muro, una escalera, un balcón."],
+  ["inclinacion",   "¿La casa o el edificio se ve inclinado?",
+                    "Comparado con los postes o con las casas vecinas."],
+  ["gas",           "¿Huele a gas?",
+                    "Si huele a gas, salga y llame a emergencias antes de seguir."],
+  ["puertas",       "¿Alguna puerta o ventana dejó de cerrar?",
+                    "Que ahora se trabe o no encaje, y antes cerraba bien."],
+  ["grietas_nuevas","¿Aparecieron grietas nuevas?",
+                    "Nuevas, de este sismo. Las que ya estaban antes no cuentan."],
+  ["pisos",         "¿La construcción tiene más de un piso?", ""],
+  ["antiguedad",    "¿Tiene más de treinta años?",
+                    "Si no sabe, responda «No sé»: es muy común."]
+];
+var OPCIONALES = [
+  ["escaleras", "¿Las escaleras se ven dañadas?", ""],
+  ["fachada",   "¿Se cayeron pedazos de la fachada a la calle?", ""],
+  ["agua",      "¿Hay agua entrando o tuberías rotas?", ""],
+  ["vecinos",   "¿Las casas vecinas se ven igual de afectadas?", ""]
+];
+var MAX_FOTOS = 3;
+
+var evento = null, municipios = [], respuestas = {}, fotos = [], punto = null, enSitio = false;
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+
+/* ---------------- estado del operativo ---------------- */
+function cargar(){
+  var x = new XMLHttpRequest();
+  x.open("GET", "/api/evento", true);
+  x.onload = function(){
+    $("cargando").classList.add("oculto");
+    var d = null;
+    try { d = JSON.parse(x.responseText); } catch(e){}
+    if(!d || !d.activo){ $("sinEvento").classList.remove("oculto"); return; }
+    evento = d.evento; municipios = d.municipios || [];
+    pintarEvento();
+  };
+  x.onerror = function(){
+    $("cargando").classList.add("oculto");
+    $("sinEvento").classList.remove("oculto");
+  };
+  x.send();
+}
+
+function pintarEvento(){
+  $("conEvento").classList.remove("oculto");
+  $("evNombre").textContent = evento.nombre;
+  $("evDesc").textContent = evento.descripcion || "";
+
+  var cont = $("listaMun"); cont.innerHTML = "";
+  var sel = $("mun"), abiertos = 0;
+  for(var i=0;i<municipios.length;i++){
+    var m = municipios[i];
+    if(m.formulario) abiertos++;
+    var d = document.createElement("div");
+    d.className = "muni";
+    var izq = '<div><strong>' + esc(m.municipio) + '</strong>';
+    if(m.contacto){
+      /* El contacto local viaja solo si alguien lo verificó, y la fecha se
+         MUESTRA: quien lea tiene que poder juzgar qué tan viejo es el dato
+         antes de marcar. */
+      izq += '<div class="nota">' + esc(m.contacto.entidad) + ' · ' +
+             '<a href="tel:' + esc(m.contacto.telefono.replace(/[^0-9+]/g,"")) + '">' +
+             esc(m.contacto.telefono) + '</a></div>' +
+             '<div class="tenue">Verificado el ' + esc(m.contacto.verificado_en) + '</div>';
+    }else{
+      izq += '<div class="tenue">Busque «gestión del riesgo» o «alcaldía de ' +
+             esc(m.municipio) + '». No publicamos un teléfono que no hayamos confirmado.</div>';
+    }
+    izq += '</div>';
+    d.innerHTML = izq + '<span class="pastilla ' + (m.formulario ? 'p-si' : 'p-no') + '">' +
+                  (m.formulario ? 'Brigada operando' : 'Sin brigada') + '</span>';
+    cont.appendChild(d);
+
+    if(m.formulario){
+      var o = document.createElement("option");
+      o.value = m.cod_dane; o.textContent = m.municipio;
+      sel.appendChild(o);
+    }
+  }
+  var otro = document.createElement("option");
+  otro.value = "__otro__"; otro.textContent = "Mi municipio no está en la lista";
+  sel.appendChild(otro);
+
+  if(!abiertos){
+    $("cajaForm").classList.add("oculto");
+  }
+  pintarPreguntas($("preguntas"), PREGUNTAS);
+  pintarPreguntas($("preguntasOpc"), OPCIONALES);
+}
+
+$("mun").onchange = function(){
+  var v = this.value;
+  var nota = $("munNota");
+  if(v === "__otro__"){
+    $("restoForm").classList.add("oculto");
+    nota.innerHTML = "<strong>Todavía no hay ninguna brigada operando en su municipio.</strong> " +
+      "Registrarlo acá no serviría de nada: nadie lo estaría leyendo. Repórtelo a su alcaldía, " +
+      "que es quien atiende, y vuelva a mirar esta página más adelante.";
+    return;
+  }
+  nota.textContent = "";
+  $("restoForm").classList.toggle("oculto", !v);
+};
+
+/* ---------------- preguntas ---------------- */
+function pintarPreguntas(destino, lista){
+  destino.innerHTML = "";
+  for(var i=0;i<lista.length;i++) destino.appendChild(unaPregunta(lista[i]));
+}
+
+function unaPregunta(p){
+  var clave = p[0];
+  var d = document.createElement("div");
+  d.className = "preg";
+  var h = '<div class="q">' + esc(p[1]) + '</div>';
+  if(p[2]) h += '<div class="ay">' + esc(p[2]) + '</div>';
+  d.innerHTML = h;
+  var fila = document.createElement("div");
+  fila.className = "tres";
+  var ops = [["si","Sí"],["no","No"],["nose","No sé"]];
+  for(var i=0;i<ops.length;i++){
+    (function(valor, rotulo){
+      var b = document.createElement("button");
+      b.type = "button"; b.textContent = rotulo;
+      b.setAttribute("aria-pressed","false");
+      b.onclick = function(){
+        respuestas[clave] = valor;
+        var hs = fila.getElementsByTagName("button");
+        for(var j=0;j<hs.length;j++) hs[j].setAttribute("aria-pressed","false");
+        b.setAttribute("aria-pressed","true");
+      };
+      fila.appendChild(b);
+    })(ops[i][0], ops[i][1]);
+  }
+  d.appendChild(fila);
+  return d;
+}
+
+/* ---------------- ubicación ---------------- */
+$("btnAqui").onclick = function(){
+  enSitio = true;
+  var t = $("gpsTxt");
+  if(!navigator.geolocation){ t.textContent = "Este teléfono no puede tomar el punto. No importa: la dirección alcanza."; return; }
+  t.textContent = "Tomando el punto…";
+  navigator.geolocation.getCurrentPosition(function(pos){
+    punto = {lat: pos.coords.latitude, lon: pos.coords.longitude,
+             acc: Math.round(pos.coords.accuracy || 0)};
+    t.textContent = "Punto tomado (precisión " + punto.acc + " m).";
+  }, function(){
+    punto = null;
+    t.textContent = "No se pudo tomar el punto, y no pasa nada: la dirección alcanza.";
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:0});
+};
+$("btnLejos").onclick = function(){
+  enSitio = false; punto = null;
+  $("gpsTxt").textContent = "Está bien. No tomamos el punto: marcaría dónde está usted ahora, " +
+    "no dónde está el inmueble.";
+};
+
+/* ---------------- fotos ---------------- */
+$("btnFoto").onclick = function(){ $("fotoIn").click(); };
+$("fotoIn").onchange = function(){
+  var archivos = this.files || [];
+  for(var i=0;i<archivos.length && fotos.length < MAX_FOTOS;i++) reducir(archivos[i]);
+  this.value = "";
+};
+
+/* Se reduce en el teléfono antes de subir, igual que en la aplicación de campo:
+   una foto de celular son varios megas y esto se manda con la red de después de
+   un sismo, que es la peor red que va a ver esta persona en su vida. */
+function reducir(archivo){
+  var lector = new FileReader();
+  lector.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var max = 1280, w = img.width, h = img.height;
+      if(w > max || h > max){ if(w > h){ h = Math.round(h*max/w); w = max; }
+                              else { w = Math.round(w*max/h); h = max; } }
+      var c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      if(fotos.length >= MAX_FOTOS) return;
+      fotos.push(c.toDataURL("image/jpeg", 0.72));
+      pintarFotos();
+    };
+    img.onerror = function(){ aviso("Esa imagen no se pudo leer."); };
+    img.src = e.target.result;
+  };
+  lector.onerror = function(){ aviso("No se pudo leer el archivo."); };
+  lector.readAsDataURL(archivo);
+}
+
+function pintarFotos(){
+  var c = $("fotos"); c.innerHTML = "";
+  for(var i=0;i<fotos.length;i++){
+    (function(idx){
+      var f = document.createElement("figure");
+      var im = document.createElement("img"); im.src = fotos[idx]; im.alt = "Foto " + (idx+1);
+      var b = document.createElement("button");
+      b.type = "button"; b.textContent = "×"; b.title = "Quitar";
+      b.onclick = function(){ fotos.splice(idx,1); pintarFotos(); };
+      f.appendChild(im); f.appendChild(b); c.appendChild(f);
+    })(i);
+  }
+  $("btnFoto").textContent = fotos.length >= MAX_FOTOS
+    ? "Ya agregó 3 fotos" : "Agregar foto (hasta " + MAX_FOTOS + ")";
+  $("btnFoto").disabled = fotos.length >= MAX_FOTOS;
+}
+
+function aviso(t){ $("envioTxt").textContent = t; }
+
+/* ---------------- envío ---------------- */
+$("btnEnviar").onclick = function(){
+  var cod = $("mun").value, dir = $("dir").value.replace(/^\s+|\s+$/g,"");
+  if(!cod || cod === "__otro__"){ aviso("Elija el municipio."); return; }
+  if(!dir){ aviso("Escriba la dirección o cómo se llega al inmueble."); $("dir").focus(); return; }
+  var contestadas = 0, k;
+  for(k in respuestas) if(respuestas.hasOwnProperty(k)) contestadas++;
+  if(!contestadas){ aviso("Conteste al menos una de las preguntas de «Qué se ve»."); return; }
+  if(!$("autoriza").checked){ aviso("Falta autorizar el tratamiento de los datos."); return; }
+
+  var cuerpo = {
+    cod_dane: cod,
+    direccion: dir,
+    barrio: $("bar").value.replace(/^\s+|\s+$/g,""),
+    respuestas: respuestas,
+    relato: $("relato").value.replace(/^\s+|\s+$/g,""),
+    telefono: $("tel").value.replace(/^\s+|\s+$/g,""),
+    en_sitio: !!(enSitio && punto),
+    lat: punto ? punto.lat : null,
+    lon: punto ? punto.lon : null,
+    precision_m: punto ? punto.acc : null,
+    fotos: fotos,
+    autoriza: true
+  };
+
+  var b = $("btnEnviar");
+  b.disabled = true; aviso("Enviando…");
+  var x = new XMLHttpRequest();
+  x.open("POST", "/api/reportes", true);
+  x.setRequestHeader("Content-Type", "application/json");
+  x.onload = function(){
+    b.disabled = false;
+    var d = null;
+    try { d = JSON.parse(x.responseText); } catch(e){}
+    if(x.status === 200 && d && d.folio){
+      $("cajaForm").classList.add("oculto");
+      $("cajaGracias").classList.remove("oculto");
+      $("folioTxt").textContent = d.folio;
+      window.scrollTo(0,0);
+      return;
+    }
+    /* El detalle del servidor se muestra tal cual cuando lo hay: son mensajes
+       escritos para una persona («en ese municipio no hay operativo»), no
+       códigos internos. */
+    aviso((d && d.detail) ? d.detail
+          : "No se pudo enviar. Revise la señal e intente de nuevo; su información sigue acá.");
+  };
+  x.onerror = function(){
+    b.disabled = false;
+    aviso("No se pudo enviar. Revise la señal e intente de nuevo; su información sigue acá.");
+  };
+  x.send(JSON.stringify(cuerpo));
+};
+
+$("btnOtro").onclick = function(){
+  respuestas = {}; fotos = []; punto = null; enSitio = false;
+  $("dir").value = ""; $("bar").value = ""; $("relato").value = "";
+  $("tel").value = ""; $("autoriza").checked = false;
+  $("mun").value = ""; $("restoForm").classList.add("oculto");
+  $("gpsTxt").textContent = ""; $("envioTxt").textContent = "";
+  pintarFotos(); pintarPreguntas($("preguntas"), PREGUNTAS);
+  pintarPreguntas($("preguntasOpc"), OPCIONALES);
+  $("cajaGracias").classList.add("oculto");
+  $("cajaForm").classList.remove("oculto");
+  window.scrollTo(0,0);
+};
+
+cargar();
+})();
+</script>
+</body>
+</html>

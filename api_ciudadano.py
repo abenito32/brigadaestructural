@@ -226,12 +226,16 @@ def evento():
             if not ev:
                 return {"activo": False}
             cur.execute("""SELECT cod_dane, municipio, gravedad,
-                                  entidad, telefono, verificado_en
+                                  entidad, telefono, verificado_en, formulario_abierto
                              FROM evento_municipio
                             WHERE evento = %s
                             ORDER BY municipio""", (ev[0],))
             municipios = [{
                 "cod_dane": f[0], "municipio": f[1], "gravedad": f[2],
+                # Afectado y "acá se puede reportar" son cosas distintas. El
+                # municipio sale en la lista igual —la guia y el contacto sirven
+                # ahi— pero el formulario solo aparece donde hay brigada.
+                "formulario": f[6],
                 # El contacto local viaja SOLO si esta verificado, y con la fecha:
                 # quien lea la pagina tiene que poder juzgar que tan viejo es el
                 # dato antes de marcar. El esquema ya impide guardarlo a medias.
@@ -316,8 +320,13 @@ def recibir(rep: Reporte, req: Request):
                 raise HTTPException(409, "No hay ningún operativo activo en este momento")
             evento_id, cupo_mb, usados = ev[0], ev[4], ev[5]
 
+            # `formulario_abierto` se comprueba EN EL SERVIDOR y no solo
+            # escondiendo el formulario en la pagina: esconder un control no es
+            # una defensa, y acá lo que evita es una cola de reportes de un
+            # municipio al que no va a ir nadie.
             cur.execute("""SELECT municipio FROM evento_municipio
-                            WHERE evento = %s AND cod_dane = %s""", (evento_id, cod_dane))
+                            WHERE evento = %s AND cod_dane = %s
+                              AND formulario_abierto""", (evento_id, cod_dane))
             fila = cur.fetchone()
             if not fila:
                 raise HTTPException(409, "En ese municipio no hay ningún operativo activo")
