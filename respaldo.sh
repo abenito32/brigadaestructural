@@ -92,8 +92,20 @@ BYTES_BASE=$(stat -c%s "$BASE")
 # ---------------------------------------------------------------------- fotos
 FOTOS="$DESTINO/fotos-$FECHA.tar.gz"
 BYTES_FOTOS=0
-if [ -d /var/lib/brigadas/fotos ]; then
-  if ! tar czf "$FOTOS" -C /var/lib/brigadas fotos; then
+# Los dos directorios en el mismo paquete: las de las evaluaciones firmadas y las
+# del reporte ciudadano, que viven aparte a propósito pero se pierden igual. El
+# dump ya se lleva los reportes —son filas—, pero las imágenes son archivos y
+# nadie las va a volver a subir: quien las tomó lo hizo una vez.
+# Se listan solo los que existen: una instalación sin el módulo ciudadano no
+# tiene el segundo, y `tar` con un directorio inexistente aborta el respaldo
+# entero —o sea que agregar esto a ciegas dejaría a todos sin copia—.
+DIRS_FOTOS=""
+[ -d /var/lib/brigadas/fotos ] && DIRS_FOTOS="fotos"
+[ -d /var/lib/brigadas/fotos-ciudadano ] && DIRS_FOTOS="$DIRS_FOTOS fotos-ciudadano"
+if [ -n "$DIRS_FOTOS" ]; then
+  # Sin comillas a propósito: son uno o dos argumentos, no una sola ruta.
+  # shellcheck disable=SC2086
+  if ! tar czf "$FOTOS" -C /var/lib/brigadas $DIRS_FOTOS; then
     rm -f "$FOTOS"; abortar "falló el empaquetado de fotos"
   fi
   if [ -n "$CLAVE" ]; then
